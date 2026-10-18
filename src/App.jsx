@@ -1,119 +1,65 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header.jsx';
-import HeroDownloader from './components/HeroDownloader.jsx';
-import MediaResultCard from './components/MediaResultCard.jsx';
-import TopChannelsSection from './components/TopChannelsSection.jsx';
-import SupportedPlatforms from './components/SupportedPlatforms.jsx';
-import HowItWorks from './components/HowItWorks.jsx';
-import Faq from './components/Faq.jsx';
 import Footer from './components/Footer.jsx';
+import HomePage from './pages/HomePage.jsx';
+import ToolPage from './pages/ToolPage.jsx';
+import TopChannelsPage from './pages/TopChannelsPage.jsx';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
+import TermsPage from './pages/TermsPage.jsx';
+import ContactPage from './pages/ContactPage.jsx';
+import { pagesConfig } from './data/pagesConfig.js';
+
+// Auto scroll to top on navigation
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
 
 export default function App() {
-  const [url, setUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [mediaData, setMediaData] = useState(null);
-
-  // Categories & Subfeatures State
-  const [activeCategory, setActiveCategory] = useState('youtube');
-  const [activeSubfeature, setActiveSubfeature] = useState('all');
-  const [topChannelsFilter, setTopChannelsFilter] = useState(null);
-
-  async function handlePaste() {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        setUrl(text.trim());
-      }
-    } catch (e) {
-      setError('Please allow clipboard permission to paste directly.');
-    }
-  }
-
-  function handleSelectCategory(cat, subfeature = 'all') {
-    setActiveCategory(cat);
-    setActiveSubfeature(subfeature);
-  }
-
-  function handleSelectTopChannelsFilter(filter) {
-    setTopChannelsFilter(filter);
-  }
-
-  function handleResetTopChannelsFilter() {
-    setTopChannelsFilter(null);
-  }
-
-  async function fetchMedia() {
-    if (!url.trim()) {
-      setError('Please enter a valid video, shorts, or audio URL.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setMediaData(null);
-
-    try {
-      const res = await fetch('https://anydownloader-backend-vvbj.onrender.com/api/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() })
-      });
-
-      const json = await res.json();
-      if (json.success && json.data) {
-        setMediaData(json.data);
-      } else {
-        setError(json.error || 'Could not extract media. Please check the URL and try again.');
-      }
-    } catch (e) {
-      setError('Network connection error. Ensure the Python extraction engine is running.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans selection:bg-rose-500 selection:text-white">
-      {/* Header with Multi-Categories & Mega-Menu */}
-      <Header
-        onSelectCategory={handleSelectCategory}
-        onSelectTopChannelsFilter={handleSelectTopChannelsFilter}
-      />
+    <BrowserRouter>
+      <ScrollToTop />
+      <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans selection:bg-rose-500 selection:text-white">
+        <Header />
 
-      <main className="flex-1">
-        {/* Hero Downloader with dynamic YouTube suite */}
-        <HeroDownloader
-          url={url}
-          setUrl={setUrl}
-          onFetch={fetchMedia}
-          loading={loading}
-          error={error}
-          onPaste={handlePaste}
-          activeCategory={activeCategory}
-          onSelectCategory={handleSelectCategory}
-          activeSubfeature={activeSubfeature}
-          onSelectSubfeature={setActiveSubfeature}
-        />
+        <main className="flex-1">
+          <Routes>
+            {/* Home */}
+            <Route path="/" element={<HomePage />} />
 
-        {/* Media Results: Video, Audio, Thumbnails, Transcript, Subtitles */}
-        {mediaData && (
-          <MediaResultCard data={mediaData} />
-        )}
+            {/* YouTube Suite Pages */}
+            <Route path="/youtube-video-downloader" element={<ToolPage config={pagesConfig['youtube-video-downloader']} />} />
+            <Route path="/youtube-mp4" element={<ToolPage config={pagesConfig['youtube-mp4']} />} />
+            <Route path="/youtube-shorts" element={<ToolPage config={pagesConfig['youtube-shorts']} />} />
+            <Route path="/youtube-mp3" element={<ToolPage config={pagesConfig['youtube-mp3']} />} />
+            <Route path="/youtube-transcript" element={<ToolPage config={pagesConfig['youtube-transcript']} />} />
+            <Route path="/youtube-subtitles" element={<ToolPage config={pagesConfig['youtube-subtitles']} />} />
+            <Route path="/youtube-thumbnail" element={<ToolPage config={pagesConfig['youtube-thumbnail']} />} />
 
-        {/* Top 100 YouTube Channels Section (Refreshed every 12 hours) */}
-        <TopChannelsSection
-          activeFilter={topChannelsFilter}
-          onResetFilter={handleResetTopChannelsFilter}
-        />
+            {/* Top 100 YouTube Channels Dedicated Database Page */}
+            <Route path="/top-100-youtube-channels" element={<TopChannelsPage />} />
 
-        {/* Other Sections */}
-        <SupportedPlatforms />
-        <HowItWorks />
-        <Faq />
-      </main>
+            {/* Other Supported Platform Pages */}
+            <Route path="/facebook-video-downloader" element={<ToolPage config={pagesConfig['facebook-video-downloader']} />} />
+            <Route path="/instagram-downloader" element={<ToolPage config={pagesConfig['instagram-downloader']} />} />
+            <Route path="/tiktok-downloader" element={<ToolPage config={pagesConfig['tiktok-downloader']} />} />
 
-      <Footer />
-    </div>
+            {/* Mandatory Google AdSense Legal & Policy Pages */}
+            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+            <Route path="/terms-of-service" element={<TermsPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+
+            {/* Fallback */}
+            <Route path="*" element={<HomePage />} />
+          </Routes>
+        </main>
+
+        <Footer />
+      </div>
+    </BrowserRouter>
   );
 }
