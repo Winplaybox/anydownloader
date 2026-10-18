@@ -13,7 +13,36 @@ from starlette.applications import Starlette
 from starlette.responses import JSONResponse, StreamingResponse, Response
 from starlette.routing import Route
 from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
+
+# Security & Origin Configuration
+ALLOWED_ORIGINS = [
+    o.strip() for o in os.environ.get(
+        "ALLOWED_ORIGINS",
+        "https://ovd.winplaybox.in,https://winplaybox.in,http://localhost:5173,http://localhost:3000"
+    ).split(",") if o.strip()
+]
+EXTENSION_SECRET_KEY = os.environ.get("EXTENSION_SECRET_KEY", "wpb_ext_9f83e2a74c1048b9ad51f63cb7e90812")
+ALLOWED_EXTENSION_IDS = [
+    ext_id.strip() for ext_id in os.environ.get("ALLOWED_EXTENSION_IDS", "").split(",") if ext_id.strip()
+]
+
+# Strict Whitelist for /api/stream proxy to prevent SSRF and open proxy abuse
+ALLOWED_CDN_DOMAINS = [
+    r".*\.googlevideo\.com$",
+    r".*\.youtube\.com$",
+    r".*\.cdninstagram\.com$",
+    r".*\.fbcdn\.net$",
+    r".*\.tiktokcdn\.com$",
+    r".*\.tiktokcdn-us\.com$",
+    r".*\.twimg\.com$",
+    r".*\.pinimg\.com$",
+    r".*\.vimeocdn\.com$",
+    r".*\.sndcdn\.com$",
+    r".*\.redd\.it$",
+    r".*\.reddit\.com$",
+]
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -33,6 +62,22 @@ def find_node_path() -> Optional[str]:
     return None
 
 NODE_EXE = find_node_path()
+
+def is_safe_cdn_url(target_url: str) -> bool:
+    """Validates target URL against permitted media CDN domains to prevent SSRF."""
+    try:
+        parsed = urllib.parse.urlparse(target_url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            return False
+        hostname = parsed.netloc.split(":")[0].lower()
+        if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254"):
+            return False
+        for pattern in ALLOWED_CDN_DOMAINS:
+            if re.match(pattern, hostname):
+                return True
+        return False
+    except Exception:
+        return False
 
 def format_duration(seconds: Optional[int]) -> str:
     if not seconds:
@@ -247,7 +292,7 @@ async def extract_handler(request):
         return JSONResponse({"success": True, "data": media_info})
     except Exception as e:
         error_msg = str(e)
-        if "Sign in to confirm you’re not a bot" in error_msg:
+        if "Sign in to confirm you're not a bot" in error_msg:
             error_msg = "YouTube requested verification for this video. Try another link or video format."
         elif "Private video" in error_msg:
             error_msg = "This video is private or restricted by the author."
@@ -260,6 +305,9 @@ async def stream_download_handler(request):
 
     if not target_url:
         return Response("Missing target stream url", status_code=400)
+
+    if not is_safe_cdn_url(target_url):
+        return Response("Target host not permitted for streaming proxy", status_code=400)
 
     client_headers = {
         "User-Agent": USER_AGENT,
@@ -278,7 +326,7 @@ async def stream_download_handler(request):
             await client.aclose()
 
     headers = {
-        "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8\'\'{safe_filename}',
+        "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8''{safe_filename}',
         "Content-Type": "application/octet-stream"
     }
 
@@ -292,22 +340,68 @@ async def health_handler(request):
         "node_exe": NODE_EXE
     })
 
+class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
+    """
+    Ensures ONLY your authorized website (via Origin/Referer) 
+    or your browser extension (via X-Extension-Key or chrome-extension origin) 
+    can invoke the API endpoints.
+    """
+    async def dispatch(self, request, call_next):
+        # 1. Allow preflight OPTIONS requests for CORS
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        # 2. Allow public health check endpoints
+        if request.url.path in ("/", "/health", "/api/health"):
+            return await call_next(request)
+
+        # 3. Verify origin, referer, or extension secret key
+        origin = request.headers.get("origin", "")
+        referer = request.headers.get("referer", "")
+        ext_key = request.headers.get("x-extension-key", "")
+
+        # A. Browser Extension Key check
+        if ext_key and ext_key == EXTENSION_SECRET_KEY:
+            return await call_next(request)
+
+        # B. Browser Extension Origin check
+        if ALLOWED_EXTENSION_IDS:
+            if any(origin == f"chrome-extension://{ext_id}" or origin == f"moz-extension://{ext_id}" for ext_id in ALLOWED_EXTENSION_IDS):
+                return await call_next(request)
+        elif origin.startswith("chrome-extension://") or origin.startswith("moz-extension://"):
+            return await call_next(request)
+
+        # C. Website Origin or Referer check
+        origin_match = any(origin.startswith(ao) for ao in ALLOWED_ORIGINS)
+        referer_match = any(referer.startswith(ao) for ao in ALLOWED_ORIGINS)
+
+        if origin_match or referer_match:
+            return await call_next(request)
+
+        return JSONResponse(
+            {"success": False, "error": "Access denied: Unauthorized origin or missing extension authentication."},
+            status_code=403
+        )
+
 routes = [
+    Route("/", health_handler, methods=["GET"]),
+    Route("/health", health_handler, methods=["GET"]),
     Route("/api/extract", extract_handler, methods=["POST"]),
     Route("/api/stream", stream_download_handler, methods=["GET"]),
     Route("/api/health", health_handler, methods=["GET"])
 ]
 
 middleware = [
+    Middleware(ClientAccessAuthMiddleware),
     Middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"]
     )
 ]
 
-app = Starlette(debug=True, routes=routes, middleware=middleware)
+app = Starlette(debug=False, routes=routes, middleware=middleware)
 
 if __name__ == "__main__":
     import uvicorn
