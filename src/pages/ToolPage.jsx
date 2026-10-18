@@ -32,12 +32,14 @@ export default function ToolPage({ config }) {
     }
   }
 
-  async function fetchMedia() {
-    if (!url.trim()) {
+  async function fetchMedia(overrideUrl) {
+    const targetUrl = (typeof overrideUrl === 'string' && overrideUrl.trim()) ? overrideUrl.trim() : url.trim();
+    if (!targetUrl) {
       setError('Please enter a valid URL.');
       return;
     }
 
+    if (overrideUrl) setUrl(overrideUrl);
     setLoading(true);
     setError('');
     setMediaData(null);
@@ -46,7 +48,7 @@ export default function ToolPage({ config }) {
       const res = await fetch('https://anydownloader-backend-vvbj.onrender.com/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() })
+        body: JSON.stringify({ url: targetUrl })
       });
 
       const json = await res.json();
@@ -80,6 +82,7 @@ export default function ToolPage({ config }) {
       {mediaData && (
         <MediaResultCard 
           data={mediaData} 
+          onSelectVideo={(vUrl) => fetchMedia(vUrl)}
           initialTab={
             config.subfeature === 'mp3' ? 'audio' :
             config.subfeature === 'transcript' ? 'transcript' :

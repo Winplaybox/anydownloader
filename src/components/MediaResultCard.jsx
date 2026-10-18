@@ -22,7 +22,7 @@ import {
 
 const BACKEND_BASE = 'https://anydownloader-backend-vvbj.onrender.com';
 
-export default function MediaResultCard({ data, initialTab = 'video' }) {
+export default function MediaResultCard({ data, initialTab = 'video', onSelectVideo }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [copiedShare, setCopiedShare] = useState(false);
   const [copiedTranscript, setCopiedTranscript] = useState(false);
@@ -335,6 +335,60 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
             </div>
           </div>
         </div>
+
+        {/* Channel & Profile Link Notice */}
+        {data.is_channel && (
+          <div className="my-6 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/30">
+            <div className="flex items-center gap-2 mb-2 font-bold text-rose-400 text-sm">
+              <Sparkles className="w-4 h-4" />
+              <span>YouTube Channel Detected: {data.uploader || data.title}</span>
+            </div>
+            <p className="text-xs text-slate-300 mb-4 leading-relaxed">
+              You entered a YouTube Channel link. You can download the channel artwork below, or click any of their recent uploads to extract full 1080p MP4 or 320kbps MP3 audio immediately:
+            </p>
+
+            {data.recent_videos && data.recent_videos.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {data.recent_videos.map((vid) => (
+                  <div
+                    key={vid.id}
+                    className="p-3 rounded-xl bg-slate-950/90 border border-slate-800 hover:border-slate-700 flex gap-3 items-center group transition"
+                  >
+                    <img src={vid.thumbnail} alt={vid.title} className="w-20 h-14 object-cover rounded-lg shrink-0 border border-slate-800" />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-bold text-white line-clamp-1 mb-1.5" title={vid.title}>
+                        {vid.title}
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => onSelectVideo && onSelectVideo(vid.url)}
+                        className="text-[11px] font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer transition"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Download This Video</span> &rarr;
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {data.is_post_or_profile && (
+          <div className="my-6 p-5 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-xs">
+            <div className="flex items-center gap-2 mb-2 font-bold text-blue-400 text-sm">
+              <User className="w-4 h-4" />
+              <span>Facebook Page / Profile Link Detected</span>
+            </div>
+            <p className="text-slate-300 leading-relaxed mb-3">
+              We extracted <strong>{data.title}</strong>'s high-resolution profile and cover media. You can download the full-resolution artwork in the <strong>Cover & Photos</strong> tab below.
+            </p>
+            <p className="text-slate-400 text-[11px]">
+              💡 <em>To download specific Facebook videos or reels, copy the direct link of any individual video or reel (e.g. <code>facebook.com/share/r/...</code>).</em>
+            </p>
+          </div>
+        )}
 
         {/* Dynamic Platform Tab Controls */}
         <div className="flex items-center gap-1.5 my-6 p-1 rounded-2xl bg-slate-950 border border-slate-800 overflow-x-auto max-w-full">

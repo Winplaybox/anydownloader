@@ -271,6 +271,87 @@ def extract_youtube_fallback(url: str, video_id: str):
 
 
 
+def extract_youtube_channel(url: str):
+    """Extract YouTube Channel info and latest uploads when user pastes a channel link."""
+    clean_url = url.split('?')[0].rstrip('/')
+    if not clean_url.endswith('/videos'):
+        videos_url = clean_url + '/videos'
+    else:
+        videos_url = clean_url
+
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': True,
+        'playlist_items': '1-6',
+        'skip_download': True
+    }
+
+    title = "YouTube Channel"
+    uploader = "Creator"
+    recent_videos = []
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(videos_url, download=False)
+            
+        raw_title = info.get('title') or ""
+        title = re.sub(r'\s*-\s*Videos$', '', raw_title).strip() or "YouTube Channel"
+        uploader = info.get('uploader') or info.get('channel') or title
+        
+        entries = info.get('entries') or []
+        for e in entries:
+            vid_id = e.get('id')
+            if vid_id and len(vid_id) == 11:
+                recent_videos.append({
+                    "id": vid_id,
+                    "title": e.get('title') or "YouTube Video",
+                    "url": f"https://www.youtube.com/watch?v={vid_id}",
+                    "thumbnail": f"https://i.ytimg.com/vi/{vid_id}/hqdefault.jpg"
+                })
+    except Exception as e:
+        # Fallback via oembed
+        try:
+            oembed_url = f"https://www.youtube.com/oembed?url={urllib.parse.quote(clean_url)}&format=json"
+            req = urllib.request.Request(oembed_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                oed = json.loads(r.read().decode('utf-8'))
+                title = oed.get("title") or title
+                uploader = oed.get("author_name") or uploader
+        except Exception:
+            pass
+
+    first_thumb = recent_videos[0]["thumbnail"] if recent_videos else "https://www.youtube.com/img/desktop/yt_1200.png"
+    thumbnails_list = []
+    if first_thumb:
+        thumbnails_list.append({
+            "quality": "Channel Featured Media",
+            "resolution": "High Quality (HQ)",
+            "label": "Latest Video Thumbnail",
+            "url": first_thumb,
+            "stream_url": f"/api/stream?url={urllib.parse.quote(first_thumb)}&filename={urllib.parse.quote(f'{title}_cover.jpg')}"
+        })
+
+    return {
+        "platform": "youtube",
+        "id": "channel",
+        "title": f"{title} (Official YouTube Channel)",
+        "thumbnail": first_thumb,
+        "duration": None,
+        "uploader": uploader,
+        "views": f"{len(recent_videos)} recent uploads detected" if recent_videos else "Active Channel",
+        "video_formats": [],
+        "audio_formats": [],
+        "thumbnails": thumbnails_list,
+        "subtitles": [],
+        "transcript": [],
+        "original_url": url,
+        "is_channel": True,
+        "recent_videos": recent_videos,
+        "message": "YouTube Channel link detected. You can download the artwork below or click any recent video to download."
+    }
+
+
 def extract_facebook_fallback(url: str):
     """Fallback extractor for Facebook posts, profiles, and media using OpenGraph."""
     headers = {
@@ -364,6 +445,10 @@ def extract_facebook_fallback(url: str):
 
 def extract_media(url: str):
     platform = detect_platform(url)
+
+    # Check if this is a YouTube channel / profile link
+    if platform == "youtube" and any(x in url for x in ["/@", "/channel/", "/c/", "/user/"]) and not any(x in url for x in ["/watch", "/shorts", "/live"]):
+        return extract_youtube_channel(url)
     yt_m = re.search(r'(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})', url) if platform == "youtube" else None
     video_id = yt_m.group(1) if yt_m else ""
 

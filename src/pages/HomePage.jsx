@@ -25,12 +25,14 @@ export default function HomePage() {
     }
   }
 
-  async function fetchMedia() {
-    if (!url.trim()) {
+  async function fetchMedia(overrideUrl) {
+    const targetUrl = (typeof overrideUrl === 'string' && overrideUrl.trim()) ? overrideUrl.trim() : url.trim();
+    if (!targetUrl) {
       setError('Please enter a valid video, reel, or audio link.');
       return;
     }
 
+    if (overrideUrl) setUrl(overrideUrl);
     setLoading(true);
     setError('');
     setMediaData(null);
@@ -39,7 +41,7 @@ export default function HomePage() {
       const res = await fetch('https://anydownloader-backend-vvbj.onrender.com/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() })
+        body: JSON.stringify({ url: targetUrl })
       });
 
       const json = await res.json();
