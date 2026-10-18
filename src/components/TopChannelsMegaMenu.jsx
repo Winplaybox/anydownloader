@@ -45,7 +45,7 @@ export default function TopChannelsMegaMenu({ onSelectFilter, onClose }) {
 
   function handleSearchSubmit(e) {
     e.preventDefault();
-    if (searchQuery.trim()) {
+    if (searchQuery && typeof searchQuery === 'string' && searchQuery.trim()) {
       navigate(`/youtube/top-100-youtube-channels?search=${encodeURIComponent(searchQuery.trim())}`);
       if (onSelectFilter) onSelectFilter({ type: 'search', value: searchQuery.trim() });
       if (onClose) onClose();

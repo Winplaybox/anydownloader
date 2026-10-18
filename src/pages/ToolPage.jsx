@@ -16,7 +16,8 @@ import {
   Download
 } from 'lucide-react';
 
-export default function ToolPage({ config }) {
+export default function ToolPage({ config = {} }) {
+  const safeConfig = config || {};
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,7 +34,9 @@ export default function ToolPage({ config }) {
   }
 
   async function fetchMedia(overrideUrl) {
-    const targetUrl = (typeof overrideUrl === 'string' && overrideUrl.trim()) ? overrideUrl.trim() : url.trim();
+    const targetUrl = (typeof overrideUrl === 'string' && overrideUrl.trim()) 
+      ? overrideUrl.trim() 
+      : (typeof url === 'string' ? url.trim() : '');
     if (!targetUrl) {
       setError('Please enter a valid URL.');
       return;
@@ -74,8 +77,8 @@ export default function ToolPage({ config }) {
         loading={loading}
         error={error}
         onPaste={handlePaste}
-        activeCategory={config.category || 'youtube'}
-        activeSubfeature={config.subfeature || 'all'}
+        activeCategory={safeConfig.category || 'youtube'}
+        activeSubfeature={safeConfig.subfeature || 'all'}
       />
 
       {/* Media Result Card (Shows formats, thumbnails, transcript, subtitles) */}
@@ -84,10 +87,10 @@ export default function ToolPage({ config }) {
           data={mediaData} 
           onSelectVideo={(vUrl) => fetchMedia(vUrl)}
           initialTab={
-            config.subfeature === 'mp3' ? 'audio' :
-            config.subfeature === 'transcript' ? 'transcript' :
-            config.subfeature === 'subtitles' ? 'subtitles' :
-            config.subfeature === 'thumbnails' ? 'thumbnails' : 'video'
+            safeConfig.subfeature === 'mp3' ? 'audio' :
+            safeConfig.subfeature === 'transcript' ? 'transcript' :
+            safeConfig.subfeature === 'subtitles' ? 'subtitles' :
+            safeConfig.subfeature === 'thumbnails' ? 'thumbnails' : 'video'
           }
         />
       )}
@@ -109,10 +112,10 @@ export default function ToolPage({ config }) {
         <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-xl">
           
           <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-4">
-            {config.guideTitle || `How to Use the ${config.title}`}
+            {safeConfig.guideTitle || `How to Use the ${safeConfig.title}`}
           </h2>
           <p className="text-sm text-slate-400 leading-relaxed mb-8">
-            {config.guideIntro || `OVD provides the fastest and most secure way to download media directly to your PC, Mac, iPhone, or Android device without installing third-party software.`}
+            {safeConfig.guideIntro || `OVD provides the fastest and most secure way to download media directly to your PC, Mac, iPhone, or Android device without installing third-party software.`}
           </p>
 
           {/* Step-by-Step Guide */}
@@ -120,11 +123,11 @@ export default function ToolPage({ config }) {
             <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex flex-col justify-between">
               <div>
                 <span className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center mb-3 border ${
-                  config.category === 'facebook'
+                  safeConfig.category === 'facebook'
                     ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                    : config.category === 'instagram'
+                    : safeConfig.category === 'instagram'
                     ? 'bg-pink-500/15 text-pink-400 border-pink-500/30'
-                    : config.category === 'tiktok'
+                    : safeConfig.category === 'tiktok'
                     ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
                     : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
                 }`}>1</span>
@@ -136,11 +139,11 @@ export default function ToolPage({ config }) {
             <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex flex-col justify-between">
               <div>
                 <span className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center mb-3 border ${
-                  config.category === 'facebook'
+                  safeConfig.category === 'facebook'
                     ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                    : config.category === 'instagram'
+                    : safeConfig.category === 'instagram'
                     ? 'bg-pink-500/15 text-pink-400 border-pink-500/30'
-                    : config.category === 'tiktok'
+                    : safeConfig.category === 'tiktok'
                     ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
                     : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
                 }`}>2</span>
@@ -152,11 +155,11 @@ export default function ToolPage({ config }) {
             <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex flex-col justify-between">
               <div>
                 <span className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center mb-3 border ${
-                  config.category === 'facebook'
+                  safeConfig.category === 'facebook'
                     ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                    : config.category === 'instagram'
+                    : safeConfig.category === 'instagram'
                     ? 'bg-pink-500/15 text-pink-400 border-pink-500/30'
-                    : config.category === 'tiktok'
+                    : safeConfig.category === 'tiktok'
                     ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
                     : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
                 }`}>3</span>
@@ -167,7 +170,7 @@ export default function ToolPage({ config }) {
           </div>
 
           {/* Deep Content Sections */}
-          {config.sections && config.sections.map((sec, idx) => (
+          {safeConfig.sections && safeConfig.sections.map((sec, idx) => (
             <div key={idx} className="mb-8 last:mb-0">
               <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{sec.heading}</h3>
               <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">{sec.body}</p>
@@ -201,15 +204,15 @@ export default function ToolPage({ config }) {
       </section>
 
       {/* Tool FAQ Accordion */}
-      {config.faqs && config.faqs.length > 0 && (
+      {safeConfig.faqs && safeConfig.faqs.length > 0 && (
         <section className="max-w-4xl mx-auto px-4 mb-20">
           <div className="text-center mb-8">
             <h2 className="text-2xl font-black text-white">Frequently Asked Questions</h2>
-            <p className="text-xs text-slate-400 mt-1">Everything you need to know about using {config.title}</p>
+            <p className="text-xs text-slate-400 mt-1">Everything you need to know about using {safeConfig.title}</p>
           </div>
 
           <div className="space-y-3">
-            {config.faqs.map((faq, idx) => {
+            {safeConfig.faqs.map((faq, idx) => {
               const isOpen = openFaq === idx;
               return (
                 <div

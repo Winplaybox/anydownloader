@@ -23,15 +23,16 @@ import YouTubePills from './YouTubePills.jsx';
 import FacebookPills from './FacebookPills.jsx';
 
 export default function HeroDownloader({ 
-  url, 
-  setUrl, 
-  onFetch, 
-  loading, 
-  error,
-  onPaste,
+  url = '', 
+  setUrl = () => {}, 
+  onFetch = () => {}, 
+  loading = false, 
+  error = '',
+  onPaste = () => {},
   activeCategory = 'youtube',
   activeSubfeature = 'all'
 }) {
+  const safeUrl = typeof url === 'string' ? url : (url ? String(url) : '');
   const location = useLocation();
 
   function handleKeyDown(e) {
@@ -300,7 +301,7 @@ export default function HeroDownloader({
               </span>
               <input
                 type="text"
-                value={url}
+                value={safeUrl}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={getPlaceholder()}
@@ -323,7 +324,7 @@ export default function HeroDownloader({
               <button
                 type="button"
                 onClick={onFetch}
-                disabled={loading || !url.trim()}
+                disabled={loading || !safeUrl || !safeUrl.trim()}
                 className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
                   activeCategory === 'facebook'
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-600/30'

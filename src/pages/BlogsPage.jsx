@@ -218,7 +218,7 @@ export default function BlogsPage() {
 
             {/* Article Content */}
             <div className="prose prose-invert prose-rose max-w-none text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line mb-8">
-              {activeArticle.content.trim()}
+              {(activeArticle?.content && typeof activeArticle.content === 'string') ? activeArticle.content.trim() : ''}
             </div>
 
             {/* Footer Actions */}

@@ -118,7 +118,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
   // Transcripts
   const rawTranscript = data.transcript || [];
   const filteredTranscript = useMemo(() => {
-    if (!transcriptSearch.trim()) return rawTranscript;
+    if (!transcriptSearch || typeof transcriptSearch !== 'string' || !transcriptSearch.trim()) return rawTranscript;
     const q = transcriptSearch.toLowerCase();
     return rawTranscript.filter(item => item.text.toLowerCase().includes(q));
   }, [rawTranscript, transcriptSearch]);

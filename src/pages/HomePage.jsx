@@ -26,7 +26,7 @@ export default function HomePage() {
   }
 
   async function fetchMedia(overrideUrl) {
-    const targetUrl = (typeof overrideUrl === 'string' && overrideUrl.trim()) ? overrideUrl.trim() : url.trim();
+    const targetUrl = (typeof overrideUrl === 'string' && overrideUrl.trim()) ? overrideUrl.trim() : (typeof url === 'string' ? url.trim() : '');
     if (!targetUrl) {
       setError('Please enter a valid video, reel, or audio link.');
       return;
