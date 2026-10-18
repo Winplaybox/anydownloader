@@ -39,16 +39,7 @@ export default function HeroDownloader({
     }
   }
 
-  const ytSubfeatures = [
-    { id: 'all', label: 'YouTube', icon: Video, path: '/youtube/youtube-video-downloader', hint: 'Download YouTube videos in any resolution' },
-    { id: 'mp4', label: 'YouTube MP4', icon: Download, path: '/youtube/youtube-mp4', hint: 'Direct 1080p, 720p & 4K MP4 video formats' },
-    { id: 'shorts', label: 'YouTube Shorts', icon: Sparkles, path: '/youtube/youtube-shorts', hint: 'Fast download for YouTube Shorts vertical videos' },
-    { id: 'mp3', label: 'YouTube MP3', icon: Music, path: '/youtube/youtube-mp3', hint: 'Convert & download audio up to 320 kbps high bitrate' },
-    { id: 'transcript', label: 'YouTube Transcript', icon: FileText, path: '/youtube/youtube-transcript', hint: 'Interactive timestamped transcript & text exporter' },
-    { id: 'subtitles', label: 'YouTube Subtitles', icon: Subtitles, path: '/youtube/youtube-subtitles', hint: 'Download multi-language subtitles in SRT & VTT' },
-    { id: 'thumbnails', label: 'YouTube Thumbnails', icon: ImageIcon, path: '/youtube/youtube-thumbnails', hint: 'All quality thumbnail images (1080p, 720p, 480p, SD)' },
-    { id: 'top100', label: 'Top 100 Channels', icon: Trophy, path: '/youtube/top-100-youtube-channels', hint: 'Global ranking by current subscriber count' },
-  ];
+  
 
   function getTitleAndDesc() {
     if (activeCategory === 'youtube') {

@@ -53,8 +53,7 @@ export default function Header() {
   }, []);
 
   const ytTools = [
-    { title: 'YouTube Video Downloader', desc: 'Download Full HD & 4K Videos', icon: Video, path: '/youtube/youtube-video-downloader' },
-    { title: 'YouTube MP4', desc: 'Direct MP4 formats in all qualities', icon: Download, path: '/youtube/youtube-mp4' },
+    { title: 'YouTube MP4', desc: 'Download Full HD 1080p, 720p & 4K MP4 Videos', icon: Download, path: '/youtube/youtube-mp4' },
     { title: 'YouTube Shorts', desc: 'Fast vertical video downloader', icon: Sparkles, path: '/youtube/youtube-shorts' },
     { title: 'YouTube MP3', desc: 'Extract audio up to 320 kbps high fidelity', icon: Music, path: '/youtube/youtube-mp3' },
     { title: 'YouTube Transcript', desc: 'Interactive timestamped transcript generator', icon: FileText, path: '/youtube/youtube-transcript' },
@@ -179,16 +178,8 @@ export default function Header() {
           </Link>
         </nav>
 
-        {/* Right Action / Mobile Toggle (No standalone Top 100 badge!) */}
-        <div className="flex items-center gap-2.5">
-          <Link
-            to="/updates"
-            className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono font-bold text-slate-400 hover:text-white bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 transition"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>v2.5</span>
-          </Link>
-
+        {/* Right Action / Mobile Toggle */}
+        <div className="flex items-center">
           {/* Mobile Menu Hamburger */}
           <button
             type="button"
