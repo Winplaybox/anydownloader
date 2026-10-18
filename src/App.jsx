@@ -53,9 +53,11 @@ export default function App() {
             <Route path="/facebook" element={<Navigate to="/facebook/facebook-video-downloader" replace />} />
             <Route path="/facebook/facebook-video-downloader" element={<ToolPage config={pagesConfig['facebook/facebook-video-downloader']} />} />
             <Route path="/facebook/facebook-reels" element={<ToolPage config={pagesConfig['facebook/facebook-reels']} />} />
+            <Route path="/facebook/facebook-posts" element={<ToolPage config={pagesConfig['facebook/facebook-posts']} />} />
             <Route path="/facebook/facebook-watch" element={<ToolPage config={pagesConfig['facebook/facebook-watch']} />} />
             <Route path="/facebook/facebook-stories" element={<ToolPage config={pagesConfig['facebook/facebook-stories']} />} />
             <Route path="/facebook/facebook-mp3" element={<ToolPage config={pagesConfig['facebook/facebook-mp3']} />} />
+            <Route path="/facebook/facebook-transcript" element={<ToolPage config={pagesConfig['facebook/facebook-transcript']} />} />
             <Route path="/facebook/facebook-thumbnails" element={<ToolPage config={pagesConfig['facebook/facebook-thumbnails']} />} />
 
             {/* Top 100 Facebook Pages Dedicated Database Page */}
@@ -89,6 +91,8 @@ export default function App() {
             <Route path="/top-100-youtube-channels" element={<Navigate to="/youtube/top-100-youtube-channels" replace />} />
             <Route path="/facebook-video-downloader" element={<Navigate to="/facebook/facebook-video-downloader" replace />} />
             <Route path="/facebook-reels" element={<Navigate to="/facebook/facebook-reels" replace />} />
+            <Route path="/facebook-posts" element={<Navigate to="/facebook/facebook-posts" replace />} />
+            <Route path="/facebook-transcript" element={<Navigate to="/facebook/facebook-transcript" replace />} />
             <Route path="/top-100-facebook-pages" element={<Navigate to="/facebook/top-100-facebook-pages" replace />} />
             <Route path="/instagram-downloader" element={<Navigate to="/instagram/instagram-downloader" replace />} />
             <Route path="/tiktok-downloader" element={<Navigate to="/tiktok/tiktok-downloader" replace />} />

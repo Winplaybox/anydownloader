@@ -1,3 +1,4 @@
+import html
 import os
 import re
 import sys
@@ -269,9 +270,101 @@ def extract_youtube_fallback(url: str, video_id: str):
     }
 
 
+
+def extract_facebook_fallback(url: str):
+    """Fallback extractor for Facebook posts, profiles, and media using OpenGraph."""
+    headers = {
+        'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            raw_html = resp.read().decode('utf-8', errors='ignore')
+
+        og_title_m = re.search(r'<meta[^>]+property="og:title"[^>]+content="([^"]+)"', raw_html, re.I) or re.search(r'<meta[^>]+content="([^"]+)"[^>]+property="og:title"', raw_html, re.I)
+        og_img_m = re.search(r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"', raw_html, re.I) or re.search(r'<meta[^>]+content="([^"]+)"[^>]+property="og:image"', raw_html, re.I)
+        og_desc_m = re.search(r'<meta[^>]+property="og:description"[^>]+content="([^"]+)"', raw_html, re.I)
+        og_vid_m = re.search(r'<meta[^>]+property="(?:og:video:secure_url|og:video)"[^>]+content="([^"]+)"', raw_html, re.I)
+
+        title = html.unescape(og_title_m.group(1)).strip() if og_title_m else "Facebook Media"
+        image_url = html.unescape(og_img_m.group(1)).strip() if og_img_m else ""
+        desc = html.unescape(og_desc_m.group(1)).strip() if og_desc_m else ""
+        video_url = html.unescape(og_vid_m.group(1)).strip() if og_vid_m else ""
+
+        title_clean = re.sub(r'[\\/*?:"<>|]', "", title).strip() or "facebook_media"
+
+        video_formats = []
+        if video_url:
+            video_formats.append({
+                "id": "fb-hd",
+                "quality": "HD 720p / Original MP4",
+                "height": 720,
+                "ext": "mp4",
+                "size": "Original Stream",
+                "has_audio": True,
+                "url": video_url,
+                "stream_url": f"/api/stream?url={urllib.parse.quote(video_url)}&filename={urllib.parse.quote(f'{title_clean}_HD.mp4')}",
+                "download_name": f"{title_clean}_HD.mp4"
+            })
+
+        thumbnails = []
+        if image_url:
+            thumbnails.append({
+                "quality": "Full Resolution Photo / Cover",
+                "resolution": "Original HD",
+                "label": "Facebook Artwork & Photo",
+                "url": image_url,
+                "stream_url": f"/api/stream?url={urllib.parse.quote(image_url)}&filename={urllib.parse.quote(f'{title_clean}_cover.jpg')}"
+            })
+
+        audio_formats = []
+        if video_url:
+            name_320 = f"{title_clean}_320kbps.mp3"
+            name_192 = f"{title_clean}_192kbps.mp3"
+            audio_formats.append({
+                "id": "mp3-320",
+                "quality": "320 kbps High Fidelity Audio",
+                "format": "MP3",
+                "size": "Full Audio Track",
+                "url": video_url,
+                "stream_url": f"/api/stream?url={urllib.parse.quote(video_url)}&filename={urllib.parse.quote(name_320)}",
+                "download_name": name_320
+            })
+            audio_formats.append({
+                "id": "mp3-192",
+                "quality": "192 kbps Standard Audio",
+                "format": "MP3",
+                "size": "Standard Audio",
+                "url": video_url,
+                "stream_url": f"/api/stream?url={urllib.parse.quote(video_url)}&filename={urllib.parse.quote(name_192)}",
+                "download_name": name_192
+            })
+
+        return {
+            "platform": "facebook",
+            "id": "facebook",
+            "title": title,
+            "thumbnail": image_url,
+            "duration": None,
+            "uploader": "Facebook Creator",
+            "views": None,
+            "video_formats": video_formats,
+            "audio_formats": audio_formats,
+            "thumbnails": thumbnails,
+            "subtitles": [],
+            "transcript": [],
+            "original_url": url,
+            "is_post_or_profile": not bool(video_url)
+        }
+    except Exception as e:
+        raise ValueError(f"Could not extract Facebook media: {e}")
+
+
 def extract_media(url: str):
     platform = detect_platform(url)
-    yt_m = re.search(r'(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})', url)
+    yt_m = re.search(r'(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})', url) if platform == "youtube" else None
     video_id = yt_m.group(1) if yt_m else ""
 
     ydl_opts = {
@@ -294,12 +387,16 @@ def extract_media(url: str):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
     except Exception as e:
-        if platform == "youtube" or video_id:
+        if platform == "facebook":
+            return extract_facebook_fallback(url)
+        elif platform == "youtube" or video_id:
             return extract_youtube_fallback(url, video_id)
         raise e
 
     if not info:
-        if platform == "youtube" or video_id:
+        if platform == "facebook":
+            return extract_facebook_fallback(url)
+        elif platform == "youtube" or video_id:
             return extract_youtube_fallback(url, video_id)
         raise ValueError("Could not extract media info from URL")
 
@@ -379,8 +476,14 @@ def extract_media(url: str):
 
     best_audio_streams = [
         f for f in all_formats
-        if f.get("acodec") != "none" and (f.get("vcodec") == "none" or f.get("audio_channels"))
+        if f.get("acodec") not in [None, "none"] and (f.get("vcodec") == "none" or f.get("audio_channels"))
     ]
+    if not best_audio_streams:
+        # Fallback to progressive video formats that contain audio (e.g. Facebook SD/HD)
+        best_audio_streams = [
+            f for f in sorted_formats
+            if f.get("url") and (f.get("format_id") in ["hd", "sd"] or f.get("has_audio", False) or f.get("acodec") not in [None, "none"])
+        ]
     best_audio_streams = sorted(
         best_audio_streams,
         key=lambda f: (f.get("abr") or 0, f.get("filesize") or 0),

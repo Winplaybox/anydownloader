@@ -132,6 +132,22 @@ export default function HeroDownloader({
           desc: 'Extract clean MP3 audio tracks from Facebook speeches, podcast clips, and live streams.'
         };
       }
+      if (activeSubfeature === 'posts') {
+        return {
+          badge: 'Facebook Post & Photos Downloader',
+          title: 'Facebook Posts Downloader',
+          gradient: 'Download Photos, Carousels & Post Media',
+          desc: 'Download high-resolution photos, single or multi-image albums, and media attachments from public Facebook posts.'
+        };
+      }
+      if (activeSubfeature === 'transcript') {
+        return {
+          badge: 'Facebook Video Transcript & Captions',
+          title: 'Facebook Transcript Downloader',
+          gradient: 'Extract Speech Text & Captions',
+          desc: 'Extract closed captions, speech text transcripts, and timestamped lines from Facebook videos and reels.'
+        };
+      }
       if (activeSubfeature === 'thumbnails') {
         return {
           badge: 'Facebook Video Cover & Artwork Downloader',
@@ -180,7 +196,13 @@ export default function HeroDownloader({
       if (activeSubfeature === 'thumbnails') return 'Paste YouTube URL to view & download all thumbnail resolutions...';
       return 'Paste YouTube video or Shorts link here (e.g. https://www.youtube.com/watch?v=...)...';
     }
-    if (activeCategory === 'facebook') return 'Paste Facebook video or reel link (e.g. https://www.facebook.com/watch/...)...';
+    if (activeCategory === 'facebook') {
+      if (activeSubfeature === 'posts') return 'Paste Facebook post or photo link (e.g. https://www.facebook.com/.../posts/...)...';
+      if (activeSubfeature === 'transcript') return 'Paste Facebook video or reel link to extract speech transcript...';
+      if (activeSubfeature === 'reels') return 'Paste Facebook Reel link (e.g. https://www.facebook.com/share/r/...)...';
+      if (activeSubfeature === 'mp3') return 'Paste Facebook video link to extract high-bitrate MP3...';
+      return 'Paste Facebook video, reel, post, or story link...';
+    }
     if (activeCategory === 'instagram') return 'Paste Instagram reel, story, or post link (e.g. https://www.instagram.com/reel/...)...';
     if (activeCategory === 'tiktok') return 'Paste TikTok video link (e.g. https://www.tiktok.com/@...)...';
     return 'Paste video, reel, or audio link here...';
@@ -227,7 +249,15 @@ export default function HeroDownloader({
         )}
 
         {/* Big Input Bar */}
-        <div className="max-w-3xl mx-auto bg-slate-900/90 border border-slate-700/80 p-2 sm:p-2.5 rounded-2xl sm:rounded-3xl shadow-2xl backdrop-blur-md focus-within:border-rose-500/80 focus-within:ring-4 focus-within:ring-rose-500/10 transition duration-300">
+        <div className={`max-w-3xl mx-auto bg-slate-900/90 border border-slate-700/80 p-2 sm:p-2.5 rounded-2xl sm:rounded-3xl shadow-2xl backdrop-blur-md transition duration-300 ${
+          activeCategory === 'facebook'
+            ? 'focus-within:border-blue-500/80 focus-within:ring-4 focus-within:ring-blue-500/10'
+            : activeCategory === 'instagram'
+            ? 'focus-within:border-pink-500/80 focus-within:ring-4 focus-within:ring-pink-500/10'
+            : activeCategory === 'tiktok'
+            ? 'focus-within:border-cyan-500/80 focus-within:ring-4 focus-within:ring-cyan-500/10'
+            : 'focus-within:border-rose-500/80 focus-within:ring-4 focus-within:ring-rose-500/10'
+        }`}>
           <div className="flex flex-col sm:flex-row items-center gap-2">
             {/* Input with icon */}
             <div className="flex items-center gap-3 px-3 py-2 flex-1 w-full">
@@ -270,7 +300,15 @@ export default function HeroDownloader({
                 type="button"
                 onClick={onFetch}
                 disabled={loading || !url.trim()}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-rose-600/30 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                  activeCategory === 'facebook'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-600/30'
+                    : activeCategory === 'instagram'
+                    ? 'bg-gradient-to-r from-fuchsia-600 to-rose-600 hover:opacity-90 shadow-pink-600/30'
+                    : activeCategory === 'tiktok'
+                    ? 'bg-gradient-to-r from-cyan-600 to-pink-600 hover:opacity-90 shadow-cyan-600/30'
+                    : 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 shadow-rose-600/30'
+                }`}
               >
                 {loading ? (
                   <>
@@ -303,17 +341,43 @@ export default function HeroDownloader({
             <>
               <button
                 type="button"
-                onClick={() => setUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ')}
+                onClick={() => setUrl('https://www.youtube.com/watch?v=lcM52t9Jr2s')}
                 className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+                title="Dhrusa Vlogs Ganpati Idol Video"
               >
-                Rick Astley (HD)
+                ▶️ Dhrusa Vlogs (Video)
               </button>
               <button
                 type="button"
-                onClick={() => setUrl('https://www.youtube.com/shorts/aqz-KE-bpKQ')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+                onClick={() => setUrl('https://www.youtube.com/shorts/h8o1zI7hU1A')}
+                className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 transition cursor-pointer font-medium"
+                title="Dhrusa Vlogs Saptashrungi Mata Shorts"
               >
-                YouTube Shorts Sample
+                ⚡ Saptashrungi Shorts
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrl('https://www.youtube.com/watch?v=uI3NLu5bXDg')}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+                title="Epic Bharat Tandava Video"
+              >
+                ▶️ Epic Bharat (Video)
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrl('https://www.youtube.com/shorts/HzUZotoLhGM')}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+                title="Digital Immortals Nav Durga Shorts"
+              >
+                ⚡ Digital Immortals
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrl('https://www.youtube.com/watch?v=P1l5Br04fTM')}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+                title="Indian Horror Tapes Video"
+              >
+                ▶️ Indian Horror Tapes
               </button>
               <Link
                 to="/youtube/top-100-youtube-channels"
@@ -323,13 +387,38 @@ export default function HeroDownloader({
               </Link>
             </>
           ) : activeCategory === 'facebook' ? (
-            <button
-              type="button"
-              onClick={() => setUrl('https://www.facebook.com/watch/?v=10153231379946729')}
-              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-            >
-              Facebook Video Sample
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setUrl('https://www.facebook.com/share/r/1Cq6zJtM5y/')}
+                className="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 transition cursor-pointer font-medium"
+                title="Jai Saptashrungi Mata Facebook Reel"
+              >
+                🎬 Saptashrungi Reel
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrl('https://www.facebook.com/profile.php?id=61591856780218')}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+                title="Dhrusa Vlogs Facebook Page"
+              >
+                👤 Dhrusa Vlogs (Profile)
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrl('https://www.facebook.com/watch/?v=1646670223674007')}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+                title="Facebook Watch Video"
+              >
+                📹 Facebook Video
+              </button>
+              <Link
+                to="/facebook/top-100-facebook-pages"
+                className="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 transition font-semibold"
+              >
+                Top 100 Pages &rarr;
+              </Link>
+            </>
           ) : activeCategory === 'instagram' ? (
             <button
               type="button"

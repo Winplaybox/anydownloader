@@ -69,9 +69,11 @@ export default function Header() {
   const fbTools = [
     { title: 'Facebook Video Downloader', desc: 'Download public videos in 1080p & 720p HD', icon: Download, path: '/facebook/facebook-video-downloader' },
     { title: 'Facebook Reels', desc: 'Save 9:16 vertical reels without watermarks', icon: Sparkles, path: '/facebook/facebook-reels' },
+    { title: 'Facebook Posts', desc: 'Download photos, albums & status posts', icon: ImageIcon, path: '/facebook/facebook-posts' },
     { title: 'Facebook Watch', desc: 'Episodes, shows & recorded live streams', icon: Video, path: '/facebook/facebook-watch' },
     { title: 'Facebook Stories', desc: 'Save public stories before they expire', icon: FileText, path: '/facebook/facebook-stories' },
     { title: 'Facebook MP3', desc: 'Extract 320kbps & 192kbps MP3 audio tracks', icon: Music, path: '/facebook/facebook-mp3' },
+    { title: 'Facebook Transcript', desc: 'Extract captions & speech text transcripts', icon: FileText, path: '/facebook/facebook-transcript' },
     { title: 'Facebook Thumbnails', desc: 'Full-resolution video cover & poster artwork', icon: ImageIcon, path: '/facebook/facebook-thumbnails' },
   ];
 

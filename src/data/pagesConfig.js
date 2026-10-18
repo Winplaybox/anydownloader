@@ -390,6 +390,63 @@ export const pagesConfig = {
     ]
   },
 
+    'facebook/facebook-posts': {
+    title: 'Facebook Posts Downloader',
+    badge: 'Facebook Photos, Albums & Post Media Saver',
+    category: 'facebook',
+    subfeature: 'posts',
+    guideTitle: 'How to Download Facebook Posts & High-Res Photos',
+    guideIntro: 'Save photos, multi-image albums, status media, and video attachments from public Facebook posts in maximum original clarity.',
+    sections: [
+      {
+        heading: 'Save Full-Resolution Facebook Photos and Albums',
+        body: 'OVD lets you easily preserve original-quality pictures, shared infographics, and photo carousels from public Facebook posts without image compression.'
+      },
+      {
+        heading: 'Works With All Facebook Post Link Formats',
+        body: 'Supports desktop and mobile share links, permalinks (facebook.com/share/p/...), photo albums, and public creator status updates.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Can I download photos from a Facebook post?',
+        a: 'Yes, simply copy the post link and paste it into OVD to download the original full-resolution image.'
+      },
+      {
+        q: 'Do I need to log into my Facebook account?',
+        a: 'No, OVD works with all public Facebook posts without requiring any login credentials.'
+      }
+    ]
+  },
+
+  'facebook/facebook-transcript': {
+    title: 'Facebook Video Transcript Downloader',
+    badge: 'Facebook Speech-to-Text & Subtitles Extractor',
+    category: 'facebook',
+    subfeature: 'transcript',
+    guideTitle: 'Extract Transcripts & Closed Captions from Facebook Videos',
+    guideIntro: 'Convert spoken dialogue in Facebook videos and reels into searchable timestamped text files and subtitles (.SRT / .VTT).',
+    sections: [
+      {
+        heading: 'Interactive Facebook Speech-to-Text',
+        body: 'Quickly extract spoken audio cues from interviews, educational videos, podcasts, and speeches shared on Facebook with accurate timestamps.'
+      },
+      {
+        heading: 'Export Transcripts to .TXT & Subtitles',
+        body: 'Download plain text transcripts for note-taking, summaries, and repurposing, or download multi-language subtitle tracks for video players.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Can I extract text transcripts from Facebook Reels?',
+        a: 'Yes, if the creator enabled captions or auto-captions exist, OVD extracts and displays all dialogue cues.'
+      },
+      {
+        q: 'Can I search keywords inside the transcript?',
+        a: 'Yes, our interactive player features an instant search filter to find any spoken phrase within seconds.'
+      }
+    ]
+  },
   'facebook/facebook-thumbnails': {
     title: 'Facebook Video Cover & Thumbnail Saver',
     badge: 'Full Resolution HD Cover Artwork',

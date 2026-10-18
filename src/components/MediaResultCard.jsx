@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Download, 
   Video, 
@@ -10,26 +10,20 @@ import {
   Eye, 
   ArrowDownToLine, 
   ExternalLink,
-  Volume2,
-  VolumeX,
-  Sparkles,
-  FileText,
-  Subtitles,
-  Image as ImageIcon,
+  Volume2, 
+  Sparkles, 
+  FileText, 
+  Subtitles, 
+  Image as ImageIcon, 
   Search,
-  CheckCircle2
+  CheckCircle2,
+  Share2
 } from 'lucide-react';
 
 const BACKEND_BASE = 'https://anydownloader-backend-vvbj.onrender.com';
 
 export default function MediaResultCard({ data, initialTab = 'video' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
-
-  React.useEffect(() => {
-    if (initialTab) {
-      setActiveTab(initialTab);
-    }
-  }, [initialTab]);
   const [copiedShare, setCopiedShare] = useState(false);
   const [copiedTranscript, setCopiedTranscript] = useState(false);
   const [transcriptSearch, setTranscriptSearch] = useState('');
@@ -37,14 +31,33 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
 
   if (!data) return null;
 
+  // Detect platform
+  const platform = (data.platform || 'youtube').toLowerCase();
+  const isFacebook = platform === 'facebook';
+  const isYouTube = platform === 'youtube';
+  const isInstagram = platform === 'instagram';
+  const isTikTok = platform === 'tiktok';
+
+  // Automatically switch tab if there are no video formats but there are thumbnails/images
+  useEffect(() => {
+    if (initialTab) {
+      if (initialTab === 'video' && (!data.video_formats || data.video_formats.length === 0) && (data.thumbnails && data.thumbnails.length > 0)) {
+        setActiveTab('thumbnails');
+      } else {
+        setActiveTab(initialTab);
+      }
+    }
+  }, [initialTab, data]);
+
   // Extract YouTube ID if present
   const youtubeId = useMemo(() => {
+    if (!isYouTube) return null;
     if (data.id && data.id.length === 11) return data.id;
     const match = (data.original_url || '').match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
     return match ? match[1] : null;
-  }, [data]);
+  }, [data, isYouTube]);
 
-  // All Thumbnails List (Server provided or YouTube standard quality fallback)
+  // All Thumbnails List
   const thumbnails = useMemo(() => {
     if (data.thumbnails && data.thumbnails.length > 0) {
       return data.thumbnails;
@@ -90,16 +103,17 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
       ];
     }
     if (data.thumbnail) {
+      const cleanTitle = (data.title || 'media_cover').replace(/[^a-zA-Z0-9_-]/g, '_');
       return [{
-        quality: 'Original Thumbnail',
-        resolution: 'High Res',
-        label: 'Original Media Cover',
+        quality: isFacebook ? 'Facebook Cover / Photo' : 'Original Artwork',
+        resolution: 'High Resolution',
+        label: isFacebook ? 'Full Resolution Post Image' : 'Original Media Cover',
         url: data.thumbnail,
-        stream_url: data.thumbnail
+        stream_url: `${BACKEND_BASE}/api/stream?url=${encodeURIComponent(data.thumbnail)}&filename=${encodeURIComponent(`${cleanTitle}_cover.jpg`)}`
       }];
     }
     return [];
-  }, [data, youtubeId]);
+  }, [data, youtubeId, isFacebook]);
 
   // Transcripts
   const rawTranscript = data.transcript || [];
@@ -149,6 +163,113 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
     return `${BACKEND_BASE}${fmtUrl}`;
   }
 
+  // Determine Tab Configuration
+  const tabs = useMemo(() => {
+    const list = [];
+
+    // Tab 1: Video
+    list.push({
+      id: 'video',
+      label: isFacebook 
+        ? 'Facebook Video (MP4)' 
+        : isInstagram 
+        ? 'Instagram Video (MP4)' 
+        : isTikTok 
+        ? 'TikTok Video (MP4)' 
+        : 'YouTube MP4 / Video',
+      icon: Video
+    });
+
+    // Tab 2: Audio
+    list.push({
+      id: 'audio',
+      label: isFacebook 
+        ? 'Facebook Audio (MP3)' 
+        : isInstagram 
+        ? 'Audio (MP3)' 
+        : isTikTok 
+        ? 'Sound (MP3)' 
+        : 'YouTube MP3 / Audio',
+      icon: Music
+    });
+
+    // Tab 3: Thumbnails / Covers
+    list.push({
+      id: 'thumbnails',
+      label: isFacebook 
+        ? 'Cover & Photos' 
+        : isInstagram 
+        ? 'Cover Artwork' 
+        : isTikTok 
+        ? 'Video Cover' 
+        : 'Thumbnails (All Qualities)',
+      icon: ImageIcon
+    });
+
+    // Tab 4: Transcript (Show if cues exist or on YouTube)
+    if (isYouTube || rawTranscript.length > 0) {
+      list.push({
+        id: 'transcript',
+        label: isFacebook ? 'Facebook Transcript' : 'Transcript',
+        icon: FileText
+      });
+    }
+
+    // Tab 5: Subtitles (Show if subtitles exist or on YouTube)
+    if (isYouTube || (data.subtitles && data.subtitles.length > 0)) {
+      list.push({
+        id: 'subtitles',
+        label: isFacebook ? 'Facebook Captions' : 'Subtitles',
+        icon: Subtitles
+      });
+    }
+
+    return list;
+  }, [isFacebook, isInstagram, isTikTok, isYouTube, rawTranscript.length, data.subtitles]);
+
+  // Color theme tokens
+  const theme = useMemo(() => {
+    if (isFacebook) {
+      return {
+        badgeBg: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+        activeTab: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30',
+        btnGrad: 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-600/20',
+        btnSolid: 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20',
+        textAccent: 'text-blue-400',
+        borderAccent: 'border-blue-500/30'
+      };
+    }
+    if (isInstagram) {
+      return {
+        badgeBg: 'bg-pink-500/10 text-pink-400 border-pink-500/20',
+        activeTab: 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-rose-600 text-white shadow-md shadow-pink-600/30',
+        btnGrad: 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-rose-600 hover:opacity-90 text-white shadow-lg shadow-pink-600/20',
+        btnSolid: 'bg-pink-600 hover:bg-pink-500 text-white shadow-md shadow-pink-600/20',
+        textAccent: 'text-pink-400',
+        borderAccent: 'border-pink-500/30'
+      };
+    }
+    if (isTikTok) {
+      return {
+        badgeBg: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+        activeTab: 'bg-gradient-to-r from-cyan-600 to-pink-600 text-white shadow-md shadow-cyan-600/30',
+        btnGrad: 'bg-gradient-to-r from-cyan-600 to-pink-600 hover:opacity-90 text-white shadow-lg shadow-cyan-600/20',
+        btnSolid: 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-600/20',
+        textAccent: 'text-cyan-400',
+        borderAccent: 'border-cyan-500/30'
+      };
+    }
+    // Default YouTube
+    return {
+      badgeBg: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+      activeTab: 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-md shadow-rose-600/30',
+      btnGrad: 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-lg shadow-rose-600/20',
+      btnSolid: 'bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/20',
+      textAccent: 'text-rose-400',
+      borderAccent: 'border-rose-500/30'
+    };
+  }, [isFacebook, isInstagram, isTikTok]);
+
   return (
     <div className="max-w-4xl mx-auto px-4 mb-20 animate-in fade-in slide-in-from-bottom-6 duration-300">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
@@ -170,7 +291,7 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
             )}
             {data.duration && (
               <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md text-[10px] font-mono-data font-bold text-white flex items-center gap-1">
-                <Clock className="w-3 h-3 text-rose-400" />
+                <Clock className={`w-3 h-3 ${theme.textAccent}`} />
                 <span>{data.duration}</span>
               </div>
             )}
@@ -180,12 +301,12 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
           <div className="md:col-span-8 flex flex-col justify-between h-full">
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${theme.badgeBg}`}>
                   {data.platform ? data.platform.toUpperCase() : 'MEDIA STREAM'}
                 </span>
                 <span className="text-xs text-slate-400 flex items-center gap-1 font-medium">
                   <User className="w-3.5 h-3.5 text-slate-500" />
-                  {data.uploader}
+                  {data.uploader || 'Creator'}
                 </span>
               </div>
 
@@ -215,72 +336,27 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
           </div>
         </div>
 
-        {/* Tab Controls (5 YouTube Feature Tabs) */}
+        {/* Dynamic Platform Tab Controls */}
         <div className="flex items-center gap-1.5 my-6 p-1 rounded-2xl bg-slate-950 border border-slate-800 overflow-x-auto max-w-full">
-          <button
-            type="button"
-            onClick={() => setActiveTab('video')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'video'
-                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-md shadow-rose-600/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Video className="w-3.5 h-3.5" />
-            <span>YouTube MP4 / Video</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('audio')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'audio'
-                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-md shadow-rose-600/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Music className="w-3.5 h-3.5" />
-            <span>YouTube MP3 / Audio</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('thumbnails')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'thumbnails'
-                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-md shadow-rose-600/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <ImageIcon className="w-3.5 h-3.5" />
-            <span>Thumbnails (All Qualities)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('transcript')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'transcript'
-                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-md shadow-rose-600/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Transcript</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('subtitles')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'subtitles'
-                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-md shadow-rose-600/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Subtitles className="w-3.5 h-3.5" />
-            <span>Subtitles</span>
-          </button>
+          {tabs.map((tab) => {
+            const TabIcon = tab.icon;
+            const isTabActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                  isTabActive
+                    ? theme.activeTab
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <TabIcon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* TAB 1: Video Formats */}
@@ -298,7 +374,7 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                   className="bg-slate-950/70 border border-slate-800/80 hover:border-slate-700/90 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition"
                 >
                   <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-rose-500/10 to-amber-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center font-black text-xs shrink-0">
+                    <div className={`w-11 h-11 rounded-xl bg-slate-900 border flex items-center justify-center font-black text-xs shrink-0 ${theme.borderAccent} ${theme.textAccent}`}>
                       {fmt.height >= 720 ? 'HD' : 'SD'}
                     </div>
                     <div>
@@ -328,7 +404,7 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                       download={fmt.download_name}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold shadow-lg shadow-rose-600/20 transition cursor-pointer"
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${theme.btnGrad}`}
                     >
                       <ArrowDownToLine className="w-4 h-4" />
                       <span>Download MP4</span>
@@ -337,8 +413,26 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                 </div>
               ))
             ) : (
-              <div className="py-12 text-center text-xs text-slate-400 bg-slate-950/40 rounded-2xl border border-slate-800/60">
-                No video tracks detected. Please check the provided link.
+              <div className="py-12 px-4 text-center bg-slate-950/40 rounded-2xl border border-slate-800/60">
+                <ImageIcon className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+                <h4 className="text-sm font-bold text-white mb-1">
+                  {isFacebook ? 'Facebook Photo / Post Detected' : 'No Video Stream Detected'}
+                </h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
+                  {isFacebook 
+                    ? 'This link contains high-resolution photo/profile artwork. You can download the full-resolution image in the Cover & Photos tab.'
+                    : 'No direct video stream was found for this link. Check the Thumbnails tab for available artwork.'}
+                </p>
+                {thumbnails.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('thumbnails')}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${theme.btnGrad}`}
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>View & Download Cover Photo</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -394,14 +488,14 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
           </div>
         )}
 
-        {/* TAB 3: Thumbnails (All Qualities) */}
+        {/* TAB 3: Thumbnails / Covers */}
         {activeTab === 'thumbnails' && (
           <div>
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Full-Resolution YouTube Thumbnails
+                {isFacebook ? 'Facebook Cover & Photo Artwork' : isYouTube ? 'Full-Resolution YouTube Thumbnails' : 'Media Covers & Images'}
               </span>
-              <span className="text-xs text-rose-400 font-medium">
+              <span className={`text-xs font-medium ${theme.textAccent}`}>
                 {thumbnails.length} Resolutions Available
               </span>
             </div>
@@ -418,8 +512,7 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                       alt={thumb.quality}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                       onError={(e) => {
-                        // Fallback if maxres is not available
-                        e.target.src = data.thumbnail || `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`;
+                        e.target.src = data.thumbnail || (youtubeId ? `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg` : '');
                       }}
                     />
                     <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md text-[10px] font-bold text-white border border-white/10">
@@ -437,7 +530,7 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                       <button
                         type="button"
                         onClick={() => copyThumbUrl(thumb.url, idx)}
-                        className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition"
+                        className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition cursor-pointer"
                         title="Copy image URL"
                       >
                         {copiedThumbIdx === idx ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -448,7 +541,7 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                         download={`${(data.title || 'thumb').replace(/[^a-zA-Z0-9_-]/g, '_')}_${thumb.resolution}.jpg`}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition shadow-md shadow-rose-600/20"
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition ${theme.btnSolid}`}
                       >
                         <Download className="w-3.5 h-3.5" />
                         <span>Download</span>
@@ -461,17 +554,17 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
           </div>
         )}
 
-        {/* TAB 4: YouTube Transcript */}
+        {/* TAB 4: Transcript */}
         {activeTab === 'transcript' && (
           <div>
             {/* Header / Actions */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Interactive Transcript
+                  {isFacebook ? 'Facebook Video Transcript' : 'Interactive Transcript'}
                 </span>
                 {rawTranscript.length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold">
+                  <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${theme.badgeBg}`}>
                     {rawTranscript.length} cues &bull; {totalWords} words
                   </span>
                 )}
@@ -491,7 +584,7 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                   <button
                     type="button"
                     onClick={downloadTranscriptText}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition cursor-pointer"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${theme.btnSolid}`}
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Download .TXT</span>
@@ -509,7 +602,7 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                   value={transcriptSearch}
                   onChange={(e) => setTranscriptSearch(e.target.value)}
                   placeholder="Search keywords inside transcript..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
                 />
               </div>
             )}
@@ -523,7 +616,7 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                       key={idx}
                       className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 text-xs flex items-start gap-3 transition"
                     >
-                      <span className="font-mono-data text-rose-400 font-bold px-2 py-0.5 rounded bg-rose-500/10 shrink-0 text-[11px]">
+                      <span className={`font-mono-data font-bold px-2 py-0.5 rounded shrink-0 text-[11px] ${theme.badgeBg}`}>
                         {cue.time}
                       </span>
                       <p className="text-slate-300 leading-relaxed">{cue.text}</p>
@@ -540,21 +633,23 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                 <FileText className="w-8 h-8 text-slate-600 mx-auto mb-2" />
                 <h4 className="text-sm font-bold text-white mb-1">No Captions / Transcript Detected</h4>
                 <p className="text-xs text-slate-400 max-w-md mx-auto">
-                  This video may not have public closed captions or spoken audio enabled by the creator. If captions become available, they will be parsed automatically.
+                  {isFacebook
+                    ? 'This Facebook video does not contain uploaded closed captions or speech-to-text tracks.'
+                    : 'This video may not have public closed captions or spoken audio enabled by the creator.'}
                 </p>
               </div>
             )}
           </div>
         )}
 
-        {/* TAB 5: YouTube Subtitles */}
+        {/* TAB 5: Subtitles */}
         {activeTab === 'subtitles' && (
           <div>
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                 Multi-Language Subtitle Tracks
               </span>
-              <span className="text-xs text-rose-400 font-medium">
+              <span className={`text-xs font-medium ${theme.textAccent}`}>
                 {data.subtitles ? data.subtitles.length : 0} Available Languages
               </span>
             </div>
@@ -567,7 +662,7 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                     className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 hover:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                      <div className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold text-xs uppercase shrink-0 ${theme.badgeBg}`}>
                         {sub.code}
                       </div>
                       <div>
@@ -591,7 +686,7 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                         rel="noreferrer"
                         className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold transition"
                       >
-                        <Download className="w-3.5 h-3.5 text-rose-400" />
+                        <Download className={`w-3.5 h-3.5 ${theme.textAccent}`} />
                         <span>Download SRT</span>
                       </a>
 
@@ -614,7 +709,9 @@ export default function MediaResultCard({ data, initialTab = 'video' }) {
                 <Subtitles className="w-8 h-8 text-slate-600 mx-auto mb-2" />
                 <h4 className="text-sm font-bold text-white mb-1">No Subtitles Found</h4>
                 <p className="text-xs text-slate-400 max-w-md mx-auto">
-                  This video does not have separate subtitle tracks (.srt/.vtt) attached by the uploader.
+                  {isFacebook
+                    ? 'No separate subtitle files (.srt/.vtt) are attached to this Facebook video.'
+                    : 'This video does not have separate subtitle tracks (.srt/.vtt) attached by the uploader.'}
                 </p>
               </div>
             )}
