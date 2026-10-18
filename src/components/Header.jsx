@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { 
   Download, 
   ChevronDown, 
@@ -14,8 +14,6 @@ import {
   Subtitles, 
   ExternalLink,
   Award,
-  Globe,
-  Tag,
   Newspaper,
   Zap,
   ArrowRight
@@ -35,7 +33,6 @@ export default function Header() {
   const ytMenuRef = useRef(null);
   const fbMenuRef = useRef(null);
   const location = useLocation();
-  const navigate = useNavigate();
 
   // Close menus on route change
   useEffect(() => {
@@ -44,12 +41,26 @@ export default function Header() {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
-  // Click outside to close
+  // Lock body scroll when mobile menu is open to prevent background scrolling
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
+
+  // Click outside to close desktop dropdowns
   useEffect(() => {
     function handleClickOutside(e) {
       if (ytMenuRef.current && !ytMenuRef.current.contains(e.target)) {
         setOpenYoutubeMenu(false);
-    setOpenFacebookMenu(false);
+      }
+      if (fbMenuRef.current && !fbMenuRef.current.contains(e.target)) {
+        setOpenFacebookMenu(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -57,6 +68,7 @@ export default function Header() {
   }, []);
 
   const ytTools = [
+    { title: 'YouTube Video Downloader', desc: 'Universal video & audio converter', icon: Video, path: '/youtube/youtube-video-downloader' },
     { title: 'YouTube MP4', desc: 'Download Full HD 1080p, 720p & 4K MP4 Videos', icon: Download, path: '/youtube/youtube-mp4' },
     { title: 'YouTube Shorts', desc: 'Fast vertical video downloader', icon: Sparkles, path: '/youtube/youtube-shorts' },
     { title: 'YouTube MP3', desc: 'Extract audio up to 320 kbps high fidelity', icon: Music, path: '/youtube/youtube-mp3' },
@@ -65,7 +77,6 @@ export default function Header() {
     { title: 'YouTube Thumbnails', desc: 'Maxres 1080p, HD, SD & HQ image downloads', icon: ImageIcon, path: '/youtube/youtube-thumbnails' },
   ];
 
-  
   const fbTools = [
     { title: 'Facebook Video Downloader', desc: 'Download public videos in 1080p & 720p HD', icon: Download, path: '/facebook/facebook-video-downloader' },
     { title: 'Facebook Reels', desc: 'Save 9:16 vertical reels without watermarks', icon: Sparkles, path: '/facebook/facebook-reels' },
@@ -96,10 +107,10 @@ export default function Header() {
   ];
 
   return (
-    <header className="border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-md sticky top-0 z-50">
+    <header className="border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-md sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
         
-        {/* Brand Logo */}
+        {/* Brand Logo - Flat & Sleek */}
         <Link to="/" className="flex items-center gap-2.5 group shrink-0">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-rose-600/25 group-hover:scale-105 transition transform">
             <Download className="w-4 h-4 stroke-[2.5]" />
@@ -117,14 +128,17 @@ export default function Header() {
           </div>
         </Link>
 
-        {/* Desktop Nav Items (Clean, No Extraneous Badges) */}
+        {/* Desktop Nav Items */}
         <nav className="hidden lg:flex items-center gap-1.5 xl:gap-2 text-xs font-semibold text-slate-300">
           
-          {/* 1. YouTube Dropdown Toggle (No extra badges on button level!) */}
+          {/* 1. YouTube Dropdown Toggle */}
           <div className="relative" ref={ytMenuRef}>
             <button
               type="button"
-              onClick={() => setOpenYoutubeMenu(!openYoutubeMenu)}
+              onClick={() => {
+                setOpenYoutubeMenu(!openYoutubeMenu);
+                setOpenFacebookMenu(false);
+              }}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition cursor-pointer ${
                 openYoutubeMenu || location.pathname.startsWith('/youtube')
                   ? 'bg-slate-900 text-white border border-slate-800'
@@ -137,7 +151,7 @@ export default function Header() {
             </button>
           </div>
 
-          {/* 2. Facebook Dropdown */}
+          {/* 2. Facebook Dropdown Toggle */}
           <div className="relative" ref={fbMenuRef}>
             <button
               type="button"
@@ -211,7 +225,18 @@ export default function Header() {
         </nav>
 
         {/* Right Action / Mobile Toggle */}
-        <div className="flex items-center">
+        <div className="flex items-center gap-3">
+          {/* LatestNewsNX quick link for desktop */}
+          <a
+            href="https://latestnewsnx.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-800 transition"
+          >
+            <span>LatestNewsNX</span>
+            <ExternalLink className="w-3 h-3 text-slate-400" />
+          </a>
+
           {/* Mobile Menu Hamburger */}
           <button
             type="button"
@@ -224,7 +249,7 @@ export default function Header() {
         </div>
       </div>
 
-      {/* SPACIOUS, UN-SQUEEZED YOUTUBE MEGA MENU */}
+      {/* SPACIOUS YOUTUBE MEGA MENU (DESKTOP) */}
       {openYoutubeMenu && (
         <div
           ref={ytMenuRef}
@@ -247,7 +272,7 @@ export default function Header() {
               </Link>
             </div>
 
-            {/* Clean 2-Column Layout with Generous Breathing Room */}
+            {/* Clean 2-Column Layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-7 items-start">
               
               {/* Left Column: 7 Tools Suite */}
@@ -280,7 +305,7 @@ export default function Header() {
                 })}
               </div>
 
-              {/* Right Column: Top 100 Channels Feature Card (Zero text truncation!) */}
+              {/* Right Column: Top 100 YouTube Channels */}
               <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between h-full">
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-2">
@@ -357,8 +382,7 @@ export default function Header() {
         </div>
       )}
 
-      
-      {/* SPACIOUS, UN-SQUEEZED FACEBOOK MEGA MENU */}
+      {/* SPACIOUS FACEBOOK MEGA MENU (DESKTOP) */}
       {openFacebookMenu && (
         <div
           ref={fbMenuRef}
@@ -491,97 +515,220 @@ export default function Header() {
         </div>
       )}
 
-      {/* Mobile Drawer */}
+      {/* FIXED SLIDE-OVER DRAWER FOR MOBILE & TABLET (WITH INDEPENDENT SCROLL) */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-800 bg-slate-950/98 px-4 py-6 space-y-5 max-h-[85vh] overflow-y-auto">
-          {/* Top 100 YouTube Channels in Mobile */}
-          <Link
-            to="/youtube/top-100-youtube-channels"
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop Blur Overlay */}
+          <div 
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-rose-950/40 to-slate-900 border border-rose-500/30 text-white font-bold text-xs"
-          >
-            <div className="flex items-center gap-2.5">
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
-              <span>Top 100 YouTube Channels</span>
-            </div>
-            <span className="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-bold">12H Sync</span>
-          </Link>
+            aria-hidden="true"
+          />
 
-          {/* YouTube Suite */}
-          <div>
-            <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2 px-1">
-              YouTube Suite
+          {/* Fixed Drawer Panel */}
+          <div className="fixed top-0 right-0 bottom-0 w-[88vw] max-w-sm sm:max-w-md bg-slate-950 border-l border-slate-800 shadow-2xl flex flex-col z-50 animate-in slide-in-from-right duration-200">
+            
+            {/* Sticky Drawer Top Bar */}
+            <div className="h-16 px-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/95 sticky top-0 z-10 shrink-0">
+              <Link 
+                to="/" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5"
+              >
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 flex items-center justify-center text-white shadow-md">
+                  <Download className="w-4 h-4 stroke-[2.5]" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-base tracking-tight text-white">
+                    OVD <span className="bg-gradient-to-r from-rose-500 to-amber-400 bg-clip-text text-transparent">Downloader</span>
+                  </span>
+                  <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    PRO
+                  </span>
+                </div>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+                aria-label="Close navigation menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <div className="space-y-1">
-              {ytTools.map((feat, idx) => (
+
+            {/* Scrollable Drawer Body with Independent Smooth Scroll */}
+            <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6 overscroll-contain">
+              
+              {/* 1. YouTube Complete Suite */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-red-400 uppercase tracking-wider">
+                    <YoutubeIcon className="w-3.5 h-3.5 text-red-500" />
+                    <span>YouTube Suite</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-semibold">7 Tools</span>
+                </div>
+
+                {/* Top 100 YouTube Channels Banner */}
                 <Link
-                  key={idx}
-                  to={feat.path}
+                  to="/youtube/top-100-youtube-channels"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-rose-950/30 border border-rose-500/30 hover:border-rose-500/50 text-white font-bold text-xs transition group"
                 >
-                  <feat.icon className="w-3.5 h-3.5 text-rose-400" />
-                  <span>{feat.title}</span>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Top 100 YouTube Channels</span>
+                  </div>
+                  <span className="text-[9px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-bold">12H Sync</span>
                 </Link>
-              ))}
-            </div>
-          </div>
 
-          {/* Other Platforms */}
-          <div>
-            <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2 px-1">
-              Other Platforms
-            </div>
-            <div className="space-y-1">
-              <Link
-                to="/facebook/facebook-video-downloader"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2.5 p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
-              >
-                <FacebookIcon className="w-4 h-4 text-blue-500" />
-                <span>Facebook Video Downloader</span>
-              </Link>
-              <Link
-                to="/instagram/instagram-downloader"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2.5 p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
-              >
-                <InstagramIcon className="w-4 h-4 text-pink-500" />
-                <span>Instagram Downloader</span>
-              </Link>
-              <Link
-                to="/tiktok/tiktok-downloader"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2.5 p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
-              >
-                <TiktokIcon className="w-4 h-4 text-cyan-400" />
-                <span>TikTok Video Downloader</span>
-              </Link>
-            </div>
-          </div>
+                {/* All 7 YouTube Tools */}
+                <div className="space-y-1 pl-1">
+                  {ytTools.map((t, idx) => {
+                    const Icon = t.icon;
+                    return (
+                      <Link
+                        key={idx}
+                        to={t.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center justify-between p-2 rounded-xl text-xs transition ${
+                          location.pathname === t.path
+                            ? 'bg-rose-500/15 text-rose-300 font-semibold border border-rose-500/30'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon className="w-3.5 h-3.5 text-rose-400" />
+                          <span>{t.title}</span>
+                        </div>
+                        <ChevronDown className="w-3 h-3 text-slate-600 -rotate-90" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
 
-          {/* Blogs & Updates */}
-          <div>
-            <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2 px-1">
-              News & Releases
-            </div>
-            <div className="space-y-1">
-              <Link
-                to="/blogs"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2.5 p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
-              >
-                <Newspaper className="w-4 h-4 text-amber-400" />
-                <span>Social Media Updates Blog</span>
-              </Link>
-              <Link
-                to="/updates"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2.5 p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
-              >
-                <Zap className="w-4 h-4 text-rose-400" />
-                <span>Product Release Changelog</span>
-              </Link>
+              {/* 2. Facebook Complete Suite */}
+              <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-blue-400 uppercase tracking-wider">
+                    <FacebookIcon className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Facebook Suite</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-semibold">8 Tools</span>
+                </div>
+
+                {/* Top 100 Facebook Pages Banner */}
+                <Link
+                  to="/facebook/top-100-facebook-pages"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-blue-950/30 border border-blue-500/30 hover:border-blue-500/50 text-white font-bold text-xs transition group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Award className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Top 100 Facebook Pages</span>
+                  </div>
+                  <span className="text-[9px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">12H Sync</span>
+                </Link>
+
+                {/* All 8 Facebook Tools */}
+                <div className="space-y-1 pl-1">
+                  {fbTools.map((t, idx) => {
+                    const Icon = t.icon;
+                    return (
+                      <Link
+                        key={idx}
+                        to={t.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center justify-between p-2 rounded-xl text-xs transition ${
+                          location.pathname === t.path
+                            ? 'bg-blue-500/15 text-blue-300 font-semibold border border-blue-500/30'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon className="w-3.5 h-3.5 text-blue-400" />
+                          <span>{t.title}</span>
+                        </div>
+                        <ChevronDown className="w-3 h-3 text-slate-600 -rotate-90" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 3. Other Platforms */}
+              <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+                  Other Platforms
+                </div>
+                <div className="space-y-1 pl-1">
+                  <Link
+                    to="/instagram/instagram-downloader"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <InstagramIcon className="w-3.5 h-3.5 text-pink-500" />
+                      <span>Instagram Downloader</span>
+                    </div>
+                    <ChevronDown className="w-3 h-3 text-slate-600 -rotate-90" />
+                  </Link>
+
+                  <Link
+                    to="/tiktok/tiktok-downloader"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <TiktokIcon className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>TikTok Video Downloader</span>
+                    </div>
+                    <ChevronDown className="w-3 h-3 text-slate-600 -rotate-90" />
+                  </Link>
+                </div>
+              </div>
+
+              {/* 4. News & Releases */}
+              <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+                  News & Releases
+                </div>
+                <div className="space-y-1 pl-1">
+                  <Link
+                    to="/blogs"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Newspaper className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Social Media Updates Blog</span>
+                    </div>
+                    <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded-full font-bold">Daily</span>
+                  </Link>
+                  <Link
+                    to="/updates"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Zap className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Product Release Changelog</span>
+                    </div>
+                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.2 rounded-full font-bold">v2.6</span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* 5. Legal & Policies (Google AdSense Compliance) */}
+              <div className="pt-3 border-t border-slate-800/80 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] text-slate-400 px-1">
+                <Link to="/privacy-policy" onClick={() => setMobileMenuOpen(false)} className="hover:text-white transition">Privacy Policy</Link>
+                <Link to="/terms-of-service" onClick={() => setMobileMenuOpen(false)} className="hover:text-white transition">Terms of Service</Link>
+                <Link to="/contact" onClick={() => setMobileMenuOpen(false)} className="hover:text-white transition">Contact Us</Link>
+              </div>
+
             </div>
           </div>
         </div>

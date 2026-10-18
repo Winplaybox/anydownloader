@@ -213,13 +213,29 @@ export default function HeroDownloader({
   return (
     <section id="downloader-input" className="relative pt-6 pb-12 overflow-hidden">
       {/* Background Glow Orbs */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[320px] bg-gradient-to-r from-rose-600/20 via-purple-600/20 to-cyan-500/20 blur-[130px] pointer-events-none rounded-full" />
+      <div className={`absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[320px] blur-[130px] pointer-events-none rounded-full transition-colors duration-500 ${
+        activeCategory === 'facebook'
+          ? 'bg-gradient-to-r from-blue-600/20 via-indigo-600/20 to-sky-500/20'
+          : activeCategory === 'instagram'
+          ? 'bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-amber-500/20'
+          : activeCategory === 'tiktok'
+          ? 'bg-gradient-to-r from-cyan-600/20 via-sky-600/20 to-pink-500/20'
+          : 'bg-gradient-to-r from-rose-600/20 via-purple-600/20 to-amber-500/20'
+      }`} />
 
       <div className="max-w-4xl mx-auto px-4 text-center relative z-10">
 
-        {/* Badge */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs text-rose-400 font-semibold mb-5 shadow-inner">
-          <Sparkles className="w-3.5 h-3.5 text-rose-400" />
+        {/* Platform-Themed Badge */}
+        <div className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-semibold mb-5 shadow-inner transition ${
+          activeCategory === 'facebook'
+            ? 'bg-blue-500/10 border-blue-500/25 text-blue-400'
+            : activeCategory === 'instagram'
+            ? 'bg-pink-500/10 border-pink-500/25 text-pink-400'
+            : activeCategory === 'tiktok'
+            ? 'bg-cyan-500/10 border-cyan-500/25 text-cyan-400'
+            : 'bg-rose-500/10 border-rose-500/25 text-rose-400'
+        }`}>
+          <Sparkles className="w-3.5 h-3.5" />
           <span>{info.badge}</span>
         </div>
 
@@ -229,7 +245,15 @@ export default function HeroDownloader({
         </h1>
 
         {/* Dynamic Gradient Subtitle */}
-        <p className="text-base sm:text-xl font-bold bg-gradient-to-r from-rose-400 via-pink-400 to-amber-300 bg-clip-text text-transparent mb-3">
+        <p className={`text-base sm:text-xl font-bold bg-clip-text text-transparent mb-3 ${
+          activeCategory === 'facebook'
+            ? 'bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-300'
+            : activeCategory === 'instagram'
+            ? 'bg-gradient-to-r from-pink-400 via-rose-300 to-amber-300'
+            : activeCategory === 'tiktok'
+            ? 'bg-gradient-to-r from-cyan-400 via-teal-300 to-pink-400'
+            : 'bg-gradient-to-r from-rose-400 via-pink-400 to-amber-300'
+        }`}>
           {info.gradient}
         </p>
 

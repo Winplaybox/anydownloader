@@ -1,10 +1,45 @@
 export const releaseUpdates = [
   {
+    version: 'v2.6',
+    date: 'October 19, 2026',
+    title: 'Facebook Multi-Tool Suite, Fixed Mobile Drawer & Search Engine Optimization',
+    badge: 'Latest Release',
+    badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    description: 'Launched complete 8-tool Facebook suite, Top 100 Facebook Pages global rankings, rebuilt mobile & tablet navigation into a fixed slide-over drawer with independent scrolling and desktop link synchronization, added dynamic daily social media blog engine, and deployed full XML sitemaps and structured JSON-LD schemas for search engines.',
+    highlights: [
+      {
+        tag: 'Mobile & Tablet UI',
+        color: 'text-emerald-400',
+        text: 'Rebuilt mobile navigation into a fixed slide-over drawer with independent scroll lock, preventing layout disruption and syncing 100% of desktop links.'
+      },
+      {
+        tag: 'Facebook Suite',
+        color: 'text-blue-400',
+        text: 'Released full Facebook downloader tool suite: Video, Reels, Posts, Watch, Stories, 320kbps MP3 Audio, Transcripts, and Thumbnails.'
+      },
+      {
+        tag: 'Rankings Engine',
+        color: 'text-cyan-400',
+        text: 'Introduced Top 100 Facebook Pages global leaderboard with 12-hour automated synchronization cycles and country filtering.'
+      },
+      {
+        tag: 'Channel Smart Link',
+        color: 'text-amber-400',
+        text: 'Integrated automatic channel profile link parsing with an interactive multi-video selector and profile artwork download.'
+      },
+      {
+        tag: 'SEO Infrastructure',
+        color: 'text-rose-400',
+        text: 'Deployed comprehensive XML sitemap (public/sitemap.xml), robots.txt crawler directives, and Schema.org WebApplication structured data.'
+      }
+    ]
+  },
+  {
     version: 'v2.5',
     date: 'October 18, 2026',
     title: 'Platform-Nested Routing, Live Social Blog & Product Changelog',
-    badge: 'Latest Release',
-    badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    badge: 'Major',
+    badgeColor: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
     description: 'Refined header navigation, removed redundant badges, expanded clean platform namespaces (/youtube/..., /facebook/...), launched live Social Media Updates Blog and Official Releases changelog.',
     highlights: [
       {
@@ -33,8 +68,8 @@ export const releaseUpdates = [
     version: 'v2.4',
     date: 'October 18, 2026',
     title: 'Multi-Page Architecture & Google AdSense Optimization',
-    badge: 'Major',
-    badgeColor: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    badge: 'Enhancement',
+    badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
     description: 'Transitioned from a single-page utility to a dedicated multi-page platform with full SEO guides, AdSense compliance pages, and responsive display units.',
     highlights: [
       {

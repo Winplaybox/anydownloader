@@ -22,10 +22,81 @@ function ScrollToTop() {
   return null;
 }
 
+// Dynamic SEO Head Updater for Search Engines and Social Crawlers
+function SEOHead() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    const cleanPath = pathname.replace(/^\/+|\/+$/g, '');
+    let title = 'OVD - Free Online Video, Reel & Audio Downloader';
+    let desc = 'OVD is a fast, free media downloader. Download High-Definition Videos, YouTube 1080p/4K, Facebook Reels & Videos, Instagram Reels, TikTok without watermark, and 320kbps MP3 audio in seconds.';
+
+    if (cleanPath === 'youtube/top-100-youtube-channels' || cleanPath === 'youtube/top-100-channels') {
+      title = 'Top 100 YouTube Channels - Global Subscriber Rankings | OVD';
+      desc = 'Explore the live top 100 most subscribed YouTube channels worldwide. 12-hour automated synchronization with country and category filters.';
+    } else if (cleanPath === 'facebook/top-100-facebook-pages' || cleanPath === 'facebook/top-100-pages') {
+      title = 'Top 100 Facebook Pages - Global Follower Rankings | OVD';
+      desc = 'Explore the live top 100 most followed Facebook pages worldwide. 12-hour automated synchronization with country filtering.';
+    } else if (cleanPath === 'blogs' || cleanPath === 'blog') {
+      title = 'Social Media Updates Blog - Real-Time Creator News & Guides | OVD';
+      desc = 'Stay ahead of social media algorithm shifts, video compression settings, TikTok audio guidelines, and creator monetization updates.';
+    } else if (cleanPath === 'updates' || cleanPath === 'changelog') {
+      title = 'Product Release Changelog & Engine Updates | OVD Downloader PRO';
+      desc = 'Official release notes, feature launches, architecture updates, and engine changelogs for OVD Downloader PRO.';
+    } else if (cleanPath === 'privacy-policy') {
+      title = 'Privacy Policy - OVD Downloader PRO';
+      desc = 'Privacy Policy, cookie guidelines, Google AdSense DART disclosure, CCPA, and GDPR compliance details for OVD Downloader.';
+    } else if (cleanPath === 'terms-of-service') {
+      title = 'Terms of Service - OVD Downloader PRO';
+      desc = 'Terms of Service and acceptable use conditions for OVD Downloader PRO.';
+    } else if (cleanPath === 'contact') {
+      title = 'Contact Us - OVD Downloader PRO';
+      desc = 'Get in touch with the OVD Downloader PRO support and development team.';
+    } else if (pagesConfig[cleanPath]) {
+      const cfg = pagesConfig[cleanPath];
+      title = `${cfg.title} - Free Online Downloader | OVD`;
+      desc = cfg.guideIntro || (cfg.sections && cfg.sections[0] ? cfg.sections[0].body : `${cfg.title} free download service.`);
+    }
+
+    // Set title
+    document.title = title;
+
+    // Set meta description
+    let metaDesc = document.querySelector('meta[name="description"]');
+    if (!metaDesc) {
+      metaDesc = document.createElement('meta');
+      metaDesc.setAttribute('name', 'description');
+      document.head.appendChild(metaDesc);
+    }
+    metaDesc.setAttribute('content', desc);
+
+    // Set canonical link
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute('href', `https://ovd.winplaybox.in/${cleanPath}`);
+
+    // Set Open Graph tags
+    let ogTitle = document.querySelector('meta[property="og:title"]');
+    if (ogTitle) ogTitle.setAttribute('content', title);
+    let ogDesc = document.querySelector('meta[property="og:description"]');
+    if (ogDesc) ogDesc.setAttribute('content', desc);
+    let ogUrl = document.querySelector('meta[property="og:url"]');
+    if (ogUrl) ogUrl.setAttribute('content', `https://ovd.winplaybox.in/${cleanPath}`);
+
+  }, [pathname]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <SEOHead />
       <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans selection:bg-rose-500 selection:text-white">
         <Header />
 

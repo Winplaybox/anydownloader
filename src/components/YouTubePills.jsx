@@ -7,10 +7,12 @@ import {
   FileText, 
   Subtitles, 
   Image as ImageIcon, 
-  Trophy 
+  Trophy,
+  Video
 } from 'lucide-react';
 
 export const ytSubfeatures = [
+  { id: 'video', label: 'YouTube Video', icon: Video, path: '/youtube/youtube-video-downloader', hint: 'Universal YouTube video & audio converter' },
   { id: 'mp4', label: 'YouTube MP4', icon: Download, path: '/youtube/youtube-mp4', hint: 'Direct 1080p, 720p & 4K MP4 video formats' },
   { id: 'shorts', label: 'YouTube Shorts', icon: Sparkles, path: '/youtube/youtube-shorts', hint: 'Fast download for YouTube Shorts vertical videos' },
   { id: 'mp3', label: 'YouTube MP3', icon: Music, path: '/youtube/youtube-mp3', hint: 'Convert & download audio up to 320 kbps high bitrate' },
@@ -25,12 +27,13 @@ export default function YouTubePills({ activeSubfeature }) {
   const path = location.pathname;
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 mb-8 max-w-4xl mx-auto px-4">
+    <div className="flex flex-wrap items-center justify-center gap-2 mb-8 max-w-5xl mx-auto px-4">
       {ytSubfeatures.map((sub) => {
         const SubIcon = sub.icon;
         const isSelected = 
           path === sub.path ||
-          (sub.id === 'mp4' && (path === '/' || path === '/youtube' || path === '/youtube/youtube-mp4' || path === '/youtube/youtube-video-downloader' || path === '/youtube-video-downloader' || activeSubfeature === 'all' || activeSubfeature === 'mp4')) ||
+          (sub.id === 'video' && (path === '/youtube/youtube-video-downloader' || path === '/youtube-video-downloader' || activeSubfeature === 'video')) ||
+          (sub.id === 'mp4' && (path === '/' || path === '/youtube' || path === '/youtube/youtube-mp4' || path === '/youtube-mp4' || activeSubfeature === 'all' || activeSubfeature === 'mp4')) ||
           (sub.id === 'thumbnails' && (path === '/youtube/youtube-thumbnail' || path === '/youtube-thumbnail')) ||
           (sub.id === 'top100' && (path.includes('top-100-youtube-channels') || path.includes('top-100-channels'))) ||
           (sub.id === activeSubfeature);

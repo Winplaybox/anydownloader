@@ -46,11 +46,14 @@ if (fs.existsSync(distHtml)) {
   console.log('Synchronized root production index.html from dist/dev.html');
 }
 
-// 3. Ensure favicon.svg in root
-const favSrc = path.join(root, 'public', 'favicon.svg');
-if (fs.existsSync(favSrc)) {
-  fs.copyFileSync(favSrc, path.join(root, 'favicon.svg'));
-  console.log('Copied root favicon.svg');
+// 3. Ensure favicon.svg, robots.txt, and sitemap.xml in root
+const filesToSync = ['favicon.svg', 'robots.txt', 'sitemap.xml'];
+for (const fname of filesToSync) {
+  const src = path.join(root, 'public', fname);
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, path.join(root, fname));
+    console.log(`Copied root ${fname}`);
+  }
 }
 
 // 4. Ensure .htaccess in root for Hostinger SPA rewrite and caching

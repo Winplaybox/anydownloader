@@ -119,7 +119,15 @@ export default function ToolPage({ config }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
             <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex flex-col justify-between">
               <div>
-                <span className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-400 font-bold text-xs flex items-center justify-center mb-3">1</span>
+                <span className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center mb-3 border ${
+                  config.category === 'facebook'
+                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                    : config.category === 'instagram'
+                    ? 'bg-pink-500/15 text-pink-400 border-pink-500/30'
+                    : config.category === 'tiktok'
+                    ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
+                    : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                }`}>1</span>
                 <h4 className="font-bold text-white text-sm mb-1">Copy Link</h4>
                 <p className="text-xs text-slate-400">Copy the URL of the video, shorts, reel, or audio track from your app or browser.</p>
               </div>
@@ -127,7 +135,15 @@ export default function ToolPage({ config }) {
 
             <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex flex-col justify-between">
               <div>
-                <span className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-400 font-bold text-xs flex items-center justify-center mb-3">2</span>
+                <span className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center mb-3 border ${
+                  config.category === 'facebook'
+                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                    : config.category === 'instagram'
+                    ? 'bg-pink-500/15 text-pink-400 border-pink-500/30'
+                    : config.category === 'tiktok'
+                    ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
+                    : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                }`}>2</span>
                 <h4 className="font-bold text-white text-sm mb-1">Paste & Fetch</h4>
                 <p className="text-xs text-slate-400">Paste the URL into the input field above and click "Fetch Media" to extract stream options.</p>
               </div>
@@ -135,7 +151,15 @@ export default function ToolPage({ config }) {
 
             <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex flex-col justify-between">
               <div>
-                <span className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-400 font-bold text-xs flex items-center justify-center mb-3">3</span>
+                <span className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center mb-3 border ${
+                  config.category === 'facebook'
+                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                    : config.category === 'instagram'
+                    ? 'bg-pink-500/15 text-pink-400 border-pink-500/30'
+                    : config.category === 'tiktok'
+                    ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
+                    : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                }`}>3</span>
                 <h4 className="font-bold text-white text-sm mb-1">Download & Save</h4>
                 <p className="text-xs text-slate-400">Select your preferred resolution (1080p, 720p, MP3, Transcript, or Thumbnails) and download immediately.</p>
               </div>
