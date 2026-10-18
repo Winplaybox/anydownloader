@@ -32,6 +32,7 @@ ALLOWED_EXTENSION_IDS = [
 ALLOWED_CDN_DOMAINS = [
     r".*\.googlevideo\.com$",
     r".*\.youtube\.com$",
+    r".*\.ytimg\.com$",
     r".*\.cdninstagram\.com$",
     r".*\.fbcdn\.net$",
     r".*\.tiktokcdn\.com$",
@@ -124,6 +125,8 @@ def extract_media(url: str):
         "no_warnings": True,
         "extract_flat": False,
         "skip_download": True,
+        "writesubtitles": True,
+        "writeautomaticsub": True,
         "noplaylist": True,
         "socket_timeout": 20,
         "extractor_args": {
@@ -270,15 +273,141 @@ def extract_media(url: str):
             "download_name": direct_name
         })
 
+    video_id = info.get("id") or ""
+    
+    # Process Thumbnails (All Qualities)
+    thumbnails_list = []
+    if platform == "youtube" or (video_id and len(video_id) == 11):
+        thumbnails_list = [
+            {
+                "quality": "1080p Full HD (Maxres)",
+                "resolution": "1920x1080",
+                "label": "Max Resolution",
+                "url": f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg",
+                "stream_url": f"/api/stream?url={urllib.parse.quote(f'https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg')}&filename={urllib.parse.quote(f'{title_clean}_1080p.jpg')}"
+            },
+            {
+                "quality": "720p HD (High Quality)",
+                "resolution": "1280x720",
+                "label": "High Definition",
+                "url": f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
+                "stream_url": f"/api/stream?url={urllib.parse.quote(f'https://i.ytimg.com/vi/{video_id}/hqdefault.jpg')}&filename={urllib.parse.quote(f'{title_clean}_720p.jpg')}"
+            },
+            {
+                "quality": "480p Standard (SD)",
+                "resolution": "640x480",
+                "label": "Standard Definition",
+                "url": f"https://i.ytimg.com/vi/{video_id}/sddefault.jpg",
+                "stream_url": f"/api/stream?url={urllib.parse.quote(f'https://i.ytimg.com/vi/{video_id}/sddefault.jpg')}&filename={urllib.parse.quote(f'{title_clean}_480p.jpg')}"
+            },
+            {
+                "quality": "360p Medium (MQ)",
+                "resolution": "480x360",
+                "label": "Medium Quality",
+                "url": f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
+                "stream_url": f"/api/stream?url={urllib.parse.quote(f'https://i.ytimg.com/vi/{video_id}/mqdefault.jpg')}&filename={urllib.parse.quote(f'{title_clean}_360p.jpg')}"
+            },
+            {
+                "quality": "Default Thumbnail",
+                "resolution": "120x90",
+                "label": "Default Low-Res",
+                "url": f"https://i.ytimg.com/vi/{video_id}/default.jpg",
+                "stream_url": f"/api/stream?url={urllib.parse.quote(f'https://i.ytimg.com/vi/{video_id}/default.jpg')}&filename={urllib.parse.quote(f'{title_clean}_default.jpg')}"
+            }
+        ]
+    elif thumbnail:
+        thumbnails_list = [
+            {
+                "quality": "Original Thumbnail",
+                "resolution": "Original",
+                "label": "High Definition",
+                "url": thumbnail,
+                "stream_url": f"/api/stream?url={urllib.parse.quote(thumbnail)}&filename={urllib.parse.quote(f'{title_clean}_thumb.jpg')}"
+            }
+        ]
+
+    # Process Subtitles & Captions
+    raw_subs = info.get("subtitles") or {}
+    raw_auto = info.get("automatic_captions") or {}
+    subtitles_list = []
+    transcript_cues = []
+
+    priority_languages = [
+        ("en", "English"),
+        ("es", "Spanish"),
+        ("hi", "Hindi"),
+        ("fr", "French"),
+        ("de", "German"),
+        ("pt", "Portuguese"),
+        ("ja", "Japanese"),
+        ("ko", "Korean"),
+        ("it", "Italian"),
+        ("ar", "Arabic"),
+        ("ru", "Russian"),
+        ("tr", "Turkish"),
+        ("id", "Indonesian"),
+        ("vi", "Vietnamese")
+    ]
+
+    for code, lang_name in priority_languages:
+        tracks = raw_subs.get(code) or raw_auto.get(code)
+        if tracks:
+            srt_trk = next((t for t in tracks if t.get("ext") == "srt"), None)
+            vtt_trk = next((t for t in tracks if t.get("ext") == "vtt"), None)
+            srt_u = srt_trk.get("url") if srt_trk else (vtt_trk.get("url") if vtt_trk else None)
+            vtt_u = vtt_trk.get("url") if vtt_trk else (srt_trk.get("url") if srt_trk else None)
+            
+            if srt_u or vtt_u:
+                subtitles_list.append({
+                    "code": code,
+                    "language": lang_name,
+                    "is_auto": code not in raw_subs,
+                    "srt_url": srt_u,
+                    "vtt_url": vtt_u,
+                    "srt_download": f"/api/stream?url={urllib.parse.quote(srt_u or vtt_u)}&filename={urllib.parse.quote(f'{title_clean}_{code}.srt')}",
+                    "vtt_download": f"/api/stream?url={urllib.parse.quote(vtt_u or srt_u)}&filename={urllib.parse.quote(f'{title_clean}_{code}.vtt')}"
+                })
+
+                # If transcript not yet loaded, parse from English or first VTT track
+                if not transcript_cues and vtt_u:
+                    try:
+                        import urllib.request
+                        req = urllib.request.Request(vtt_u, headers={"User-Agent": USER_AGENT})
+                        with urllib.request.urlopen(req, timeout=4) as resp:
+                            body = resp.read().decode("utf-8", errors="ignore")
+                            v_lines = body.splitlines()
+                            for i in range(len(v_lines)):
+                                m = re.match(r"(\d{2}:\d{2}(?::\d{2})?\.\d{3})\s*-->\s*(\d{2}:\d{2}(?::\d{2})?\.\d{3})", v_lines[i])
+                                if m:
+                                    t_str = m.group(1).split(".")[0]
+                                    pts = t_str.split(":")
+                                    fmt_time = f"{pts[1]}:{pts[2]}" if len(pts) == 3 and pts[0] == "00" else t_str
+                                    t_lines = []
+                                    for j in range(i + 1, min(i + 4, len(v_lines))):
+                                        if not v_lines[j].strip() or "-->" in v_lines[j]:
+                                            break
+                                        cleaned = re.sub(r"<[^>]+>", "", v_lines[j]).strip()
+                                        if cleaned:
+                                            t_lines.append(cleaned)
+                                    cue_text = " ".join(t_lines)
+                                    if cue_text and (not transcript_cues or transcript_cues[-1]["text"] != cue_text):
+                                        transcript_cues.append({"time": fmt_time, "text": cue_text})
+                    except Exception:
+                        pass
+
     return {
+        "id": video_id,
         "title": title_clean,
         "thumbnail": thumbnail,
         "duration": duration,
         "uploader": uploader,
         "platform": platform,
         "views": f"{views:,}" if views else None,
-        "video_formats": video_formats[:6],
+        "video_formats": video_formats[:8],
         "audio_formats": audio_formats,
+        "thumbnails": thumbnails_list,
+        "subtitles": subtitles_list,
+        "transcript": transcript_cues,
         "original_url": url
     }
 
