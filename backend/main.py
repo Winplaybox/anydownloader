@@ -4,6 +4,7 @@ import sys
 import json
 import asyncio
 import urllib.parse
+import shutil
 from typing import Optional
 
 import yt_dlp
@@ -14,6 +15,24 @@ from starlette.routing import Route
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
+
+def find_node_path() -> Optional[str]:
+    candidates = [
+        shutil.which("node"),
+        r"C:\Program Files\nodejs\node.exe",
+        r"C:\Program Files (x86)\nodejs\node.exe",
+    ]
+    for c in candidates:
+        if c and os.path.exists(c):
+            return c
+    return None
+
+NODE_EXE = find_node_path()
 
 def format_duration(seconds: Optional[int]) -> str:
     if not seconds:
@@ -24,7 +43,6 @@ def format_duration(seconds: Optional[int]) -> str:
         return f"{h:02d}:{m:02d}:{s:02d}"
     return f"{m:02d}:{s:02d}"
 
-
 def format_size(bytes_num: Optional[int]) -> str:
     if not bytes_num or bytes_num <= 0:
         return "Unknown Size"
@@ -32,7 +50,6 @@ def format_size(bytes_num: Optional[int]) -> str:
     if mb > 1024:
         return f"{mb / 1024:.2f} GB"
     return f"{mb:.1f} MB"
-
 
 def detect_platform(url: str) -> str:
     lower = url.lower()
@@ -54,7 +71,6 @@ def detect_platform(url: str) -> str:
         return "soundcloud"
     return "generic"
 
-
 def extract_media(url: str):
     platform = detect_platform(url)
 
@@ -65,15 +81,14 @@ def extract_media(url: str):
         "skip_download": True,
         "format": "bestvideo+bestaudio/best",
         "noplaylist": True,
-        "socket_timeout": 10,
+        "socket_timeout": 15,
         "http_headers": {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/131.0.0.0 Safari/537.36"
-            )
+            "User-Agent": USER_AGENT,
+            "Accept-Language": "en-US,en;q=0.9",
         }
     }
+    if NODE_EXE:
+        ydl_opts["js_runtimes"] = {"node": {"path": NODE_EXE}}
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -92,7 +107,6 @@ def extract_media(url: str):
     audio_formats = []
     seen_heights = set()
 
-    # Sort formats from best quality to lowest
     sorted_formats = sorted(
         all_formats,
         key=lambda f: (
@@ -103,7 +117,6 @@ def extract_media(url: str):
         reverse=True
     )
 
-    # 1. Collect Video Formats
     for f in sorted_formats:
         height = f.get("height")
         vcodec = f.get("vcodec")
@@ -115,8 +128,6 @@ def extract_media(url: str):
         if vcodec == "none":
             continue
 
-        # Keep the best format for each resolution tier (1080, 720, 480, 360, 240)
-        resolution_key = f"{height}p"
         if height in seen_heights:
             continue
         seen_heights.add(height)
@@ -131,8 +142,10 @@ def extract_media(url: str):
 
         size_bytes = f.get("filesize") or f.get("filesize_approx")
         size_str = format_size(size_bytes)
-
         has_audio = f.get("acodec") != "none"
+
+        safe_filename = f"{title_clean}_{height}p.{ext}"
+        stream_proxy_url = f"/api/stream?url={urllib.parse.quote(format_url)}&filename={urllib.parse.quote(safe_filename)}"
 
         video_formats.append({
             "id": f.get("format_id"),
@@ -142,15 +155,14 @@ def extract_media(url: str):
             "size": size_str,
             "has_audio": has_audio,
             "url": format_url,
-            "download_name": f"{title_clean}_{height}p.{ext}"
+            "stream_url": stream_proxy_url,
+            "download_name": safe_filename
         })
 
-    # 2. Collect Audio Formats
     best_audio_streams = [
         f for f in all_formats
         if f.get("acodec") != "none" and (f.get("vcodec") == "none" or f.get("audio_channels"))
     ]
-    # Sort best audio by abr
     best_audio_streams = sorted(
         best_audio_streams,
         key=lambda f: (f.get("abr") or 0, f.get("filesize") or 0),
@@ -162,13 +174,18 @@ def extract_media(url: str):
         audio_url = primary_audio.get("url")
         audio_size = format_size(primary_audio.get("filesize") or primary_audio.get("filesize_approx"))
 
+        name_320 = f"{title_clean}_320kbps.mp3"
+        name_192 = f"{title_clean}_192kbps.mp3"
+        name_orig = f"{title_clean}.{primary_audio.get('ext') or 'm4a'}"
+
         audio_formats.append({
             "id": "mp3-320",
             "quality": "320 kbps High Fidelity",
             "format": "MP3",
             "size": audio_size,
             "url": audio_url,
-            "download_name": f"{title_clean}_320kbps.mp3"
+            "stream_url": f"/api/stream?url={urllib.parse.quote(audio_url)}&filename={urllib.parse.quote(name_320)}",
+            "download_name": name_320
         })
         audio_formats.append({
             "id": "mp3-192",
@@ -176,7 +193,8 @@ def extract_media(url: str):
             "format": "MP3",
             "size": audio_size,
             "url": audio_url,
-            "download_name": f"{title_clean}_192kbps.mp3"
+            "stream_url": f"/api/stream?url={urllib.parse.quote(audio_url)}&filename={urllib.parse.quote(name_192)}",
+            "download_name": name_192
         })
         audio_formats.append({
             "id": "m4a-hq",
@@ -184,11 +202,13 @@ def extract_media(url: str):
             "format": primary_audio.get("ext") or "m4a",
             "size": audio_size,
             "url": audio_url,
-            "download_name": f"{title_clean}.m4a"
+            "stream_url": f"/api/stream?url={urllib.parse.quote(audio_url)}&filename={urllib.parse.quote(name_orig)}",
+            "download_name": name_orig
         })
 
-    # If it's a direct Instagram/TikTok/Twitter single stream (e.g. single reel)
     if not video_formats and info.get("url"):
+        direct_name = f"{title_clean}_HD.mp4"
+        direct_url = info.get("url")
         video_formats.append({
             "id": "best",
             "quality": "Original HD Video",
@@ -196,8 +216,9 @@ def extract_media(url: str):
             "ext": "mp4",
             "size": format_size(info.get("filesize")),
             "has_audio": True,
-            "url": info.get("url"),
-            "download_name": f"{title_clean}_HD.mp4"
+            "url": direct_url,
+            "stream_url": f"/api/stream?url={urllib.parse.quote(direct_url)}&filename={urllib.parse.quote(direct_name)}",
+            "download_name": direct_name
         })
 
     return {
@@ -212,7 +233,6 @@ def extract_media(url: str):
         "original_url": url
     }
 
-
 async def extract_handler(request):
     try:
         data = await request.json()
@@ -221,7 +241,6 @@ async def extract_handler(request):
         if not url:
             return JSONResponse({"success": False, "error": "Please provide a valid media URL"}, status_code=400)
 
-        # Run extraction in worker thread so async server never blocks
         loop = asyncio.get_event_loop()
         media_info = await loop.run_in_executor(None, extract_media, url)
 
@@ -234,7 +253,6 @@ async def extract_handler(request):
             error_msg = "This video is private or restricted by the author."
         return JSONResponse({"success": False, "error": error_msg}, status_code=500)
 
-
 async def stream_download_handler(request):
     target_url = request.query_params.get("url")
     filename = request.query_params.get("filename") or "download.mp4"
@@ -243,7 +261,13 @@ async def stream_download_handler(request):
     if not target_url:
         return Response("Missing target stream url", status_code=400)
 
-    client = httpx.AsyncClient(follow_redirects=True, timeout=60.0)
+    client_headers = {
+        "User-Agent": USER_AGENT,
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.youtube.com/"
+    }
+
+    client = httpx.AsyncClient(headers=client_headers, follow_redirects=True, timeout=90.0)
 
     async def stream_chunks():
         try:
@@ -260,14 +284,13 @@ async def stream_download_handler(request):
 
     return StreamingResponse(stream_chunks(), headers=headers)
 
-
 async def health_handler(request):
     return JSONResponse({
         "status": "online",
         "service": "AnyDownloader Python Engine",
-        "yt_dlp_version": yt_dlp.version.__version__
+        "yt_dlp_version": yt_dlp.version.__version__,
+        "node_exe": NODE_EXE
     })
-
 
 routes = [
     Route("/api/extract", extract_handler, methods=["POST"]),
