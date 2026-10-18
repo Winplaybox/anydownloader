@@ -131,7 +131,7 @@ export default function HeroDownloader({
             YouTube Video
           </button>
           <button
-            onClick={() => setUrl('https://www.youtube.com/shorts/3iV-5g8qj0Q')}
+            onClick={() => setUrl('https://www.youtube.com/watch?v=aqz-KE-bpKQ')}
             className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
           >
             YouTube Shorts
