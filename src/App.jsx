@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
 import HomePage from './pages/HomePage.jsx';
@@ -31,22 +31,45 @@ export default function App() {
             {/* Home */}
             <Route path="/" element={<HomePage />} />
 
-            {/* YouTube Suite Pages */}
-            <Route path="/youtube-video-downloader" element={<ToolPage config={pagesConfig['youtube-video-downloader']} />} />
-            <Route path="/youtube-mp4" element={<ToolPage config={pagesConfig['youtube-mp4']} />} />
-            <Route path="/youtube-shorts" element={<ToolPage config={pagesConfig['youtube-shorts']} />} />
-            <Route path="/youtube-mp3" element={<ToolPage config={pagesConfig['youtube-mp3']} />} />
-            <Route path="/youtube-transcript" element={<ToolPage config={pagesConfig['youtube-transcript']} />} />
-            <Route path="/youtube-subtitles" element={<ToolPage config={pagesConfig['youtube-subtitles']} />} />
-            <Route path="/youtube-thumbnail" element={<ToolPage config={pagesConfig['youtube-thumbnail']} />} />
+            {/* YouTube Category Nested Routes */}
+            <Route path="/youtube" element={<Navigate to="/youtube/youtube-video-downloader" replace />} />
+            <Route path="/youtube/youtube-video-downloader" element={<ToolPage config={pagesConfig['youtube/youtube-video-downloader']} />} />
+            <Route path="/youtube/youtube-mp4" element={<ToolPage config={pagesConfig['youtube/youtube-mp4']} />} />
+            <Route path="/youtube/youtube-shorts" element={<ToolPage config={pagesConfig['youtube/youtube-shorts']} />} />
+            <Route path="/youtube/youtube-mp3" element={<ToolPage config={pagesConfig['youtube/youtube-mp3']} />} />
+            <Route path="/youtube/youtube-transcript" element={<ToolPage config={pagesConfig['youtube/youtube-transcript']} />} />
+            <Route path="/youtube/youtube-subtitles" element={<ToolPage config={pagesConfig['youtube/youtube-subtitles']} />} />
+            <Route path="/youtube/youtube-thumbnails" element={<ToolPage config={pagesConfig['youtube/youtube-thumbnails']} />} />
+            <Route path="/youtube/youtube-thumbnail" element={<Navigate to="/youtube/youtube-thumbnails" replace />} />
 
             {/* Top 100 YouTube Channels Dedicated Database Page */}
-            <Route path="/top-100-youtube-channels" element={<TopChannelsPage />} />
+            <Route path="/youtube/top-100-youtube-channels" element={<TopChannelsPage />} />
+            <Route path="/youtube/top-100-channels" element={<Navigate to="/youtube/top-100-youtube-channels" replace />} />
 
-            {/* Other Supported Platform Pages */}
-            <Route path="/facebook-video-downloader" element={<ToolPage config={pagesConfig['facebook-video-downloader']} />} />
-            <Route path="/instagram-downloader" element={<ToolPage config={pagesConfig['instagram-downloader']} />} />
-            <Route path="/tiktok-downloader" element={<ToolPage config={pagesConfig['tiktok-downloader']} />} />
+            {/* Facebook Category Nested Routes */}
+            <Route path="/facebook" element={<Navigate to="/facebook/facebook-video-downloader" replace />} />
+            <Route path="/facebook/facebook-video-downloader" element={<ToolPage config={pagesConfig['facebook/facebook-video-downloader']} />} />
+
+            {/* Instagram Category Nested Routes */}
+            <Route path="/instagram" element={<Navigate to="/instagram/instagram-downloader" replace />} />
+            <Route path="/instagram/instagram-downloader" element={<ToolPage config={pagesConfig['instagram/instagram-downloader']} />} />
+
+            {/* TikTok Category Nested Routes */}
+            <Route path="/tiktok" element={<Navigate to="/tiktok/tiktok-downloader" replace />} />
+            <Route path="/tiktok/tiktok-downloader" element={<ToolPage config={pagesConfig['tiktok/tiktok-downloader']} />} />
+
+            {/* Legacy URL Aliases (Instant 301-style client redirects) */}
+            <Route path="/youtube-video-downloader" element={<Navigate to="/youtube/youtube-video-downloader" replace />} />
+            <Route path="/youtube-mp4" element={<Navigate to="/youtube/youtube-mp4" replace />} />
+            <Route path="/youtube-shorts" element={<Navigate to="/youtube/youtube-shorts" replace />} />
+            <Route path="/youtube-mp3" element={<Navigate to="/youtube/youtube-mp3" replace />} />
+            <Route path="/youtube-transcript" element={<Navigate to="/youtube/youtube-transcript" replace />} />
+            <Route path="/youtube-subtitles" element={<Navigate to="/youtube/youtube-subtitles" replace />} />
+            <Route path="/youtube-thumbnail" element={<Navigate to="/youtube/youtube-thumbnails" replace />} />
+            <Route path="/top-100-youtube-channels" element={<Navigate to="/youtube/top-100-youtube-channels" replace />} />
+            <Route path="/facebook-video-downloader" element={<Navigate to="/facebook/facebook-video-downloader" replace />} />
+            <Route path="/instagram-downloader" element={<Navigate to="/instagram/instagram-downloader" replace />} />
+            <Route path="/tiktok-downloader" element={<Navigate to="/tiktok/tiktok-downloader" replace />} />
 
             {/* Mandatory Google AdSense Legal & Policy Pages */}
             <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />

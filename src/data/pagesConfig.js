@@ -1,5 +1,5 @@
 export const pagesConfig = {
-  'youtube-video-downloader': {
+  'youtube/youtube-video-downloader': {
     title: 'YouTube Video Downloader',
     badge: 'YouTube 1080p, 4K & Audio Downloader',
     category: 'youtube',
@@ -36,7 +36,7 @@ export const pagesConfig = {
     ]
   },
 
-  'youtube-mp4': {
+  'youtube/youtube-mp4': {
     title: 'YouTube MP4 Downloader',
     badge: 'Direct High-Speed MP4 Video Formats',
     category: 'youtube',
@@ -65,7 +65,7 @@ export const pagesConfig = {
     ]
   },
 
-  'youtube-shorts': {
+  'youtube/youtube-shorts': {
     title: 'YouTube Shorts Downloader',
     badge: 'Vertical Video Saver with Sound',
     category: 'youtube',
@@ -94,7 +94,7 @@ export const pagesConfig = {
     ]
   },
 
-  'youtube-mp3': {
+  'youtube/youtube-mp3': {
     title: 'YouTube to MP3 Converter & Downloader',
     badge: 'High Bitrate 320kbps & 192kbps Audio',
     category: 'youtube',
@@ -123,7 +123,7 @@ export const pagesConfig = {
     ]
   },
 
-  'youtube-transcript': {
+  'youtube/youtube-transcript': {
     title: 'YouTube Transcript Generator & Extractor',
     badge: 'Interactive Cues & Text Exporter',
     category: 'youtube',
@@ -152,7 +152,7 @@ export const pagesConfig = {
     ]
   },
 
-  'youtube-subtitles': {
+  'youtube/youtube-subtitles': {
     title: 'YouTube Subtitles Downloader (SRT & VTT)',
     badge: 'Multi-Language Subtitle Tracks',
     category: 'youtube',
@@ -181,7 +181,7 @@ export const pagesConfig = {
     ]
   },
 
-  'youtube-thumbnail': {
+  'youtube/youtube-thumbnails': {
     title: 'YouTube Thumbnail Images Downloader',
     badge: '1080p Full HD, 720p, 480p & SD Images',
     category: 'youtube',
@@ -210,7 +210,7 @@ export const pagesConfig = {
     ]
   },
 
-  'facebook-video-downloader': {
+  'facebook/facebook-video-downloader': {
     title: 'Facebook Video Downloader',
     badge: 'Facebook Public Videos & Reels in 1080p',
     category: 'facebook',
@@ -239,7 +239,7 @@ export const pagesConfig = {
     ]
   },
 
-  'instagram-downloader': {
+  'instagram/instagram-downloader': {
     title: 'Instagram Reels & Video Downloader',
     badge: 'Reels, Stories, Carousels & Photos',
     category: 'instagram',
@@ -268,7 +268,7 @@ export const pagesConfig = {
     ]
   },
 
-  'tiktok-downloader': {
+  'tiktok/tiktok-downloader': {
     title: 'TikTok Video Downloader Without Watermark',
     badge: 'Clean HD MP4 & Original Audio MP3',
     category: 'tiktok',
@@ -297,3 +297,16 @@ export const pagesConfig = {
     ]
   }
 };
+
+// Backwards-compatible aliases
+pagesConfig['youtube-video-downloader'] = pagesConfig['youtube/youtube-video-downloader'];
+pagesConfig['youtube-mp4'] = pagesConfig['youtube/youtube-mp4'];
+pagesConfig['youtube-shorts'] = pagesConfig['youtube/youtube-shorts'];
+pagesConfig['youtube-mp3'] = pagesConfig['youtube/youtube-mp3'];
+pagesConfig['youtube-transcript'] = pagesConfig['youtube/youtube-transcript'];
+pagesConfig['youtube-subtitles'] = pagesConfig['youtube/youtube-subtitles'];
+pagesConfig['youtube-thumbnail'] = pagesConfig['youtube/youtube-thumbnails'];
+pagesConfig['youtube/youtube-thumbnail'] = pagesConfig['youtube/youtube-thumbnails'];
+pagesConfig['facebook-video-downloader'] = pagesConfig['facebook/facebook-video-downloader'];
+pagesConfig['instagram-downloader'] = pagesConfig['instagram/instagram-downloader'];
+pagesConfig['tiktok-downloader'] = pagesConfig['tiktok/tiktok-downloader'];

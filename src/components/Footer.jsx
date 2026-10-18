@@ -33,13 +33,13 @@ export default function Footer() {
               YouTube Tool Suite
             </h4>
             <ul className="space-y-2 text-xs">
-              <li><Link to="/youtube-video-downloader" className="hover:text-rose-400 transition">YouTube Video Downloader</Link></li>
-              <li><Link to="/youtube-mp4" className="hover:text-rose-400 transition">YouTube MP4 1080p</Link></li>
-              <li><Link to="/youtube-shorts" className="hover:text-rose-400 transition">YouTube Shorts Downloader</Link></li>
-              <li><Link to="/youtube-mp3" className="hover:text-rose-400 transition">YouTube to MP3 (320kbps)</Link></li>
-              <li><Link to="/youtube-transcript" className="hover:text-rose-400 transition">YouTube Transcript Generator</Link></li>
-              <li><Link to="/youtube-subtitles" className="hover:text-rose-400 transition">YouTube Subtitles (SRT/VTT)</Link></li>
-              <li><Link to="/youtube-thumbnail" className="hover:text-rose-400 transition">YouTube Thumbnails (All Qualities)</Link></li>
+              <li><Link to="/youtube/youtube-video-downloader" className="hover:text-rose-400 transition">YouTube Video Downloader</Link></li>
+              <li><Link to="/youtube/youtube-mp4" className="hover:text-rose-400 transition">YouTube MP4 1080p</Link></li>
+              <li><Link to="/youtube/youtube-shorts" className="hover:text-rose-400 transition">YouTube Shorts Downloader</Link></li>
+              <li><Link to="/youtube/youtube-mp3" className="hover:text-rose-400 transition">YouTube to MP3 (320kbps)</Link></li>
+              <li><Link to="/youtube/youtube-transcript" className="hover:text-rose-400 transition">YouTube Transcript Generator</Link></li>
+              <li><Link to="/youtube/youtube-subtitles" className="hover:text-rose-400 transition">YouTube Subtitles (SRT/VTT)</Link></li>
+              <li><Link to="/youtube/youtube-thumbnails" className="hover:text-rose-400 transition">YouTube Thumbnails (All Qualities)</Link></li>
             </ul>
           </div>
 
@@ -50,14 +50,14 @@ export default function Footer() {
             </h4>
             <ul className="space-y-2 text-xs">
               <li>
-                <Link to="/top-100-youtube-channels" className="text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1.5 transition">
+                <Link to="/youtube/top-100-youtube-channels" className="text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1.5 transition">
                   <Award className="w-3.5 h-3.5" />
                   <span>Top 100 YouTube Channels</span>
                 </Link>
               </li>
-              <li><Link to="/facebook-video-downloader" className="hover:text-blue-400 transition">Facebook Video Downloader</Link></li>
-              <li><Link to="/instagram-downloader" className="hover:text-pink-400 transition">Instagram Reels Downloader</Link></li>
-              <li><Link to="/tiktok-downloader" className="hover:text-cyan-400 transition">TikTok (No Watermark)</Link></li>
+              <li><Link to="/facebook/facebook-video-downloader" className="hover:text-blue-400 transition">Facebook Video Downloader</Link></li>
+              <li><Link to="/instagram/instagram-downloader" className="hover:text-pink-400 transition">Instagram Reels Downloader</Link></li>
+              <li><Link to="/tiktok/tiktok-downloader" className="hover:text-cyan-400 transition">TikTok (No Watermark)</Link></li>
             </ul>
           </div>
 

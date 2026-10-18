@@ -46,7 +46,7 @@ export default function TopChannelsMegaMenu({ onSelectFilter, onClose }) {
   function handleSearchSubmit(e) {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/top-100-youtube-channels?search=${encodeURIComponent(searchQuery.trim())}`);
+      navigate(`/youtube/top-100-youtube-channels?search=${encodeURIComponent(searchQuery.trim())}`);
       if (onSelectFilter) onSelectFilter({ type: 'search', value: searchQuery.trim() });
       if (onClose) onClose();
     }
@@ -54,13 +54,13 @@ export default function TopChannelsMegaMenu({ onSelectFilter, onClose }) {
 
   function handleFilterClick(filter) {
     if (filter.type === 'country') {
-      navigate(`/top-100-youtube-channels?country=${encodeURIComponent(filter.value)}`);
+      navigate(`/youtube/top-100-youtube-channels?country=${encodeURIComponent(filter.value)}`);
     } else if (filter.type === 'category') {
-      navigate(`/top-100-youtube-channels?category=${encodeURIComponent(filter.value)}`);
+      navigate(`/youtube/top-100-youtube-channels?category=${encodeURIComponent(filter.value)}`);
     } else if (filter.type === 'chart') {
-      navigate(`/top-100-youtube-channels?limit=${filter.value}`);
+      navigate(`/youtube/top-100-youtube-channels?limit=${filter.value}`);
     } else {
-      navigate('/top-100-youtube-channels');
+      navigate('/youtube/top-100-youtube-channels');
     }
     if (onSelectFilter) onSelectFilter(filter);
     if (onClose) onClose();
@@ -86,10 +86,10 @@ export default function TopChannelsMegaMenu({ onSelectFilter, onClose }) {
         <button
           type="button"
           onClick={() => {
-            navigate('/top-100-youtube-channels');
+            navigate('/youtube/top-100-youtube-channels');
             if (onClose) onClose();
           }}
-          className="text-xs font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1.5 transition self-end sm:self-auto"
+          className="text-xs font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1.5 transition self-end sm:self-auto cursor-pointer"
         >
           <span>View Full Top 100 Database &rarr;</span>
         </button>
@@ -147,7 +147,7 @@ export default function TopChannelsMegaMenu({ onSelectFilter, onClose }) {
         <div>
           <h4 className="font-bold text-white text-sm mb-3.5 flex items-center gap-1.5">
             <Tag className="w-4 h-4 text-amber-400" />
-            <span>Top 100 Channels by Category</span>
+            <span>Top Channels by Category</span>
           </h4>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
             {categories.map((cat, idx) => (
@@ -155,7 +155,7 @@ export default function TopChannelsMegaMenu({ onSelectFilter, onClose }) {
                 key={idx}
                 type="button"
                 onClick={() => handleFilterClick({ type: 'category', value: cat })}
-                className="text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-900 text-slate-300 hover:text-white text-xs font-medium transition truncate cursor-pointer hover:text-rose-400"
+                className="text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-900 text-slate-300 hover:text-white transition cursor-pointer truncate hover:text-amber-300"
               >
                 {cat}
               </button>

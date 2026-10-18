@@ -40,14 +40,14 @@ export default function HeroDownloader({
   }
 
   const ytSubfeatures = [
-    { id: 'all', label: 'YouTube', icon: Video, path: '/youtube-video-downloader', hint: 'Download YouTube videos in any resolution' },
-    { id: 'mp4', label: 'YouTube MP4', icon: Download, path: '/youtube-mp4', hint: 'Direct 1080p, 720p & 4K MP4 video formats' },
-    { id: 'shorts', label: 'YouTube Shorts', icon: Sparkles, path: '/youtube-shorts', hint: 'Fast download for YouTube Shorts vertical videos' },
-    { id: 'mp3', label: 'YouTube MP3', icon: Music, path: '/youtube-mp3', hint: 'Convert & download audio up to 320 kbps high bitrate' },
-    { id: 'transcript', label: 'YouTube Transcript', icon: FileText, path: '/youtube-transcript', hint: 'Interactive timestamped transcript & text exporter' },
-    { id: 'subtitles', label: 'YouTube Subtitles', icon: Subtitles, path: '/youtube-subtitles', hint: 'Download multi-language subtitles in SRT & VTT' },
-    { id: 'thumbnails', label: 'YouTube Thumbnails', icon: ImageIcon, path: '/youtube-thumbnail', hint: 'All quality thumbnail images (1080p, 720p, 480p, SD)' },
-    { id: 'top100', label: 'Top 100 Channels', icon: Trophy, path: '/top-100-youtube-channels', hint: 'Global ranking by current subscriber count' },
+    { id: 'all', label: 'YouTube', icon: Video, path: '/youtube/youtube-video-downloader', hint: 'Download YouTube videos in any resolution' },
+    { id: 'mp4', label: 'YouTube MP4', icon: Download, path: '/youtube/youtube-mp4', hint: 'Direct 1080p, 720p & 4K MP4 video formats' },
+    { id: 'shorts', label: 'YouTube Shorts', icon: Sparkles, path: '/youtube/youtube-shorts', hint: 'Fast download for YouTube Shorts vertical videos' },
+    { id: 'mp3', label: 'YouTube MP3', icon: Music, path: '/youtube/youtube-mp3', hint: 'Convert & download audio up to 320 kbps high bitrate' },
+    { id: 'transcript', label: 'YouTube Transcript', icon: FileText, path: '/youtube/youtube-transcript', hint: 'Interactive timestamped transcript & text exporter' },
+    { id: 'subtitles', label: 'YouTube Subtitles', icon: Subtitles, path: '/youtube/youtube-subtitles', hint: 'Download multi-language subtitles in SRT & VTT' },
+    { id: 'thumbnails', label: 'YouTube Thumbnails', icon: ImageIcon, path: '/youtube/youtube-thumbnails', hint: 'All quality thumbnail images (1080p, 720p, 480p, SD)' },
+    { id: 'top100', label: 'Top 100 Channels', icon: Trophy, path: '/youtube/top-100-youtube-channels', hint: 'Global ranking by current subscriber count' },
   ];
 
   function getTitleAndDesc() {
@@ -279,7 +279,7 @@ export default function HeroDownloader({
                 YouTube Shorts Sample
               </button>
               <Link
-                to="/top-100-youtube-channels"
+                to="/youtube/top-100-youtube-channels"
                 className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition font-semibold"
               >
                 View Top 100 Channels &rarr;

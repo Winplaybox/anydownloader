@@ -106,7 +106,7 @@ export default function HomePage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           <Link
-            to="/youtube-video-downloader"
+            to="/youtube/youtube-video-downloader"
             className="p-6 rounded-3xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-rose-500/50 transition duration-300 group shadow-lg flex flex-col justify-between"
           >
             <div>
@@ -127,7 +127,7 @@ export default function HomePage() {
           </Link>
 
           <Link
-            to="/youtube-mp3"
+            to="/youtube/youtube-mp3"
             className="p-6 rounded-3xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/50 transition duration-300 group shadow-lg flex flex-col justify-between"
           >
             <div>
@@ -148,7 +148,7 @@ export default function HomePage() {
           </Link>
 
           <Link
-            to="/youtube-transcript"
+            to="/youtube/youtube-transcript"
             className="p-6 rounded-3xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/50 transition duration-300 group shadow-lg flex flex-col justify-between"
           >
             <div>
@@ -169,7 +169,7 @@ export default function HomePage() {
           </Link>
 
           <Link
-            to="/youtube-thumbnail"
+            to="/youtube/youtube-thumbnails"
             className="p-6 rounded-3xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-emerald-500/50 transition duration-300 group shadow-lg flex flex-col justify-between"
           >
             <div>
@@ -190,7 +190,7 @@ export default function HomePage() {
           </Link>
 
           <Link
-            to="/top-100-youtube-channels"
+            to="/youtube/top-100-youtube-channels"
             className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-rose-950/20 to-slate-900 border border-rose-500/30 hover:border-rose-500 transition duration-300 group shadow-lg flex flex-col justify-between sm:col-span-2 lg:col-span-2"
           >
             <div>
@@ -234,7 +234,7 @@ export default function HomePage() {
             </div>
 
             <Link
-              to="/top-100-youtube-channels"
+              to="/youtube/top-100-youtube-channels"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold shadow-lg shadow-rose-600/25 transition self-start sm:self-auto cursor-pointer"
             >
               <span>View Full Top 100 Ranks</span>
