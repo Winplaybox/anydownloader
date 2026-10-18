@@ -296,6 +296,120 @@ export const pagesConfig = {
       }
     ]
   }
+,
+
+  'facebook/facebook-reels': {
+    title: 'Facebook Reels Downloader',
+    badge: 'Vertical 9:16 Reels Without Watermark',
+    category: 'facebook',
+    subfeature: 'reels',
+    guideTitle: 'How to Download Facebook Reels in Full HD (1080p)',
+    guideIntro: 'Download trending Facebook Reels directly to your phone or computer in original resolution with pristine audio and no overlays.',
+    sections: [
+      {
+        heading: 'Save Facebook Reels Without Watermarks',
+        body: 'Facebook Reels are captivating short-form vertical videos. OVD extracts the direct source MP4 stream, ensuring your saved reel has crisp 1080p video and synchronized audio.'
+      },
+      {
+        heading: 'Fast Direct Downloads for Creators',
+        body: 'Whether archiving your own uploaded reels or analyzing viral creator hooks, OVD offers one-click instant download links without requiring account logins.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'How do I copy a Facebook Reel link?',
+        a: 'Tap the three dots on the bottom right of the reel and select Copy Link. Paste it into OVD above.'
+      },
+      {
+        q: 'Are Facebook Reels saved with sound?',
+        a: 'Yes, all downloaded reels include the original full synchronized soundtrack.'
+      }
+    ]
+  },
+
+  'facebook/facebook-watch': {
+    title: 'Facebook Watch & Shows Saver',
+    badge: 'Long-Form Shows & Recorded Streams',
+    category: 'facebook',
+    subfeature: 'watch',
+    guideTitle: 'Download Facebook Watch Videos in 1080p MP4',
+    guideIntro: 'Save episodic Facebook Watch shows, creator documentaries, and recorded live streams directly for offline viewing.',
+    sections: [
+      {
+        heading: 'Universal Compatibility for Facebook Watch',
+        body: 'Enjoy your favorite public talk shows, sports recaps, and gaming streams anywhere without data usage or buffering.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Can I download long Facebook Watch videos?',
+        a: 'Yes, OVD supports full-length episodes and long-form broadcasts with no time limit.'
+      }
+    ]
+  },
+
+  'facebook/facebook-stories': {
+    title: 'Facebook Story Saver',
+    badge: 'Public Stories & Video Statuses',
+    category: 'facebook',
+    subfeature: 'stories',
+    guideTitle: 'Download Public Facebook Stories Online',
+    guideIntro: 'Save public Facebook stories and video clips before they expire in high-definition MP4 format.',
+    sections: [
+      {
+        heading: 'Preserve Memorable Public Moments',
+        body: 'Public Facebook stories vanish after 24 hours. OVD enables you to archive your favorite public clips permanently on your device.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Can I download private Facebook stories?',
+        a: 'No, OVD strictly respects privacy and only processes public Facebook story URLs.'
+      }
+    ]
+  },
+
+  'facebook/facebook-mp3': {
+    title: 'Facebook to MP3 Audio Converter',
+    badge: 'High Bitrate 320kbps & 192kbps Audio',
+    category: 'facebook',
+    subfeature: 'mp3',
+    guideTitle: 'Extract MP3 Audio from Facebook Videos',
+    guideIntro: 'Convert Facebook video clips, speeches, acoustic concerts, and podcast clips directly into high-fidelity MP3 sound tracks.',
+    sections: [
+      {
+        heading: 'Crystal Clear Acoustic Extraction',
+        body: 'Our audio converter extracts pure audio streams from Facebook videos, saving storage space while preserving dynamic range.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'What audio formats are supported?',
+        a: 'OVD provides 320kbps high bitrate MP3, 192kbps standard MP3, and AAC audio formats.'
+      }
+    ]
+  },
+
+  'facebook/facebook-thumbnails': {
+    title: 'Facebook Video Cover & Thumbnail Saver',
+    badge: 'Full Resolution HD Cover Artwork',
+    category: 'facebook',
+    subfeature: 'thumbnails',
+    guideTitle: 'Download Facebook Video Cover Artwork',
+    guideIntro: 'Save full-resolution video thumbnail covers and poster artwork from any public Facebook video or reel.',
+    sections: [
+      {
+        heading: 'High Definition Cover Images',
+        body: 'Extract the official HD poster frame for your presentations, thumbnails research, or graphic design inspiration.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Are downloaded cover images full resolution?',
+        a: 'Yes, OVD extracts the highest resolution JPEG image provided by Facebook CDNs.'
+      }
+    ]
+  },
 };
 
 // Backwards-compatible aliases

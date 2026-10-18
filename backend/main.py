@@ -331,6 +331,16 @@ def extract_media(url: str):
         ext = f.get("ext") or "mp4"
         format_url = f.get("url")
 
+        if not height:
+            fid = (f.get("format_id") or "").lower()
+            fnote = (f.get("format_note") or "").lower()
+            if "hd" in fid or "hd" in fnote:
+                height = 720
+            elif "sd" in fid or "sd" in fnote:
+                height = 480
+            elif vcodec != "none" and format_url:
+                height = 360
+
         if not height or not format_url or height < 144:
             continue
         if vcodec == "none":

@@ -20,6 +20,7 @@ import {
   FacebookIcon 
 } from './BrandIcons.jsx';
 import YouTubePills from './YouTubePills.jsx';
+import FacebookPills from './FacebookPills.jsx';
 
 export default function HeroDownloader({ 
   url, 
@@ -99,10 +100,50 @@ export default function HeroDownloader({
       };
     }
     if (activeCategory === 'facebook') {
+      if (activeSubfeature === 'reels') {
+        return {
+          badge: 'Facebook Reels Downloader Without Watermark',
+          title: 'Facebook Reels Downloader',
+          gradient: 'Download HD 1080p Reels with Sound',
+          desc: 'Save viral Facebook Reels in vertical 9:16 format with original synchronized audio directly to your device.'
+        };
+      }
+      if (activeSubfeature === 'watch') {
+        return {
+          badge: 'Facebook Watch & Shows Saver',
+          title: 'Facebook Watch Downloader',
+          gradient: 'Full Episodes & Recorded Broadcasts',
+          desc: 'Download episodic Facebook Watch shows, sports recaps, and recorded broadcasts in pristine 1080p MP4.'
+        };
+      }
+      if (activeSubfeature === 'stories') {
+        return {
+          badge: 'Facebook Story & Status Saver',
+          title: 'Facebook Story Downloader',
+          gradient: 'Save Public Video Stories in HD',
+          desc: 'Archive public Facebook stories and video clips before they expire in high-definition MP4 format.'
+        };
+      }
+      if (activeSubfeature === 'mp3') {
+        return {
+          badge: 'Facebook to MP3 Audio Converter',
+          title: 'Facebook MP3 Downloader',
+          gradient: 'High Fidelity 320kbps & 192kbps MP3',
+          desc: 'Extract clean MP3 audio tracks from Facebook speeches, podcast clips, and live streams.'
+        };
+      }
+      if (activeSubfeature === 'thumbnails') {
+        return {
+          badge: 'Facebook Video Cover & Artwork Downloader',
+          title: 'Facebook Thumbnails Downloader',
+          gradient: 'Full Resolution HD Artwork & Covers',
+          desc: 'Save full-resolution video thumbnail frames and cover artwork from any public Facebook video.'
+        };
+      }
       return {
-        badge: 'Facebook Watch & Reels Saver',
+        badge: 'Facebook Watch, Reels & Video Downloader',
         title: 'Facebook Video Downloader',
-        gradient: 'Full HD 1080p & High Quality Audio',
+        gradient: 'Full HD 1080p & High Quality MP4',
         desc: 'Download Facebook public videos, reels, stories, and watch clips directly in ultra high quality MP4 format.'
       };
     }
@@ -175,9 +216,14 @@ export default function HeroDownloader({
           {info.desc}
         </p>
 
-        {/* YouTube Tool Suite Pills - Linked directly to their dedicated pages! */}
+        {/* YouTube Tool Suite Pills */}
         {activeCategory === 'youtube' && (
           <YouTubePills activeSubfeature={activeSubfeature} />
+        )}
+
+        {/* Facebook Tool Suite Pills */}
+        {activeCategory === 'facebook' && (
+          <FacebookPills activeSubfeature={activeSubfeature} />
         )}
 
         {/* Big Input Bar */}
