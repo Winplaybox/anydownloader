@@ -58,6 +58,8 @@ export default function Footer() {
               <li><Link to="/facebook/facebook-video-downloader" className="hover:text-blue-400 transition">Facebook Video Downloader</Link></li>
               <li><Link to="/instagram/instagram-downloader" className="hover:text-pink-400 transition">Instagram Reels Downloader</Link></li>
               <li><Link to="/tiktok/tiktok-downloader" className="hover:text-cyan-400 transition">TikTok (No Watermark)</Link></li>
+              <li><Link to="/blogs" className="hover:text-amber-400 transition">Social Media Updates Blog</Link></li>
+              <li><Link to="/updates" className="hover:text-rose-400 transition">Product Releases & Changelog</Link></li>
             </ul>
           </div>
 

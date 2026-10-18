@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Download, 
   ChevronDown, 
@@ -13,10 +13,12 @@ import {
   Image as ImageIcon, 
   Subtitles, 
   ExternalLink,
-  ShieldCheck,
   Award,
   Globe,
-  Tag
+  Tag,
+  Newspaper,
+  Zap,
+  ArrowRight
 } from 'lucide-react';
 import { 
   YoutubeIcon, 
@@ -24,7 +26,6 @@ import {
   TiktokIcon, 
   FacebookIcon 
 } from './BrandIcons.jsx';
-import TopChannelsMegaMenu from './TopChannelsMegaMenu.jsx';
 
 export default function Header() {
   const [openYoutubeMenu, setOpenYoutubeMenu] = useState(false);
@@ -32,8 +33,9 @@ export default function Header() {
 
   const ytMenuRef = useRef(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // Close menu on route change
+  // Close menus on route change
   useEffect(() => {
     setOpenYoutubeMenu(false);
     setMobileMenuOpen(false);
@@ -50,7 +52,7 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const ytFeatures = [
+  const ytTools = [
     { title: 'YouTube Video Downloader', desc: 'Download Full HD & 4K Videos', icon: Video, path: '/youtube/youtube-video-downloader' },
     { title: 'YouTube MP4', desc: 'Direct MP4 formats in all qualities', icon: Download, path: '/youtube/youtube-mp4' },
     { title: 'YouTube Shorts', desc: 'Fast vertical video downloader', icon: Sparkles, path: '/youtube/youtube-shorts' },
@@ -58,7 +60,15 @@ export default function Header() {
     { title: 'YouTube Transcript', desc: 'Interactive timestamped transcript generator', icon: FileText, path: '/youtube/youtube-transcript' },
     { title: 'YouTube Subtitles', desc: 'Download subtitles in SRT & VTT formats', icon: Subtitles, path: '/youtube/youtube-subtitles' },
     { title: 'YouTube Thumbnails', desc: 'Maxres 1080p, HD, SD & HQ image downloads', icon: ImageIcon, path: '/youtube/youtube-thumbnails' },
-    { title: 'Top 100 Channels (12H)', desc: 'Live global subscriber ranking database', icon: Award, path: '/youtube/top-100-youtube-channels', badge: '12H' }
+  ];
+
+  const quickCountries = [
+    { name: 'United States', flag: '🇺🇸' },
+    { name: 'India', flag: '🇮🇳' },
+    { name: 'Brazil', flag: '🇧🇷' },
+    { name: 'Japan', flag: '🇯🇵' },
+    { name: 'United Kingdom', flag: '🇬🇧' },
+    { name: 'Germany', flag: '🇩🇪' }
   ];
 
   return (
@@ -83,25 +93,22 @@ export default function Header() {
           </div>
         </Link>
 
-        {/* Desktop Nav Items (Clean 4 Categories) */}
+        {/* Desktop Nav Items (Clean, No Extraneous Badges) */}
         <nav className="hidden lg:flex items-center gap-1.5 xl:gap-2 text-xs font-semibold text-slate-300">
           
-          {/* 1. YouTube Category with Unified Mega Menu */}
+          {/* 1. YouTube Dropdown Toggle (No extra badges on button level!) */}
           <div className="relative" ref={ytMenuRef}>
             <button
               type="button"
               onClick={() => setOpenYoutubeMenu(!openYoutubeMenu)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition cursor-pointer ${
                 openYoutubeMenu || location.pathname.startsWith('/youtube')
-                  ? 'bg-slate-900 text-white border border-slate-700 shadow-md shadow-rose-500/10'
+                  ? 'bg-slate-900 text-white border border-slate-800'
                   : 'hover:bg-slate-900 hover:text-white'
               }`}
             >
               <YoutubeIcon className="w-4 h-4 text-red-500" />
               <span>YouTube</span>
-              <span className="text-[9px] bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 py-0.2 rounded-full font-bold ml-0.5">
-                Suite & 100 Ranks
-              </span>
               <ChevronDown className={`w-3.5 h-3.5 transition transform ${openYoutubeMenu ? 'rotate-180 text-rose-500' : 'text-slate-500'}`} />
             </button>
           </div>
@@ -144,16 +151,42 @@ export default function Header() {
             <TiktokIcon className="w-3.5 h-3.5 text-cyan-400" />
             <span>TikTok</span>
           </Link>
+
+          {/* 5. Blogs (Real-Time Social Media Updates) */}
+          <Link
+            to="/blogs"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition ${
+              location.pathname.startsWith('/blog')
+                ? 'bg-slate-900 text-white border border-slate-800'
+                : 'hover:bg-slate-900 hover:text-white'
+            }`}
+          >
+            <Newspaper className="w-3.5 h-3.5 text-amber-400" />
+            <span>Blogs</span>
+          </Link>
+
+          {/* 6. Updates (Product Releases & Changelog) */}
+          <Link
+            to="/updates"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition ${
+              location.pathname.startsWith('/updates')
+                ? 'bg-slate-900 text-white border border-slate-800'
+                : 'hover:bg-slate-900 hover:text-white'
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5 text-rose-400" />
+            <span>Updates</span>
+          </Link>
         </nav>
 
-        {/* Right CTA Button & Mobile Toggle */}
+        {/* Right Action / Mobile Toggle (No standalone Top 100 badge!) */}
         <div className="flex items-center gap-2.5">
           <Link
-            to="/youtube/top-100-youtube-channels"
-            className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-rose-400 hover:text-white bg-rose-500/10 hover:bg-rose-600 px-3.5 py-2 rounded-xl border border-rose-500/20 hover:border-transparent transition"
+            to="/updates"
+            className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono font-bold text-slate-400 hover:text-white bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 transition"
           >
-            <Award className="w-3.5 h-3.5" />
-            <span>Top 100 Channels</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>v2.5</span>
           </Link>
 
           {/* Mobile Menu Hamburger */}
@@ -168,39 +201,38 @@ export default function Header() {
         </div>
       </div>
 
-      {/* FIXED CENTRED UNIFIED YOUTUBE MEGA MENU */}
+      {/* SPACIOUS, UN-SQUEEZED YOUTUBE MEGA MENU */}
       {openYoutubeMenu && (
         <div
           ref={ytMenuRef}
           className="fixed inset-x-0 top-16 flex justify-center z-50 px-4 pt-3 pointer-events-none"
         >
-          <div className="pointer-events-auto w-full max-w-5xl bg-slate-950/98 border border-slate-800 rounded-3xl p-6 shadow-2xl backdrop-blur-2xl text-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-            {/* Header info */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-5 border-b border-slate-800 gap-2">
-              <div className="flex items-center gap-2.5">
+          <div className="pointer-events-auto w-full max-w-4xl bg-slate-950/98 border border-slate-800 rounded-3xl p-6 sm:p-7 shadow-2xl backdrop-blur-2xl text-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-800/80">
+              <div className="flex items-center gap-2">
                 <YoutubeIcon className="w-5 h-5 text-red-500" />
                 <span className="font-extrabold text-white text-sm">YouTube Complete Suite & Rankings</span>
-                <span className="text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold px-2 py-0.5 rounded-full">
-                  Updated Every 12 Hours
-                </span>
               </div>
               <Link
                 to="/youtube/top-100-youtube-channels"
                 onClick={() => setOpenYoutubeMenu(false)}
-                className="text-xs font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 transition self-end sm:self-auto"
+                className="text-xs font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 transition"
               >
                 <span>View Full Top 100 Database &rarr;</span>
               </Link>
             </div>
 
-            {/* Split Grid: Left = 8 Tools Suite, Right = Top Channels Mega Explorer */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Left Column: 8 Tools */}
-              <div className="lg:col-span-5 space-y-1 lg:border-r lg:border-slate-800/80 lg:pr-5">
-                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2">
+            {/* Clean 2-Column Layout with Generous Breathing Room */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-7 items-start">
+              
+              {/* Left Column: 7 Tools Suite */}
+              <div className="space-y-1 md:border-r md:border-slate-800/80 md:pr-6">
+                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2.5">
                   YouTube Tools & Downloaders
                 </div>
-                {ytFeatures.map((feat, idx) => {
+                {ytTools.map((feat, idx) => {
                   const Icon = feat.icon;
                   return (
                     <Link
@@ -213,27 +245,90 @@ export default function Header() {
                         <Icon className="w-3.5 h-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <div className="font-bold text-white text-xs group-hover:text-rose-400 transition flex items-center gap-1.5">
-                          <span>{feat.title}</span>
-                          {feat.badge && (
-                            <span className="text-[9px] bg-rose-500 text-white px-1.5 py-0.2 rounded font-extrabold">
-                              {feat.badge}
-                            </span>
-                          )}
+                        <div className="font-bold text-white text-xs group-hover:text-rose-400 transition">
+                          {feat.title}
                         </div>
-                        <div className="text-[10px] text-slate-400 leading-tight truncate">{feat.desc}</div>
+                        <div className="text-[10px] text-slate-400 leading-tight truncate">
+                          {feat.desc}
+                        </div>
                       </div>
                     </Link>
                   );
                 })}
               </div>
 
-              {/* Right Column: Top Channels Explorer (Top 50, 100, Countries, Categories) */}
-              <div className="lg:col-span-7">
-                <TopChannelsMegaMenu
-                  onClose={() => setOpenYoutubeMenu(false)}
-                />
+              {/* Right Column: Top 100 Channels Feature Card (Zero text truncation!) */}
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between h-full">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Award className="w-4 h-4 text-rose-500" />
+                      <h4 className="font-extrabold text-white text-sm">
+                        Top 100 YouTube Channels
+                      </h4>
+                    </div>
+                    <span className="text-[9px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full">
+                      12H Auto-Sync
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+                    Global subscriber leaderboard recorded by OVD.winplaybox.in and refreshed every 12 hours.
+                  </p>
+
+                  {/* Quick Ranking Links */}
+                  <div className="space-y-1.5 mb-4">
+                    <Link
+                      to="/youtube/top-100-youtube-channels?limit=50"
+                      onClick={() => setOpenYoutubeMenu(false)}
+                      className="flex items-center justify-between p-2 rounded-xl bg-slate-950/70 hover:bg-slate-900 border border-slate-800 text-xs text-slate-300 hover:text-white transition group"
+                    >
+                      <span className="font-medium">Top 50 Most Subscribed Channels</span>
+                      <TrendingUp className="w-3.5 h-3.5 text-emerald-400 group-hover:translate-x-0.5 transition" />
+                    </Link>
+
+                    <Link
+                      to="/youtube/top-100-youtube-channels?limit=100"
+                      onClick={() => setOpenYoutubeMenu(false)}
+                      className="flex items-center justify-between p-2 rounded-xl bg-slate-950/70 hover:bg-slate-900 border border-slate-800 text-xs text-slate-300 hover:text-white transition group"
+                    >
+                      <span className="font-medium">Top 100 Most Subscribed Channels</span>
+                      <TrendingUp className="w-3.5 h-3.5 text-emerald-400 group-hover:translate-x-0.5 transition" />
+                    </Link>
+                  </div>
+
+                  {/* Browse by Country */}
+                  <div className="mb-4">
+                    <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2">
+                      Filter by Country
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {quickCountries.map((c) => (
+                        <Link
+                          key={c.name}
+                          to={`/youtube/top-100-youtube-channels?country=${encodeURIComponent(c.name)}`}
+                          onClick={() => setOpenYoutubeMenu(false)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/70 hover:bg-slate-900 border border-slate-800 text-slate-300 hover:text-white text-xs transition"
+                        >
+                          <span>{c.flag}</span>
+                          <span>{c.name}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Big Direct Button */}
+                <Link
+                  to="/youtube/top-100-youtube-channels"
+                  onClick={() => setOpenYoutubeMenu(false)}
+                  className="w-full mt-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold text-center shadow-lg shadow-rose-600/20 transition flex items-center justify-center gap-2"
+                >
+                  <span>Open Full Top 100 Ranking Database</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
+
             </div>
           </div>
         </div>
@@ -241,8 +336,8 @@ export default function Header() {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-800 bg-slate-950/98 px-4 py-6 space-y-4 max-h-[85vh] overflow-y-auto">
-          {/* Top 100 YouTube Channels Prominent Link */}
+        <div className="lg:hidden border-t border-slate-800 bg-slate-950/98 px-4 py-6 space-y-5 max-h-[85vh] overflow-y-auto">
+          {/* Top 100 YouTube Channels in Mobile */}
           <Link
             to="/youtube/top-100-youtube-channels"
             onClick={() => setMobileMenuOpen(false)}
@@ -250,18 +345,18 @@ export default function Header() {
           >
             <div className="flex items-center gap-2.5">
               <TrendingUp className="w-4 h-4 text-emerald-400" />
-              <span>Top 100 Most Subscribed Channels</span>
+              <span>Top 100 YouTube Channels</span>
             </div>
-            <span className="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-bold">12H Ranks</span>
+            <span className="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-bold">12H Sync</span>
           </Link>
 
-          {/* YouTube Suite in Mobile */}
+          {/* YouTube Suite */}
           <div>
             <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2 px-1">
               YouTube Suite
             </div>
             <div className="space-y-1">
-              {ytFeatures.map((feat, idx) => (
+              {ytTools.map((feat, idx) => (
                 <Link
                   key={idx}
                   to={feat.path}
@@ -275,7 +370,7 @@ export default function Header() {
             </div>
           </div>
 
-          {/* Other Platforms in Mobile */}
+          {/* Other Platforms */}
           <div>
             <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2 px-1">
               Other Platforms
@@ -304,6 +399,31 @@ export default function Header() {
               >
                 <TiktokIcon className="w-4 h-4 text-cyan-400" />
                 <span>TikTok Video Downloader</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Blogs & Updates */}
+          <div>
+            <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2 px-1">
+              News & Releases
+            </div>
+            <div className="space-y-1">
+              <Link
+                to="/blogs"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
+              >
+                <Newspaper className="w-4 h-4 text-amber-400" />
+                <span>Social Media Updates Blog</span>
+              </Link>
+              <Link
+                to="/updates"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
+              >
+                <Zap className="w-4 h-4 text-rose-400" />
+                <span>Product Release Changelog</span>
               </Link>
             </div>
           </div>

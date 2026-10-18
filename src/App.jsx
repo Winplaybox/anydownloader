@@ -5,6 +5,8 @@ import Footer from './components/Footer.jsx';
 import HomePage from './pages/HomePage.jsx';
 import ToolPage from './pages/ToolPage.jsx';
 import TopChannelsPage from './pages/TopChannelsPage.jsx';
+import BlogsPage from './pages/BlogsPage.jsx';
+import UpdatesPage from './pages/UpdatesPage.jsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 import TermsPage from './pages/TermsPage.jsx';
 import ContactPage from './pages/ContactPage.jsx';
@@ -57,6 +59,14 @@ export default function App() {
             {/* TikTok Category Nested Routes */}
             <Route path="/tiktok" element={<Navigate to="/tiktok/tiktok-downloader" replace />} />
             <Route path="/tiktok/tiktok-downloader" element={<ToolPage config={pagesConfig['tiktok/tiktok-downloader']} />} />
+
+            {/* Real-Time Social Media Updates Blog */}
+            <Route path="/blogs" element={<BlogsPage />} />
+            <Route path="/blog" element={<Navigate to="/blogs" replace />} />
+
+            {/* Official Product Releases & Changelog */}
+            <Route path="/updates" element={<UpdatesPage />} />
+            <Route path="/changelog" element={<Navigate to="/updates" replace />} />
 
             {/* Legacy URL Aliases (Instant 301-style client redirects) */}
             <Route path="/youtube-video-downloader" element={<Navigate to="/youtube/youtube-video-downloader" replace />} />
