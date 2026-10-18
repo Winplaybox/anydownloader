@@ -162,7 +162,7 @@ export default function MediaResultCard({ data }) {
 
                   <div className="flex items-center gap-2 self-end sm:self-auto">
                     <a
-                      href={fmt.stream_url || fmt.url}
+                      href={fmt.stream_url ? (fmt.stream_url.startsWith('http') ? fmt.stream_url : `https://anydownloader-backend-vvbj.onrender.com${fmt.stream_url}`) : fmt.url}
                       download={fmt.download_name}
                       className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold shadow-lg shadow-rose-600/20 transition cursor-pointer"
                     >
@@ -210,7 +210,7 @@ export default function MediaResultCard({ data }) {
 
                   <div className="flex items-center gap-2 self-end sm:self-auto">
                     <a
-                      href={fmt.stream_url || fmt.url}
+                      href={fmt.stream_url ? (fmt.stream_url.startsWith('http') ? fmt.stream_url : `https://anydownloader-backend-vvbj.onrender.com${fmt.stream_url}`) : fmt.url}
                       download={fmt.download_name}
                       className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/20 transition cursor-pointer"
                     >

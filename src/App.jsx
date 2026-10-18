@@ -35,7 +35,7 @@ export default function App() {
     setMediaData(null);
 
     try {
-      const res = await fetch('/api/extract', {
+      const res = await fetch('https://anydownloader-backend-vvbj.onrender.com/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url.trim() })
