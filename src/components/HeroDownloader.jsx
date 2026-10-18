@@ -19,6 +19,7 @@ import {
   TiktokIcon, 
   FacebookIcon 
 } from './BrandIcons.jsx';
+import YouTubePills from './YouTubePills.jsx';
 
 export default function HeroDownloader({ 
   url, 
@@ -185,36 +186,7 @@ export default function HeroDownloader({
 
         {/* YouTube Tool Suite Pills - Linked directly to their dedicated pages! */}
         {activeCategory === 'youtube' && (
-          <div className="flex flex-wrap items-center justify-center gap-2 mb-8 max-w-3xl mx-auto">
-            {ytSubfeatures.map((sub) => {
-              const SubIcon = sub.icon;
-              const isSelected = 
-                location.pathname === sub.path ||
-                (sub.id === 'all' && (location.pathname === '/' || location.pathname === '/youtube-video-downloader')) ||
-                (sub.id === activeSubfeature);
-
-              return (
-                <Link
-                  key={sub.id}
-                  to={sub.path}
-                  title={sub.hint}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
-                    isSelected
-                      ? 'bg-rose-500/20 border-rose-500/60 text-white shadow-md shadow-rose-500/10'
-                      : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <SubIcon className={`w-3.5 h-3.5 ${isSelected ? 'text-rose-400' : 'text-slate-400'}`} />
-                  <span>{sub.label}</span>
-                  {sub.id === 'top100' && (
-                    <span className="text-[10px] bg-rose-500 text-white font-extrabold px-1.5 py-0.2 rounded-full ml-0.5">
-                      12H
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
+          <YouTubePills activeSubfeature={activeSubfeature} />
         )}
 
         {/* Big Input Bar */}

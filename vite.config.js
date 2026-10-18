@@ -8,9 +8,9 @@ export default defineConfig({
     rollupOptions: {
       input: './dev.html',
       output: {
-        entryFileNames: 'assets/index.js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/index.[ext]'
+        entryFileNames: 'assets/app-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/style-[hash].[ext]'
       }
     }
   }

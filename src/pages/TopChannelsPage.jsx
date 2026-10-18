@@ -1,6 +1,7 @@
 import React from 'react';
 import { useSearchParams } from 'react-router-dom';
 import TopChannelsSection from '../components/TopChannelsSection.jsx';
+import YouTubePills from '../components/YouTubePills.jsx';
 import SupportedPlatforms from '../components/SupportedPlatforms.jsx';
 import { Trophy, TrendingUp, Globe, Sparkles, BarChart3, Users, Play, Clock } from 'lucide-react';
 
@@ -26,6 +27,9 @@ export default function TopChannelsPage() {
 
   return (
     <div className="py-8">
+      {/* YouTube Tools Navigation */}
+      <YouTubePills activeSubfeature="top100" />
+
       {/* Top Channels Section */}
       <TopChannelsSection
         activeFilter={activeFilter}

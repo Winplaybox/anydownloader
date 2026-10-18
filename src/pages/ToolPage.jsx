@@ -78,7 +78,15 @@ export default function ToolPage({ config }) {
 
       {/* Media Result Card (Shows formats, thumbnails, transcript, subtitles) */}
       {mediaData && (
-        <MediaResultCard data={mediaData} />
+        <MediaResultCard 
+          data={mediaData} 
+          initialTab={
+            config.subfeature === 'mp3' ? 'audio' :
+            config.subfeature === 'transcript' ? 'transcript' :
+            config.subfeature === 'subtitles' ? 'subtitles' :
+            config.subfeature === 'thumbnails' ? 'thumbnails' : 'video'
+          }
+        />
       )}
 
       {/* AdSense Responsive Ad Placeholder Slot 1 */}

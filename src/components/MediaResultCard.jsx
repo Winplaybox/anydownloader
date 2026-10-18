@@ -22,8 +22,14 @@ import {
 
 const BACKEND_BASE = 'https://anydownloader-backend-vvbj.onrender.com';
 
-export default function MediaResultCard({ data }) {
-  const [activeTab, setActiveTab] = useState('video');
+export default function MediaResultCard({ data, initialTab = 'video' }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  React.useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [copiedShare, setCopiedShare] = useState(false);
   const [copiedTranscript, setCopiedTranscript] = useState(false);
   const [transcriptSearch, setTranscriptSearch] = useState('');
