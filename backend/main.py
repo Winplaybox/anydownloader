@@ -124,9 +124,8 @@ def extract_media(url: str):
         "no_warnings": True,
         "extract_flat": False,
         "skip_download": True,
-        "format": "bestvideo+bestaudio/best",
         "noplaylist": True,
-        "socket_timeout": 15,
+        "socket_timeout": 20,
         "extractor_args": {
             "youtube": {
                 "player_client": ["android", "ios", "web"]
