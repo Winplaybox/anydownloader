@@ -131,7 +131,7 @@ def extract_media(url: str):
         "socket_timeout": 20,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "ios", "web"]
+                "player_client": ["android", "ios"]
             }
         },
         "http_headers": {
@@ -371,7 +371,7 @@ def extract_media(url: str):
                 # If transcript not yet loaded, parse from English or first VTT track
                 if not transcript_cues and vtt_u:
                     try:
-                        import urllib.request
+                        # urllib.request at top
                         req = urllib.request.Request(vtt_u, headers={"User-Agent": USER_AGENT})
                         with urllib.request.urlopen(req, timeout=4) as resp:
                             body = resp.read().decode("utf-8", errors="ignore")
