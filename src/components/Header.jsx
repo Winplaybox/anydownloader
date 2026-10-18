@@ -13,13 +13,13 @@ export default function Header() {
           <div>
             <div className="flex items-center gap-1.5">
               <span className="font-extrabold text-xl tracking-tight text-white">
-                Any<span className="bg-gradient-to-r from-rose-500 to-amber-400 bg-clip-text text-transparent">Downloader</span>
+                OVD <span className="bg-gradient-to-r from-rose-500 to-amber-400 bg-clip-text text-transparent">Downloader</span>
               </span>
               <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
                 PRO
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 font-medium">Free Universal Media Downloader</p>
+            <p className="text-[10px] text-slate-400 font-medium">Online Video Downloader • ovd.winplaybox.in</p>
           </div>
         </a>
 
