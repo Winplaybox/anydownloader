@@ -39,6 +39,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
   const isInstagram = platform === 'instagram';
   const isTikTok = platform === 'tiktok';
   const isPinterest = platform === 'pinterest';
+  const isTwitter = platform === 'twitter' || platform === 'x';
 
   // Respect user intent and platform content type
   useEffect(() => {
@@ -59,6 +60,21 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
       return;
     }
 
+    if (isTwitter) {
+      if (data.is_profile) {
+        setActiveTab('profile');
+      } else if (data.is_gif) {
+        setActiveTab('gif');
+      } else if (data.is_carousel) {
+        setActiveTab('carousel');
+      } else if (data.is_video) {
+        setActiveTab(initialTab === 'audio' ? 'audio' : 'video');
+      } else {
+        setActiveTab('thumbnails');
+      }
+      return;
+    }
+
     if (initialTab === 'board' || data.is_board) {
       setActiveTab('board');
     } else if (initialTab === 'carousel' || (data.is_carousel && initialTab !== 'video' && initialTab !== 'audio')) {
@@ -68,7 +84,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
     } else if (initialTab) {
       setActiveTab(initialTab);
     }
-  }, [initialTab, data, isPinterest]);
+  }, [initialTab, data, isPinterest, isTwitter]);
 
   // Extract YouTube ID if present
   const youtubeId = useMemo(() => {
@@ -187,6 +203,82 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
   // Determine Tab Configuration
   const tabs = useMemo(() => {
     const list = [];
+
+    // Tailored X (Twitter) tabs based on media type
+    if (isTwitter) {
+      if (data.is_profile) {
+        list.push({
+          id: 'profile',
+          label: '👤 Profile & Full HD DP',
+          icon: User
+        });
+        list.push({
+          id: 'thumbnails',
+          label: '🖼️ Avatars & Banners',
+          icon: ImageIcon
+        });
+        return list;
+      }
+
+      if (data.is_gif) {
+        list.push({
+          id: 'gif',
+          label: '✨ Animated GIF',
+          icon: Sparkles
+        });
+        if (data.video_formats && data.video_formats.length > 0) {
+          list.push({
+            id: 'video',
+            label: '🎥 Video Loop (MP4)',
+            icon: Video
+          });
+        }
+        return list;
+      }
+
+      if (data.is_carousel) {
+        list.push({
+          id: 'carousel',
+          label: `📸 Tweet Photos (${data.carousel_media?.length || 0})`,
+          icon: Sparkles
+        });
+        list.push({
+          id: 'thumbnails',
+          label: '🖼️ Original HD Photos',
+          icon: ImageIcon
+        });
+        return list;
+      }
+
+      if (data.is_video) {
+        list.push({
+          id: 'video',
+          label: '🎥 Twitter / X Video (MP4)',
+          icon: Video
+        });
+        if (data.audio_formats && data.audio_formats.length > 0) {
+          list.push({
+            id: 'audio',
+            label: '🎵 Audio (MP3)',
+            icon: Music
+          });
+        }
+        list.push({
+          id: 'thumbnails',
+          label: '🖼️ Video Poster',
+          icon: ImageIcon
+        });
+        return list;
+      }
+
+      // Static Tweet Photo
+      list.push({
+        id: 'thumbnails',
+        label: '🖼️ Original HD Photo',
+        icon: ImageIcon
+      });
+      return list;
+    }
 
     // Tailored Pinterest tabs based on media type
     if (isPinterest) {
@@ -347,7 +439,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
     }
 
     return list;
-  }, [isFacebook, isInstagram, isTikTok, isPinterest, isYouTube, rawTranscript.length, data.subtitles, data.is_board, data.board_pins, data.carousel_media, data.is_gif, data.is_profile]);
+  }, [isFacebook, isInstagram, isTikTok, isPinterest, isTwitter, isYouTube, rawTranscript.length, data.subtitles, data.is_board, data.board_pins, data.carousel_media, data.is_gif, data.is_profile]);
 
   // Color theme tokens
   const theme = useMemo(() => {
@@ -391,6 +483,16 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
         borderAccent: 'border-red-500/30'
       };
     }
+    if (isTwitter) {
+      return {
+        badgeBg: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+        activeTab: 'bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 text-white shadow-md shadow-sky-600/30',
+        btnGrad: 'bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:opacity-90 text-white shadow-lg shadow-sky-600/20',
+        btnSolid: 'bg-sky-500 hover:bg-sky-600 text-white shadow-md shadow-sky-500/20',
+        textAccent: 'text-sky-400',
+        borderAccent: 'border-sky-500/30'
+      };
+    }
     // Default YouTube
     return {
       badgeBg: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
@@ -400,7 +502,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
       textAccent: 'text-rose-400',
       borderAccent: 'border-rose-500/30'
     };
-  }, [isFacebook, isInstagram, isTikTok, isPinterest]);
+  }, [isFacebook, isInstagram, isTikTok, isPinterest, isTwitter]);
 
   return (
     <div className="max-w-4xl mx-auto px-4 mb-20 animate-in fade-in slide-in-from-bottom-6 duration-300">
@@ -502,7 +604,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
             <div className="flex items-center gap-2 mb-2 font-bold text-sm">
               <Sparkles className={`w-4 h-4 ${isInstagram ? 'text-pink-400' : isFacebook ? 'text-blue-400' : isPinterest ? 'text-red-400' : 'text-rose-400'}`} />
               <span className={isInstagram ? 'text-pink-300' : isFacebook ? 'text-blue-300' : isPinterest ? 'text-red-300' : 'text-rose-300'}>
-                {isInstagram ? 'Instagram Profile Detected' : isFacebook ? 'Facebook Page / Profile Detected' : isPinterest ? 'Pinterest Profile Detected' : 'YouTube Channel Detected'}: {data.uploader || data.title}
+                {isInstagram ? 'Instagram Profile Detected' : isFacebook ? 'Facebook Page / Profile Detected' : isPinterest ? 'Pinterest Profile Detected' : isTwitter ? 'X (Twitter) Profile Detected' : 'YouTube Channel Detected'}: {data.uploader || data.title}
               </span>
             </div>
             

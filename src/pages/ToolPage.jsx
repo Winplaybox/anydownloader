@@ -105,7 +105,8 @@ export default function ToolPage({ config = {} }) {
             safeConfig.subfeature === 'carousel' || safeConfig.subfeature === 'story' ? 'carousel' :
             safeConfig.subfeature === 'board' ? 'board' :
             safeConfig.subfeature === 'viewer' || safeConfig.subfeature === 'profile' ? 'profile' :
-            safeConfig.subfeature === 'thumbnails' || safeConfig.subfeature === 'photo' || safeConfig.subfeature === 'post' || safeConfig.subfeature === 'gif' ? 'thumbnails' :
+            safeConfig.subfeature === 'gif' ? 'gif' :
+            safeConfig.subfeature === 'thumbnails' || safeConfig.subfeature === 'photo' || safeConfig.subfeature === 'post' || safeConfig.subfeature === 'image' ? 'thumbnails' :
             'video'
           }
         />

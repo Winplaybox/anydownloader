@@ -18,7 +18,8 @@ import {
   InstagramIcon, 
   TiktokIcon, 
   FacebookIcon,
-  PinterestIcon
+  PinterestIcon,
+  TwitterXIcon
 } from './BrandIcons.jsx';
 import YouTubePills from './YouTubePills.jsx';
 import FacebookPills from './FacebookPills.jsx';
@@ -223,7 +224,56 @@ export default function HeroDownloader({
         desc: 'Save high-definition Instagram feed videos, viral reels, stories, and carousel albums directly to your device.'
       };
     }
-        if (activeCategory === 'pinterest') {
+            if (activeCategory === 'twitter') {
+      if (activeSubfeature === 'video') {
+        return {
+          badge: 'X (Twitter) 1080p Video Downloader With Audio',
+          title: 'X (Twitter) Video Downloader',
+          gradient: '1080p Full HD Progressive MP4 & Audio',
+          desc: 'Download Twitter/X video clips in 1080p, 720p, 480p, or 360p progressive MP4 format with audio merged and in-browser player preview.'
+        };
+      }
+      if (activeSubfeature === 'audio' || activeSubfeature === 'mp3') {
+        return {
+          badge: 'X (Twitter) to MP3 Audio Downloader',
+          title: 'X (Twitter) MP3 Downloader',
+          gradient: 'Extract 320kbps High Fidelity Audio',
+          desc: 'Extract clean 320kbps MP3 audio tracks directly from Twitter video clips and voice posts for music and speech archives.'
+        };
+      }
+      if (activeSubfeature === 'image' || activeSubfeature === 'photo') {
+        return {
+          badge: 'X (Twitter) High-Resolution Photo Downloader',
+          title: 'X (Twitter) Photo & Image Downloader',
+          gradient: 'Master Original Uncompressed Images (name=orig)',
+          desc: 'Download original master resolution photos and multi-image tweet sets (up to 4 images) directly from Twitter CDN in pristine quality.'
+        };
+      }
+      if (activeSubfeature === 'gif') {
+        return {
+          badge: 'X (Twitter) Animated GIF Downloader',
+          title: 'X (Twitter) GIF Downloader',
+          gradient: 'Save Reaction GIFs & Looping MP4 Videos',
+          desc: 'Download animated GIFs and looping video animations from Twitter directly to your phone or computer.'
+        };
+      }
+      if (activeSubfeature === 'profile') {
+        return {
+          badge: 'X (Twitter) Profile & Full HD DP Downloader',
+          title: 'X (Twitter) Profile & DP Downloader',
+          gradient: '400x400 HD Avatar, Master DP & 1500x500 Banner',
+          desc: 'Enter any X/Twitter username or handle (@handle) to download full-resolution avatars, header cover banners, and inspect follower counts.'
+        };
+      }
+      return {
+        badge: 'X (Twitter) Complete Media & Video Downloader',
+        title: 'X (Twitter) Downloader',
+        gradient: '1080p MP4 Videos, MP3 Audio, HD Photos & GIFs',
+        desc: 'Save videos, audio tracks, multi-image posts, GIFs, and profile pictures from X (Twitter) directly in original quality.'
+      };
+    }
+
+    if (activeCategory === 'pinterest') {
       if (activeSubfeature === 'video') {
         return {
           badge: 'Pinterest 1080p Video Downloader With Audio',
@@ -320,7 +370,64 @@ export default function HeroDownloader({
       if (activeSubfeature === 'viewer') return 'Enter Instagram username or profile URL (e.g. https://www.instagram.com/cristiano/)...';
       return 'Paste Instagram video, reel, or photo link (e.g. https://www.instagram.com/p/...)...';
     }
-        if (activeCategory === 'pinterest') {
+            if (activeCategory === 'twitter') {
+      if (activeSubfeature === 'video') {
+        return {
+          badge: 'X (Twitter) 1080p Video Downloader With Audio',
+          title: 'X (Twitter) Video Downloader',
+          gradient: '1080p Full HD Progressive MP4 & Audio',
+          desc: 'Download Twitter/X video clips in 1080p, 720p, 480p, or 360p progressive MP4 format with audio merged and in-browser player preview.'
+        };
+      }
+      if (activeSubfeature === 'audio' || activeSubfeature === 'mp3') {
+        return {
+          badge: 'X (Twitter) to MP3 Audio Downloader',
+          title: 'X (Twitter) MP3 Downloader',
+          gradient: 'Extract 320kbps High Fidelity Audio',
+          desc: 'Extract clean 320kbps MP3 audio tracks directly from Twitter video clips and voice posts for music and speech archives.'
+        };
+      }
+      if (activeSubfeature === 'image' || activeSubfeature === 'photo') {
+        return {
+          badge: 'X (Twitter) High-Resolution Photo Downloader',
+          title: 'X (Twitter) Photo & Image Downloader',
+          gradient: 'Master Original Uncompressed Images (name=orig)',
+          desc: 'Download original master resolution photos and multi-image tweet sets (up to 4 images) directly from Twitter CDN in pristine quality.'
+        };
+      }
+      if (activeSubfeature === 'gif') {
+        return {
+          badge: 'X (Twitter) Animated GIF Downloader',
+          title: 'X (Twitter) GIF Downloader',
+          gradient: 'Save Reaction GIFs & Looping MP4 Videos',
+          desc: 'Download animated GIFs and looping video animations from Twitter directly to your phone or computer.'
+        };
+      }
+      if (activeSubfeature === 'profile') {
+        return {
+          badge: 'X (Twitter) Profile & Full HD DP Downloader',
+          title: 'X (Twitter) Profile & DP Downloader',
+          gradient: '400x400 HD Avatar, Master DP & 1500x500 Banner',
+          desc: 'Enter any X/Twitter username or handle (@handle) to download full-resolution avatars, header cover banners, and inspect follower counts.'
+        };
+      }
+      return {
+        badge: 'X (Twitter) Complete Media & Video Downloader',
+        title: 'X (Twitter) Downloader',
+        gradient: '1080p MP4 Videos, MP3 Audio, HD Photos & GIFs',
+        desc: 'Save videos, audio tracks, multi-image posts, GIFs, and profile pictures from X (Twitter) directly in original quality.'
+      };
+    }
+
+        if (activeCategory === 'twitter') {
+      if (activeSubfeature === 'video') return 'Paste X (Twitter) video link (e.g. https://x.com/.../status/... or twitter.com/...)...';
+      if (activeSubfeature === 'audio' || activeSubfeature === 'mp3') return 'Paste X (Twitter) post link to extract MP3 audio track...';
+      if (activeSubfeature === 'image' || activeSubfeature === 'photo') return 'Paste X (Twitter) photo tweet link to download original uncompressed images...';
+      if (activeSubfeature === 'gif') return 'Paste X (Twitter) GIF tweet link to download looping animation...';
+      if (activeSubfeature === 'profile') return 'Enter X (Twitter) handle (e.g. @NASA or https://x.com/elonmusk)...';
+      return 'Paste X (Twitter) post or profile link (e.g. https://x.com/... or @handle)...';
+    }
+if (activeCategory === 'pinterest') {
       if (activeSubfeature === 'video') return 'Paste Pinterest video pin link (e.g. https://www.pinterest.com/pin/... or pin.it/...)...';
       if (activeSubfeature === 'photo') return 'Paste Pinterest photo pin link (e.g. https://www.pinterest.com/pin/...)...';
       if (activeSubfeature === 'gif') return 'Paste Pinterest GIF pin link (e.g. https://www.pinterest.com/pin/...)...';
@@ -343,6 +450,8 @@ export default function HeroDownloader({
           ? 'bg-gradient-to-r from-blue-600/20 via-indigo-600/20 to-sky-500/20'
           : activeCategory === 'instagram'
           ? 'bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-amber-500/20'
+          : activeCategory === 'twitter'
+          ? 'bg-gradient-to-r from-sky-600/20 via-blue-600/20 to-indigo-600/20'
           : activeCategory === 'pinterest'
           ? 'bg-gradient-to-r from-red-600/20 via-rose-600/20 to-pink-600/20'
           : activeCategory === 'tiktok'
@@ -358,6 +467,8 @@ export default function HeroDownloader({
             ? 'bg-blue-500/10 border-blue-500/25 text-blue-400'
             : activeCategory === 'instagram'
             ? 'bg-pink-500/10 border-pink-500/25 text-pink-400'
+            : activeCategory === 'twitter'
+            ? 'bg-sky-500/10 border-sky-500/25 text-sky-400'
             : activeCategory === 'pinterest'
             ? 'bg-red-500/10 border-red-500/25 text-red-400'
             : activeCategory === 'tiktok'
@@ -379,6 +490,8 @@ export default function HeroDownloader({
             ? 'bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-300'
             : activeCategory === 'instagram'
             ? 'bg-gradient-to-r from-pink-400 via-rose-300 to-amber-300'
+            : activeCategory === 'twitter'
+            ? 'bg-gradient-to-r from-sky-400 via-blue-300 to-indigo-300'
             : activeCategory === 'pinterest'
             ? 'bg-gradient-to-r from-red-400 via-rose-300 to-pink-300'
             : activeCategory === 'tiktok'
@@ -408,6 +521,11 @@ export default function HeroDownloader({
           <InstagramPills activeSubfeature={activeSubfeature} />
         )}
 
+        {/* Twitter / X Tool Suite Pills */}
+        {activeCategory === 'twitter' && (
+          <TwitterPills activeSubfeature={activeSubfeature} />
+        )}
+
         {/* Pinterest Tool Suite Pills */}
         {activeCategory === 'pinterest' && (
           <PinterestPills activeSubfeature={activeSubfeature} />
@@ -419,6 +537,8 @@ export default function HeroDownloader({
             ? 'focus-within:border-blue-500/80 focus-within:ring-4 focus-within:ring-blue-500/10'
             : activeCategory === 'instagram'
             ? 'focus-within:border-pink-500/80 focus-within:ring-4 focus-within:ring-pink-500/10'
+            : activeCategory === 'twitter'
+            ? 'focus-within:border-sky-500/80 focus-within:ring-4 focus-within:ring-sky-500/10'
             : activeCategory === 'pinterest'
             ? 'focus-within:border-red-500/80 focus-within:ring-4 focus-within:ring-red-500/10'
             : activeCategory === 'tiktok'
@@ -435,6 +555,8 @@ export default function HeroDownloader({
                   <FacebookIcon className="w-5 h-5 text-blue-500" />
                 ) : activeCategory === 'instagram' ? (
                   <InstagramIcon className="w-5 h-5 text-pink-500" />
+                ) : activeCategory === 'twitter' ? (
+                  <TwitterXIcon className="w-5 h-5 text-sky-400" />
                 ) : activeCategory === 'pinterest' ? (
                   <PinterestIcon className="w-5 h-5 text-red-500" />
                 ) : activeCategory === 'tiktok' ? (

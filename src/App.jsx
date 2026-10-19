@@ -168,6 +168,17 @@ export default function App() {
             <Route path="/pinterest/pinterest-board-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-board-downloader']} />} />
             <Route path="/pinterest/pinterest-profile-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-profile-downloader']} />} />
 
+            {/* Twitter / X Category Nested Routes */}
+            <Route path="/twitter" element={<Navigate to="/twitter/twitter-downloader" replace />} />
+            <Route path="/x" element={<Navigate to="/twitter/twitter-downloader" replace />} />
+            <Route path="/twitter/twitter-downloader" element={<ToolPage config={pagesConfig['twitter/twitter-downloader']} />} />
+            <Route path="/twitter/twitter-video-downloader" element={<ToolPage config={pagesConfig['twitter/twitter-video-downloader']} />} />
+            <Route path="/twitter/twitter-mp3-downloader" element={<ToolPage config={pagesConfig['twitter/twitter-mp3-downloader']} />} />
+            <Route path="/twitter/twitter-image-downloader" element={<ToolPage config={pagesConfig['twitter/twitter-image-downloader']} />} />
+            <Route path="/twitter/twitter-gif-downloader" element={<ToolPage config={pagesConfig['twitter/twitter-gif-downloader']} />} />
+            <Route path="/twitter/twitter-profile-downloader" element={<ToolPage config={pagesConfig['twitter/twitter-profile-downloader']} />} />
+
+
             {/* TikTok Category Nested Routes */}
             <Route path="/tiktok" element={<Navigate to="/tiktok/tiktok-downloader" replace />} />
             <Route path="/tiktok/tiktok-downloader" element={<ToolPage config={pagesConfig['tiktok/tiktok-downloader']} />} />
@@ -213,6 +224,23 @@ export default function App() {
             <Route path="/pinterest-story-downloader" element={<Navigate to="/pinterest/pinterest-story-downloader" replace />} />
             <Route path="/pinterest-board-downloader" element={<Navigate to="/pinterest/pinterest-board-downloader" replace />} />
             <Route path="/pinterest-profile-downloader" element={<Navigate to="/pinterest/pinterest-profile-downloader" replace />} />
+
+            <Route path="/twitter-downloader" element={<Navigate to="/twitter/twitter-downloader" replace />} />
+            <Route path="/twitter-video-downloader" element={<Navigate to="/twitter/twitter-video-downloader" replace />} />
+            <Route path="/twitter-mp4-downloader" element={<Navigate to="/twitter/twitter-video-downloader" replace />} />
+            <Route path="/twitter-mp3-downloader" element={<Navigate to="/twitter/twitter-mp3-downloader" replace />} />
+            <Route path="/twitter-audio-downloader" element={<Navigate to="/twitter/twitter-mp3-downloader" replace />} />
+            <Route path="/twitter-image-downloader" element={<Navigate to="/twitter/twitter-image-downloader" replace />} />
+            <Route path="/twitter-photo-downloader" element={<Navigate to="/twitter/twitter-image-downloader" replace />} />
+            <Route path="/twitter-gif-downloader" element={<Navigate to="/twitter/twitter-gif-downloader" replace />} />
+            <Route path="/twitter-profile-downloader" element={<Navigate to="/twitter/twitter-profile-downloader" replace />} />
+            <Route path="/x-downloader" element={<Navigate to="/twitter/twitter-downloader" replace />} />
+            <Route path="/x-video-downloader" element={<Navigate to="/twitter/twitter-video-downloader" replace />} />
+            <Route path="/x-mp3-downloader" element={<Navigate to="/twitter/twitter-mp3-downloader" replace />} />
+            <Route path="/x-image-downloader" element={<Navigate to="/twitter/twitter-image-downloader" replace />} />
+            <Route path="/x-gif-downloader" element={<Navigate to="/twitter/twitter-gif-downloader" replace />} />
+            <Route path="/x-profile-downloader" element={<Navigate to="/twitter/twitter-profile-downloader" replace />} />
+
 
 
             {/* Mandatory Google AdSense Legal & Policy Pages */}

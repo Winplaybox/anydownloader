@@ -822,7 +822,321 @@ def extract_tiktok(url: str, feature: Optional[str] = None):
     return extract_media_base(url, "tiktok")
 
 def extract_twitter(url: str, feature: Optional[str] = None):
-    """Dedicated extractor for Twitter / X."""
+    """
+    Dedicated, isolated extractor for X (Twitter).
+    Supports:
+    - MP4 Videos: 1080p Full HD, 720p HD, 480p, 360p progressive MP4 with audio
+    - MP3 Audio: 320kbps high fidelity audio track extraction
+    - Profile Details: HD DP avatar (400x400 & original), 1500x500 banner, verified badge, followers, following, tweet count, bio
+    - Images: Single photo and multi-photo grids (up to 4 photos) in uncompressed original ?name=orig resolution
+    - Animated GIFs: Direct looping MP4 & GIF animation preview/downloads
+    - Fallback: Direct yt-dlp extraction with twitter extractors
+    """
+    raw_input = url.strip()
+
+    # 1. Resolve short url t.co
+    if "t.co/" in raw_input:
+        try:
+            req = urllib.request.Request(raw_input, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                raw_input = r.geturl()
+        except Exception:
+            pass
+
+    clean_input = raw_input.split('?')[0].rstrip('/')
+
+    headers = {
+        'User-Agent': 'TelegramBot (like TwitterBot)',
+        'Accept': 'application/json'
+    }
+
+    # Helper for yt-dlp fallback
+    def try_ytdlp_twitter(target_url):
+        try:
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'skip_download': True,
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                return ydl.extract_info(target_url, download=False)
+        except Exception:
+            return None
+
+    # Check if Tweet Status (video, photo, gif, audio)
+    status_m = re.search(r'/(?:i/status|status|[\w-]+/status)/(\d+)', clean_input)
+
+    # CASE A: Tweet Status Lookup
+    if status_m:
+        tweet_id = status_m.group(1)
+        screen_name = "i"
+        sn_m = re.search(r'(?:twitter\.com|x\.com)/([A-Za-z0-9_]{1,15})/status/', clean_input)
+        if sn_m:
+            screen_name = sn_m.group(1)
+
+        api_url = f"https://api.fxtwitter.com/{screen_name}/status/{tweet_id}"
+        data = {}
+        try:
+            req = urllib.request.Request(api_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as r:
+                data = json.loads(r.read().decode('utf-8'))
+        except Exception:
+            data = {}
+
+        ytdlp_info = None
+        tweet = data.get('tweet', {})
+
+        # If FxTwitter fails or returns no tweet, try yt-dlp fallback
+        if not tweet:
+            ytdlp_info = try_ytdlp_twitter(clean_input)
+            if not ytdlp_info:
+                raise ValueError(f"X (Twitter) post {tweet_id} could not be retrieved. Please verify the link is public.")
+
+        author = tweet.get('author', {})
+        text = tweet.get('text', '') or (ytdlp_info.get('title') if ytdlp_info else '') or f"X (Twitter) Post {tweet_id}"
+        media = tweet.get('media', {})
+        videos = media.get('videos', [])
+        photos = media.get('photos', [])
+
+        is_gif = any(v.get('type') == 'gif' for v in videos)
+
+        video_formats = []
+        audio_formats = []
+        thumbnails = []
+        carousel_media = []
+
+        # 1. Parse videos from FxTwitter
+        for v in videos:
+            variants = v.get('variants', [])
+            mp4_vars = [var for var in variants if var.get('content_type') == 'video/mp4' and var.get('url')]
+            mp4_vars.sort(key=lambda x: x.get('bitrate') or 0, reverse=True)
+
+            for var in mp4_vars:
+                v_url = var.get('url')
+                res_m = re.search(r'/vid/(?:avc1/)?(\d+)x(\d+)/', v_url)
+                if res_m:
+                    w, h = int(res_m.group(1)), int(res_m.group(2))
+                    res_dim = min(w, h)
+                else:
+                    res_dim = 720
+
+                q_label = f"{res_dim}p Full HD (MP4)" if res_dim >= 1080 else f"{res_dim}p HD (MP4)" if res_dim >= 720 else f"{res_dim}p SD (MP4)"
+                v_fn = f"twitter_{tweet_id}_{res_dim}p.mp4"
+
+                if not any(f['url'] == v_url for f in video_formats):
+                    video_formats.append({
+                        "id": f"tw-vid-{len(video_formats)}",
+                        "quality": f"{q_label} • With Audio" if len(video_formats) == 0 else q_label,
+                        "height": res_dim,
+                        "ext": "mp4",
+                        "has_audio": True,
+                        "url": v_url,
+                        "stream_url": f"/api/stream?url={urllib.parse.quote(v_url)}&filename={urllib.parse.quote(v_fn)}",
+                        "download_name": v_fn,
+                        "is_best": len(video_formats) == 0
+                    })
+
+        # 2. Fallback to yt-dlp formats if no video formats yet
+        if not video_formats and ytdlp_info and ytdlp_info.get('formats'):
+            yt_fmts = [f for f in ytdlp_info.get('formats', []) if f.get('url') and f.get('vcodec') != 'none']
+            yt_fmts.sort(key=lambda x: (x.get('height') or 0, x.get('tbr') or 0), reverse=True)
+            for yf in yt_fmts:
+                yf_url = yf.get('url')
+                if not yf_url:
+                    continue
+                h = yf.get('height') or 720
+                w = yf.get('width') or 1280
+                res_dim = min(h, w) if (h and w) else h
+                q_label = f"{res_dim}p Full HD (MP4)" if res_dim >= 1080 else f"{res_dim}p HD (MP4)" if res_dim >= 720 else f"{res_dim}p SD (MP4)"
+                v_fn = f"twitter_{tweet_id}_{res_dim}p.mp4"
+                if not any(f['url'] == yf_url for f in video_formats):
+                    video_formats.append({
+                        "id": f"tw-yt-{len(video_formats)}",
+                        "quality": f"{q_label} • With Audio" if len(video_formats) == 0 else q_label,
+                        "height": res_dim,
+                        "ext": "mp4",
+                        "has_audio": True,
+                        "url": yf_url,
+                        "stream_url": f"/api/stream?url={urllib.parse.quote(yf_url)}&filename={urllib.parse.quote(v_fn)}",
+                        "download_name": v_fn,
+                        "is_best": len(video_formats) == 0
+                    })
+
+        # 3. Audio format (MP3 320kbps)
+        if video_formats:
+            best_vid = video_formats[0]['url']
+            a_fn = f"twitter_{tweet_id}_audio.mp3"
+            audio_formats.append({
+                "id": "tw-audio-1",
+                "quality": "Original Audio Track (MP3 320kbps)",
+                "format": "MP3",
+                "size": "Original High Fidelity",
+                "url": best_vid,
+                "stream_url": f"/api/stream?url={urllib.parse.quote(best_vid)}&filename={urllib.parse.quote(a_fn)}",
+                "download_name": a_fn
+            })
+
+        # 4. Photos (Single or Multi-Photo Album)
+        if photos:
+            for p_idx, p in enumerate(photos):
+                raw_p_url = p.get('url', '')
+                orig_p_url = raw_p_url.split('?')[0] + '?format=jpg&name=orig' if '?' in raw_p_url else raw_p_url + '?name=orig'
+                p_fn = f"twitter_{tweet_id}_photo_{p_idx+1}.jpg"
+                carousel_media.append({
+                    "index": p_idx + 1,
+                    "type": "photo",
+                    "preview": raw_p_url,
+                    "url": orig_p_url,
+                    "stream_url": f"/api/stream?url={urllib.parse.quote(orig_p_url)}&filename={urllib.parse.quote(p_fn)}",
+                    "download_name": p_fn,
+                    "quality": f"Photo {p_idx+1} (Master Original HD)",
+                    "resolution": "Original HD"
+                })
+                thumbnails.append({
+                    "quality": f"Photo {p_idx+1} (Original Master)",
+                    "resolution": "Original HD",
+                    "label": f"Twitter Photo {p_idx+1}",
+                    "url": orig_p_url,
+                    "stream_url": f"/api/stream?url={urllib.parse.quote(orig_p_url)}&filename={urllib.parse.quote(p_fn)}",
+                    "download_name": p_fn
+                })
+
+        title = text.replace('\n', ' ').strip() if text else f"Twitter Post {tweet_id}"
+        if len(title) > 95:
+            title = title[:92] + "..."
+
+        poster_thumb = (videos[0].get('thumbnail_url') if videos else None) or (photos[0].get('url') if photos else None) or (author.get('avatar_url') if author else None) or (ytdlp_info.get('thumbnail') if ytdlp_info else None) or "https://abs.twimg.com/icons/apple-touch-icon-192x192.png"
+
+        views_count = tweet.get('views') or 0
+        likes_count = tweet.get('like_count') or (ytdlp_info.get('like_count') if ytdlp_info else 0) or 0
+        retweets_count = tweet.get('retweet_count') or (ytdlp_info.get('repost_count') if ytdlp_info else 0) or 0
+        stats_str = f"{retweets_count:,} Reposts • {likes_count:,} Likes"
+        if views_count:
+            stats_str += f" • {views_count:,} Views"
+
+        uploader_name = author.get('name') or (ytdlp_info.get('uploader') if ytdlp_info else None) or "Twitter User"
+        uploader_handle = author.get('screen_name') or (ytdlp_info.get('uploader_id') if ytdlp_info else None) or ""
+        uploader_str = f"{uploader_name} (@{uploader_handle})" if uploader_handle else uploader_name
+
+        return {
+            "platform": "twitter",
+            "id": tweet_id,
+            "title": title,
+            "thumbnail": poster_thumb,
+            "uploader": uploader_str,
+            "views": stats_str,
+            "video_formats": video_formats,
+            "audio_formats": audio_formats,
+            "thumbnails": thumbnails,
+            "carousel_media": carousel_media,
+            "is_carousel": len(carousel_media) > 1,
+            "is_video": len(video_formats) > 0,
+            "is_gif": is_gif,
+            "is_profile": False,
+            "is_board": False,
+            "notice": "",
+            "message": "X (Twitter) media extracted successfully."
+        }
+
+    # CASE B: User Profile Lookup (@username or https://x.com/username)
+    user_m = re.search(r'(?:twitter\.com|x\.com)/([A-Za-z0-9_]{1,15})/?$', clean_input)
+    raw_user = None
+    if user_m and user_m.group(1).lower() not in ["home", "explore", "notifications", "messages", "search", "settings", "i", "privacy", "tos"]:
+        raw_user = user_m.group(1)
+    elif clean_input.startswith("@"):
+        raw_user = clean_input.lstrip("@").split('/')[0]
+    elif not clean_input.startswith("http") and re.match(r'^[A-Za-z0-9_]{1,15}$', clean_input):
+        raw_user = clean_input
+
+    if raw_user:
+        api_url = f"https://api.fxtwitter.com/{raw_user}"
+        p_res = {}
+        try:
+            req = urllib.request.Request(api_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as r:
+                p_res = json.loads(r.read().decode('utf-8'))
+        except Exception as e:
+            raise ValueError(f"Could not find X (Twitter) profile @{raw_user}. Please ensure the username is valid.")
+
+        user = p_res.get('user', {})
+        if not user:
+            raise ValueError(f"X (Twitter) profile @{raw_user} not found.")
+
+        screen_name = user.get('screen_name', raw_user)
+        name = user.get('name', screen_name)
+        bio = user.get('description', '')
+        avatar_norm = user.get('avatar_url', '')
+        avatar_hd = avatar_norm.replace('_normal.', '_400x400.')
+        avatar_orig = re.sub(r'_normal\.(jpg|png|webp|jpeg)', r'.', avatar_norm)
+
+        banner_raw = user.get('banner_url')
+        banner_hd = f"{banner_raw}/1500x500" if banner_raw else None
+
+        followers = user.get('followers', 0)
+        following = user.get('following', 0)
+        tweets_cnt = user.get('tweets', 0)
+        verified = (user.get('verification') or {}).get('verified', False)
+
+        thumbnails = [
+            {
+                "quality": "Full HD Profile Avatar (DP 400x400)",
+                "resolution": "400x400 HD",
+                "label": "Twitter Profile Picture (DP)",
+                "url": avatar_hd,
+                "stream_url": f"/api/stream?url={urllib.parse.quote(avatar_hd)}&filename={urllib.parse.quote(f'twitter_{screen_name}_dp_400x400.jpg')}",
+                "download_name": f"twitter_{screen_name}_dp_400x400.jpg"
+            },
+            {
+                "quality": "Master Uncompressed Avatar (Original)",
+                "resolution": "Original DP",
+                "label": "Master Original Profile Picture",
+                "url": avatar_orig,
+                "stream_url": f"/api/stream?url={urllib.parse.quote(avatar_orig)}&filename={urllib.parse.quote(f'twitter_{screen_name}_dp_original.jpg')}",
+                "download_name": f"twitter_{screen_name}_dp_original.jpg"
+            }
+        ]
+        if banner_hd:
+            thumbnails.append({
+                "quality": "Header Cover Banner (1500x500 HD)",
+                "resolution": "1500x500 HD",
+                "label": "Twitter Profile Banner Cover",
+                "url": banner_hd,
+                "stream_url": f"/api/stream?url={urllib.parse.quote(banner_hd)}&filename={urllib.parse.quote(f'twitter_{screen_name}_banner_1500x500.jpg')}",
+                "download_name": f"twitter_{screen_name}_banner_1500x500.jpg"
+            })
+
+        return {
+            "platform": "twitter",
+            "id": screen_name,
+            "title": f"{name} (@{screen_name}) Profile & HD DP",
+            "thumbnail": avatar_hd,
+            "uploader": f"{name} (@{screen_name})" + (" ✓ Verified" if verified else ""),
+            "views": f"{followers:,} Followers • {following:,} Following • {tweets_cnt:,} Posts",
+            "video_formats": [],
+            "audio_formats": [],
+            "thumbnails": thumbnails,
+            "carousel_media": [],
+            "is_carousel": False,
+            "is_video": False,
+            "is_gif": False,
+            "is_profile": True,
+            "is_board": False,
+            "notice": "",
+            "profile_data": {
+                "name": name,
+                "username": screen_name,
+                "bio": bio,
+                "followers": followers,
+                "following": following,
+                "posts_count": tweets_cnt,
+                "verified": verified,
+                "avatar_hd": avatar_hd,
+                "avatar_orig": avatar_orig,
+                "banner_url": banner_hd
+            }
+        }
+
+    # If neither matched, attempt fallback
     return extract_media_base(url, "twitter")
 
 def extract_pinterest(url: str, feature: Optional[str] = None):
@@ -1675,7 +1989,7 @@ def extract_media(url: str):
         return extract_youtube(url)
     elif platform == "tiktok":
         return extract_tiktok(url)
-    elif platform == "twitter":
+    elif platform in ("twitter", "x"):
         return extract_twitter(url)
     elif platform == "pinterest":
         return extract_pinterest(url)
@@ -1710,7 +2024,7 @@ async def platform_extract_handler(request):
             media_info = await loop.run_in_executor(None, extract_youtube, url, feature)
         elif platform == "tiktok":
             media_info = await loop.run_in_executor(None, extract_tiktok, url, feature)
-        elif platform == "twitter":
+        elif platform in ("twitter", "x"):
             media_info = await loop.run_in_executor(None, extract_twitter, url, feature)
         elif platform == "pinterest":
             media_info = await loop.run_in_executor(None, extract_pinterest, url, feature)

@@ -818,6 +818,165 @@ export const pagesConfig = {
     ]
   },
 
+
+  // ==================== TWITTER / X SUITE ====================
+  'twitter/twitter-downloader': {
+    title: 'X (Twitter) Video, Audio & Media Downloader',
+    badge: 'Download 1080p MP4 Videos, MP3 Audio, HD Photos & GIFs',
+    category: 'twitter',
+    subfeature: 'all',
+    guideTitle: 'How to Download X (Twitter) Videos, MP3 Audio, Photos & GIFs in Full HD',
+    guideIntro: 'Save high-definition X (Twitter) videos, original uncompressed photos, animated GIFs, audio tracks, and user profile pictures directly to your device with zero quality loss.',
+    sections: [
+      {
+        heading: 'Fastest X / Twitter Media Downloader',
+        body: 'Whether it is a breaking news video, a sports highlight clip, an uncompressed photography post, or a hilarious reaction GIF, OVD extracts the highest quality progressive MP4 or JPG file directly from Twitter CDN servers.'
+      },
+      {
+        heading: 'Full Audio & MP3 Extraction',
+        body: 'Extract clean 320kbps MP3 audio tracks from any Twitter video or Spaces clip with synchronized high-fidelity stereo sound.'
+      },
+      {
+        heading: 'Multi-Image Albums & Original Quality Photos',
+        body: 'Twitter posts with multiple images (up to 4 photos) are fully preserved. OVD retrieves the uncompressed master resolution (using name=orig) rather than downscaled web previews.'
+      },
+      {
+        heading: 'HD Profile Avatar (DP) & Banner Downloader',
+        body: 'Enter any X/Twitter handle (e.g., @NASA or @elonmusk) to view and download full-resolution 400x400 avatars, master original DPs, and 1500x500 header cover banners.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'How do I download a video from X (Twitter)?',
+        a: 'Click the Share icon under the tweet on X/Twitter, select "Copy link to post", paste it into the OVD input bar, and click Fetch Media.'
+      },
+      {
+        q: 'Can I download Twitter videos in 1080p Full HD?',
+        a: 'Yes, OVD parses all available video bitrates up to 1080p (and 720p/480p/360p) with full audio included.'
+      },
+      {
+        q: 'Does OVD support shortened t.co links?',
+        a: 'Yes, OVD automatically resolves mobile t.co short links to the full post.'
+      }
+    ]
+  },
+
+  'twitter/twitter-video-downloader': {
+    title: 'X (Twitter) Video Downloader 1080p Full HD',
+    badge: 'Download Twitter MP4 Videos with Audio in HD',
+    category: 'twitter',
+    subfeature: 'video',
+    guideTitle: 'Download Twitter Videos in 1080p MP4 with Clean Sound',
+    guideIntro: 'Download viral Twitter video clips, political commentary, tech keynotes, and meme reels in crystal-clear MP4 with synchronized sound.',
+    sections: [
+      {
+        heading: 'Multiple Progressive MP4 Resolutions',
+        body: 'Choose from 1080p Full HD, 720p HD, 480p, or 360p progressive MP4 streams with audio merged.'
+      },
+      {
+        heading: 'In-Browser Video Player Preview',
+        body: 'Preview the video directly on our site using the built-in HTML5 video player with volume controls before saving it.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Why does Twitter video quality vary?',
+        a: 'Twitter encodes videos into multiple bitrates depending on the source upload resolution. OVD always surfaces the highest bitrate available.'
+      }
+    ]
+  },
+
+  'twitter/twitter-mp3-downloader': {
+    title: 'X (Twitter) to MP3 Audio Downloader',
+    badge: 'Extract 320kbps MP3 Audio from Twitter Videos',
+    category: 'twitter',
+    subfeature: 'audio',
+    guideTitle: 'Extract Clean MP3 Audio from Twitter Videos & Clips',
+    guideIntro: 'Convert any Twitter video or audio speech into an uncompressed 320kbps MP3 sound file for offline listening and podcast archives.',
+    sections: [
+      {
+        heading: 'Direct Audio Track Extraction',
+        body: 'Save speech audio, musical performances, and interview soundbites in pure MP3 format without needing to download large video files.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'What audio bitrate does OVD provide for Twitter?',
+        a: 'OVD provides original fidelity audio up to 320kbps stereo MP3.'
+      }
+    ]
+  },
+
+  'twitter/twitter-image-downloader': {
+    title: 'X (Twitter) Image & Photo Downloader (Original HD)',
+    badge: 'Download Uncompressed Twitter Photos & Multi-Image Albums',
+    category: 'twitter',
+    subfeature: 'image',
+    guideTitle: 'Download Master Full-Resolution Twitter Photos',
+    guideIntro: 'Save original uncompressed photography, digital art, infographics, and 4-image photo galleries from Twitter in master quality.',
+    sections: [
+      {
+        heading: 'Original Master Resolution (name=orig)',
+        body: 'Unlike normal browser right-clicks that save compressed web previews, OVD extracts the master original uploaded image directly from pbs.twimg.com.'
+      },
+      {
+        heading: 'Multi-Photo Tweet Support',
+        body: 'Easily view and download all 2, 3, or 4 images from multi-photo tweet grids with individual download buttons or bulk download.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Can I download all photos from a 4-image tweet?',
+        a: 'Yes, OVD displays the entire photo album and lets you download individual photos or the complete set.'
+      }
+    ]
+  },
+
+  'twitter/twitter-gif-downloader': {
+    title: 'X (Twitter) GIF Downloader',
+    badge: 'Download Animated GIFs and Looping MP4s from Twitter',
+    category: 'twitter',
+    subfeature: 'gif',
+    guideTitle: 'Save Twitter Animated GIFs & Loop Clips',
+    guideIntro: 'Download trending reaction GIFs and animations from Twitter as looping MP4 files or animated GIFs.',
+    sections: [
+      {
+        heading: 'Why are Twitter GIFs MP4 Videos?',
+        body: 'Twitter converts uploaded GIFs to high-efficiency looping MP4 videos for faster loading. OVD lets you save the direct video loop or animated file.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'How do I download a GIF from Twitter?',
+        a: 'Copy the link of the tweet containing the GIF, paste it into OVD, and download the smooth looping animation file.'
+      }
+    ]
+  },
+
+  'twitter/twitter-profile-downloader': {
+    title: 'X (Twitter) Profile & Full HD DP Downloader',
+    badge: 'Download Twitter Profile Pictures (DP) & 1500x500 Banners',
+    category: 'twitter',
+    subfeature: 'profile',
+    guideTitle: 'View & Download Twitter Profile Avatars and Header Banners',
+    guideIntro: 'Download full-resolution HD profile avatars (400x400 and master uncompressed DP), 1500x500 header banners, and inspect follower metrics for any public X account.',
+    sections: [
+      {
+        heading: 'Full-Size Avatar (DP) Extraction',
+        body: 'Twitter normally displays small 48x48 or 128x128 avatars. OVD retrieves the uncompressed 400x400 and original master avatar photo.'
+      },
+      {
+        heading: 'Header Cover Banner Downloads',
+        body: 'Save the creators custom 1500x500 high-resolution header banner image in pristine quality.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Can I enter just a Twitter handle like @NASA?',
+        a: 'Yes, you can enter @username, username, or the full profile URL (e.g. x.com/elonmusk).'
+      }
+    ]
+  },
 };
 
 // Backwards-compatible aliases
@@ -842,3 +1001,29 @@ pagesConfig['pinterest-story-downloader'] = pagesConfig['pinterest/pinterest-sto
 pagesConfig['pinterest-board-downloader'] = pagesConfig['pinterest/pinterest-board-downloader'];
 pagesConfig['pinterest-profile-downloader'] = pagesConfig['pinterest/pinterest-profile-downloader'];
 pagesConfig['pinterest'] = pagesConfig['pinterest/pinterest-downloader'];
+
+pagesConfig['twitter-downloader'] = pagesConfig['twitter/twitter-downloader'];
+pagesConfig['twitter-video-downloader'] = pagesConfig['twitter/twitter-video-downloader'];
+pagesConfig['twitter-mp4-downloader'] = pagesConfig['twitter/twitter-video-downloader'];
+pagesConfig['twitter-mp3-downloader'] = pagesConfig['twitter/twitter-mp3-downloader'];
+pagesConfig['twitter-audio-downloader'] = pagesConfig['twitter/twitter-mp3-downloader'];
+pagesConfig['twitter-image-downloader'] = pagesConfig['twitter/twitter-image-downloader'];
+pagesConfig['twitter-photo-downloader'] = pagesConfig['twitter/twitter-image-downloader'];
+pagesConfig['twitter-gif-downloader'] = pagesConfig['twitter/twitter-gif-downloader'];
+pagesConfig['twitter-profile-downloader'] = pagesConfig['twitter/twitter-profile-downloader'];
+pagesConfig['twitter-dp-downloader'] = pagesConfig['twitter/twitter-profile-downloader'];
+pagesConfig['twitter'] = pagesConfig['twitter/twitter-downloader'];
+
+pagesConfig['x-downloader'] = pagesConfig['twitter/twitter-downloader'];
+pagesConfig['x-video-downloader'] = pagesConfig['twitter/twitter-video-downloader'];
+pagesConfig['x-mp4-downloader'] = pagesConfig['twitter/twitter-video-downloader'];
+pagesConfig['x-mp3-downloader'] = pagesConfig['twitter/twitter-mp3-downloader'];
+pagesConfig['x-audio-downloader'] = pagesConfig['twitter/twitter-mp3-downloader'];
+pagesConfig['x-image-downloader'] = pagesConfig['twitter/twitter-image-downloader'];
+pagesConfig['x-photo-downloader'] = pagesConfig['twitter/twitter-image-downloader'];
+pagesConfig['x-gif-downloader'] = pagesConfig['twitter/twitter-gif-downloader'];
+pagesConfig['x-profile-downloader'] = pagesConfig['twitter/twitter-profile-downloader'];
+pagesConfig['x-dp-downloader'] = pagesConfig['twitter/twitter-profile-downloader'];
+pagesConfig['x'] = pagesConfig['twitter/twitter-downloader'];
+
+export default pagesConfig;
