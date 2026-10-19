@@ -375,7 +375,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                   <a
                     href={`${BACKEND_BASE}${data.thumbnails[0].stream_url}`}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="noopener"
                     className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-md shadow-pink-600/20"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -424,7 +424,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                       <a
                         href={vid.thumbnail}
                         target="_blank"
-                        rel="noopener noreferrer"
+                        rel="noopener"
                         className="p-1 px-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white text-[10px] font-medium flex items-center justify-center transition border border-slate-800"
                         title="View Thumbnail"
                       >
@@ -520,7 +520,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                       href={formatStreamUrl(fmt.stream_url || fmt.url)}
                       download={fmt.download_name}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener"
                       className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${theme.btnGrad}`}
                     >
                       <ArrowDownToLine className="w-4 h-4" />
@@ -588,7 +588,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                       href={formatStreamUrl(fmt.stream_url || fmt.url)}
                       download={fmt.download_name}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener"
                       className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/20 transition cursor-pointer"
                     >
                       <ArrowDownToLine className="w-4 h-4" />
@@ -657,7 +657,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                         href={formatStreamUrl(thumb.stream_url || thumb.url)}
                         download={`${(data.title || 'thumb').replace(/[^a-zA-Z0-9_-]/g, '_')}_${thumb.resolution}.jpg`}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener"
                         className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition ${theme.btnSolid}`}
                       >
                         <Download className="w-3.5 h-3.5" />
@@ -800,7 +800,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                         href={formatStreamUrl(sub.srt_download || sub.srt_url)}
                         download={`${(data.title || 'sub').replace(/[^a-zA-Z0-9_-]/g, '_')}_${sub.code}.srt`}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener"
                         className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold transition"
                       >
                         <Download className={`w-3.5 h-3.5 ${theme.textAccent}`} />
@@ -811,7 +811,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                         href={formatStreamUrl(sub.vtt_download || sub.vtt_url)}
                         download={`${(data.title || 'sub').replace(/[^a-zA-Z0-9_-]/g, '_')}_${sub.code}.vtt`}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener"
                         className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold transition"
                       >
                         <Download className="w-3.5 h-3.5 text-cyan-400" />

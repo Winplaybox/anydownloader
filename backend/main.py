@@ -35,10 +35,15 @@ ALLOWED_CDN_DOMAINS = [
     r".*\.youtube\.com$",
     r".*\.ytimg\.com$",
     r".*\.cdninstagram\.com$",
+    r".*\.instagram\.com$",
     r".*\.fbcdn\.net$",
+    r".*\.facebook\.com$",
     r".*\.tiktokcdn\.com$",
     r".*\.tiktokcdn-us\.com$",
+    r".*\.tiktok\.com$",
     r".*\.twimg\.com$",
+    r".*\.twitter\.com$",
+    r".*\.x\.com$",
     r".*\.pinimg\.com$",
     r".*\.vimeocdn\.com$",
     r".*\.sndcdn\.com$",
@@ -998,10 +1003,22 @@ async def stream_download_handler(request):
     if not is_safe_cdn_url(target_url):
         return Response("Target host not permitted for streaming proxy", status_code=400)
 
+    # Set upstream referer matched to platform CDN
+    upstream_referer = "https://www.youtube.com/"
+    t_lower = target_url.lower()
+    if "instagram" in t_lower or "cdninstagram" in t_lower:
+        upstream_referer = "https://www.instagram.com/"
+    elif "facebook" in t_lower or "fbcdn" in t_lower:
+        upstream_referer = "https://www.facebook.com/"
+    elif "tiktok" in t_lower:
+        upstream_referer = "https://www.tiktok.com/"
+    elif "twitter" in t_lower or "twimg" in t_lower or "x.com" in t_lower:
+        upstream_referer = "https://twitter.com/"
+
     client_headers = {
         "User-Agent": USER_AGENT,
         "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.youtube.com/"
+        "Referer": upstream_referer
     }
 
     client = httpx.AsyncClient(headers=client_headers, follow_redirects=True, timeout=90.0)
@@ -1040,8 +1057,8 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        # 2. Allow public health check endpoints
-        if request.url.path in ("/", "/health", "/api/health"):
+        # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
+        if request.url.path in ("/", "/health", "/api/health", "/api/stream"):
             return await call_next(request)
 
         # 3. Verify origin, referer, or extension secret key
