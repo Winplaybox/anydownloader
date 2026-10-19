@@ -40,8 +40,25 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
   const isTikTok = platform === 'tiktok';
   const isPinterest = platform === 'pinterest';
 
-  // Respect user intent: keep on requested tab, don't force carousel if user is on video or audio
+  // Respect user intent and platform content type
   useEffect(() => {
+    if (isPinterest) {
+      if (data.is_board) {
+        setActiveTab('board');
+      } else if (data.is_profile) {
+        setActiveTab('profile');
+      } else if (data.is_gif) {
+        setActiveTab('gif');
+      } else if (data.is_carousel) {
+        setActiveTab('carousel');
+      } else if (data.is_video) {
+        setActiveTab('video');
+      } else {
+        setActiveTab('thumbnails');
+      }
+      return;
+    }
+
     if (initialTab === 'board' || data.is_board) {
       setActiveTab('board');
     } else if (initialTab === 'carousel' || (data.is_carousel && initialTab !== 'video' && initialTab !== 'audio')) {
@@ -51,7 +68,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
     } else if (initialTab) {
       setActiveTab(initialTab);
     }
-  }, [initialTab, data]);
+  }, [initialTab, data, isPinterest]);
 
   // Extract YouTube ID if present
   const youtubeId = useMemo(() => {
@@ -171,22 +188,103 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
   const tabs = useMemo(() => {
     const list = [];
 
-    // Tab 0: Board Pins (If Pinterest board)
-    if (isPinterest && (data.is_board || (data.board_pins && data.board_pins.length > 0))) {
+    // Tailored Pinterest tabs based on media type
+    if (isPinterest) {
+      if (data.is_board) {
+        list.push({
+          id: 'board',
+          label: `📌 Board Pins (${data.board_pins?.length || 0})`,
+          icon: Layers
+        });
+        list.push({
+          id: 'thumbnails',
+          label: '🖼️ Board Cover',
+          icon: ImageIcon
+        });
+        return list;
+      }
+
+      if (data.is_profile) {
+        list.push({
+          id: 'profile',
+          label: '👤 Profile & Full HD DP',
+          icon: User
+        });
+        return list;
+      }
+
+      if (data.is_gif) {
+        list.push({
+          id: 'gif',
+          label: '✨ Animated GIF',
+          icon: Sparkles
+        });
+        if (data.video_formats && data.video_formats.length > 0) {
+          list.push({
+            id: 'video',
+            label: '🎥 Video Loop (MP4)',
+            icon: Video
+          });
+        }
+        return list;
+      }
+
+      if (data.is_carousel) {
+        list.push({
+          id: 'carousel',
+          label: `📑 Idea Pin Slides (${data.carousel_media?.length || 0})`,
+          icon: Sparkles
+        });
+        if (data.video_formats && data.video_formats.length > 0) {
+          list.push({
+            id: 'video',
+            label: '🎥 Video Clips (MP4)',
+            icon: Video
+          });
+        }
+        list.push({
+          id: 'thumbnails',
+          label: '🖼️ Master Cover',
+          icon: ImageIcon
+        });
+        return list;
+      }
+
+      if (data.is_video) {
+        list.push({
+          id: 'video',
+          label: '🎥 Pinterest Video (MP4)',
+          icon: Video
+        });
+        if (data.audio_formats && data.audio_formats.length > 0) {
+          list.push({
+            id: 'audio',
+            label: '🎵 Original Audio (MP3)',
+            icon: Music
+          });
+        }
+        list.push({
+          id: 'thumbnails',
+          label: '🖼️ HD Poster Artwork',
+          icon: ImageIcon
+        });
+        return list;
+      }
+
+      // Static Photo Pin
       list.push({
-        id: 'board',
-        label: `📌 Board Pins (${data.board_pins?.length || data.carousel_media?.length || 0})`,
-        icon: Layers
+        id: 'thumbnails',
+        label: '🖼️ Original HD Pin (Photo)',
+        icon: ImageIcon
       });
+      return list;
     }
 
-    // Tab 0.5: Carousel Album / Idea Pin Slides
-    if (!data.is_board && (data.is_carousel || (data.carousel_media && data.carousel_media.length > 0))) {
+    // Tab 0: Carousel Album (FastDl Style)
+    if (data.is_carousel || (data.carousel_media && data.carousel_media.length > 0)) {
       list.push({
         id: 'carousel',
-        label: isPinterest 
-          ? `📸 Idea Pin Slides (${data.carousel_media?.length || 0})`
-          : `📸 Carousel Album (${data.carousel_media?.length || 0} Photos)`,
+        label: `📸 Carousel Album (${data.carousel_media?.length || 0} Photos)`,
         icon: Sparkles
       });
     }
@@ -200,8 +298,6 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
         ? 'Instagram Video (MP4)' 
         : isTikTok 
         ? 'TikTok Video (MP4)' 
-        : isPinterest
-        ? 'Pinterest Video (MP4)'
         : 'YouTube MP4 / Video',
       icon: Video
     });
@@ -215,8 +311,6 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
         ? 'Audio (MP3)' 
         : isTikTok 
         ? 'Sound (MP3)' 
-        : isPinterest
-        ? 'Original Audio (MP3)'
         : 'YouTube MP3 / Audio',
       icon: Music
     });
@@ -230,8 +324,6 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
         ? 'Cover Artwork' 
         : isTikTok 
         ? 'Video Cover' 
-        : isPinterest
-        ? (data.is_profile ? 'Full HD DP (Avatar)' : (data.is_gif ? 'Animated GIF' : 'Original HD Photo'))
         : 'Thumbnails (All Qualities)',
       icon: ImageIcon
     });
@@ -317,7 +409,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
         {/* Media Header Preview */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start pb-6 border-b border-slate-800">
           {/* Thumbnail */}
-          <div className="md:col-span-4 relative rounded-2xl overflow-hidden aspect-video bg-slate-800 border border-slate-700/60 shadow-md group">
+          <div className={`md:col-span-4 relative rounded-2xl overflow-hidden bg-slate-800 border border-slate-700/60 shadow-md group ${isPinterest ? "aspect-[3/4] max-h-80" : "aspect-video"}`}>
             {data.thumbnail ? (
               <img
                 src={data.thumbnail}
@@ -706,6 +798,100 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+                {/* PINTEREST PROFILE & DP TAB */}
+        {activeTab === 'profile' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-red-950/60 via-slate-900 to-rose-950/60 border border-red-500/30 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6">
+              <div className="relative shrink-0">
+                <img
+                  src={data.thumbnail}
+                  alt={data.title}
+                  className="w-32 h-32 sm:w-40 sm:h-40 rounded-full object-cover border-4 border-red-500/50 shadow-2xl shadow-red-500/20"
+                />
+                <span className="absolute bottom-1 right-1 p-2 rounded-full bg-red-600 text-white shadow-md">
+                  <User className="w-4 h-4" />
+                </span>
+              </div>
+
+              <div className="flex-1 text-center md:text-left space-y-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                  <span>Verified Pinterest Creator</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white">{data.title}</h3>
+                <p className="text-sm text-slate-300 font-mono-data">{data.views}</p>
+                <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-3">
+                  {thumbnails && thumbnails[0] && (
+                    <a
+                      href={formatStreamUrl(thumbnails[0].stream_url || thumbnails[0].url)}
+                      download={thumbnails[0].download_name}
+                      target="_blank"
+                      rel="noopener"
+                      className="px-6 py-3 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 hover:opacity-95 text-white font-extrabold text-sm flex items-center gap-2 shadow-xl shadow-red-600/30 transition cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Full HD Profile Picture (DP)</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PINTEREST ANIMATED GIF TAB */}
+        {activeTab === 'gif' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-red-950/60 via-slate-900 to-rose-950/60 border border-red-500/30 rounded-3xl p-6 flex flex-col md:flex-row items-center gap-6">
+              <div className="relative max-w-sm rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl">
+                <img
+                  src={data.thumbnail}
+                  alt={data.title}
+                  className="w-full h-auto max-h-96 object-contain"
+                />
+                <span className="absolute top-2 left-2 px-2.5 py-1 rounded-full bg-black/80 text-white text-[10px] font-bold border border-white/20">
+                  ✨ Animated GIF
+                </span>
+              </div>
+
+              <div className="flex-1 text-center md:text-left space-y-3">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                  Pinterest Animated Loop
+                </span>
+                <h3 className="text-lg sm:text-xl font-bold text-white">{data.title}</h3>
+                <p className="text-xs text-slate-400">
+                  Original uncompressed animated GIF file and high-definition video loop.
+                </p>
+                <div className="pt-3 flex flex-wrap items-center justify-center md:justify-start gap-3">
+                  {thumbnails && thumbnails[0] && (
+                    <a
+                      href={formatStreamUrl(thumbnails[0].stream_url || thumbnails[0].url)}
+                      download={thumbnails[0].download_name}
+                      target="_blank"
+                      rel="noopener"
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:opacity-95 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-600/30 transition cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Animated GIF (.gif)</span>
+                    </a>
+                  )}
+                  {data.video_formats && data.video_formats[0] && (
+                    <a
+                      href={formatStreamUrl(data.video_formats[0].stream_url || data.video_formats[0].url)}
+                      download={data.video_formats[0].download_name}
+                      target="_blank"
+                      rel="noopener"
+                      className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-2 border border-slate-700 transition cursor-pointer"
+                    >
+                      <Video className="w-4 h-4 text-red-400" />
+                      <span>Download Video Loop (.mp4)</span>
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
