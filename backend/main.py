@@ -988,13 +988,14 @@ def extract_pinterest(url: str, feature: Optional[str] = None):
 
                 h = v.get('height') or 720
                 w = v.get('width') or 1280
-                q_label = f"{h}p HD (MP4)" if h >= 720 else f"{h}p SD (MP4)"
-                v_fn = f"pinterest_{pin_id}_{h}p.mp4"
+                res_dim = min(h, w) if (h and w) else h
+                q_label = f"{res_dim}p Full HD (MP4)" if res_dim >= 1080 else f"{res_dim}p HD (MP4)" if res_dim >= 720 else f"{res_dim}p SD (MP4)"
+                v_fn = f"pinterest_{pin_id}_{res_dim}p.mp4"
                 
                 if not any(f['url'] == v_url for f in video_formats):
                     video_formats.append({
                         "id": f"pin-vid-{k}",
-                        "quality": f"{q_label} – With Audio" if len(video_formats) == 0 else q_label,
+                        "quality": f"{q_label} • With Audio" if len(video_formats) == 0 else q_label,
                         "height": h,
                         "width": w,
                         "ext": "mp4",
@@ -1005,7 +1006,71 @@ def extract_pinterest(url: str, feature: Optional[str] = None):
                         "is_best": len(video_formats) == 0
                     })
 
-        # 2. If no video formats yet, use yt-dlp to extract progressive MP4s
+        # 2. If no video formats from PinResource, inspect page HTML for VideoObject & OpenGraph
+        if not video_formats:
+            try:
+                page_req = urllib.request.Request(f"https://www.pinterest.com/pin/{pin_id}/", headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                })
+                with urllib.request.urlopen(page_req, timeout=8) as r:
+                    html_content = r.read().decode('utf-8', errors='ignore')
+                    
+                    # A. Parse schema.org VideoObject
+                    for s in re.findall(r'<script[^>]*>(.*?)</script>', html_content, re.DOTALL):
+                        if 'VideoObject' in s:
+                            try:
+                                vo = json.loads(s)
+                                if vo.get('@type') == 'VideoObject' or 'VideoObject' in str(vo.get('@type')):
+                                    c_url = vo.get('contentUrl')
+                                    if c_url:
+                                        if c_url.endswith('.m3u8'):
+                                            c_url = c_url.replace('/hls/', '/720p/').replace('.m3u8', '.mp4')
+                                        v_fn = f"pinterest_{pin_id}_720p.mp4"
+                                        video_formats.append({
+                                            "id": "pin-vo-720p",
+                                            "quality": "720p HD (MP4) • With Audio",
+                                            "height": 720,
+                                            "width": 1280,
+                                            "ext": "mp4",
+                                            "has_audio": True,
+                                            "url": c_url,
+                                            "stream_url": f"/api/stream?url={urllib.parse.quote(c_url)}&filename={urllib.parse.quote(v_fn)}",
+                                            "download_name": v_fn,
+                                            "is_best": True
+                                        })
+                                        if not orig_img or "favicon" in orig_img:
+                                            orig_img = vo.get('thumbnailUrl') or orig_img
+                                        if not title or title == f"Pinterest Pin {pin_id}":
+                                            title = (vo.get('name') or title).strip()
+                                        break
+                            except Exception:
+                                pass
+
+                    # B. Parse OpenGraph og:video tag if still not found
+                    if not video_formats:
+                        og_m = re.search(r'<meta\s+(?:property|name)=["\']og:video(?::secure_url)?["\']\s+content=["\']([^"\']+)["\']', html_content, re.IGNORECASE)
+                        if og_m:
+                            og_vid = og_m.group(1)
+                            if og_vid.endswith('.m3u8'):
+                                og_vid = og_vid.replace('/hls/', '/720p/').replace('.m3u8', '.mp4')
+                            v_fn = f"pinterest_{pin_id}_720p.mp4"
+                            video_formats.append({
+                                "id": "pin-og-720p",
+                                "quality": "720p HD (MP4) • With Audio",
+                                "height": 720,
+                                "width": 1280,
+                                "ext": "mp4",
+                                "has_audio": True,
+                                "url": og_vid,
+                                "stream_url": f"/api/stream?url={urllib.parse.quote(og_vid)}&filename={urllib.parse.quote(v_fn)}",
+                                "download_name": v_fn,
+                                "is_best": True
+                            })
+            except Exception:
+                pass
+
+        # 3. If no video formats yet, use yt-dlp to extract progressive MP4s
         if not video_formats:
             if not ytdlp_info:
                 ytdlp_info = try_ytdlp_extract(clean_url)
@@ -1022,11 +1087,12 @@ def extract_pinterest(url: str, feature: Optional[str] = None):
                     if not any(f['url'] == yf_url for f in video_formats):
                         h = yf.get('height') or 720
                         w = yf.get('width') or 1280
-                        q_label = f"{h}p Full HD (MP4)" if h >= 1080 else f"{h}p HD (MP4)" if h >= 720 else f"{h}p SD (MP4)"
-                        v_fn = f"pinterest_{pin_id}_{h}p.mp4"
+                        res_dim = min(h, w) if (h and w) else h
+                        q_label = f"{res_dim}p Full HD (MP4)" if res_dim >= 1080 else f"{res_dim}p HD (MP4)" if res_dim >= 720 else f"{res_dim}p SD (MP4)"
+                        v_fn = f"pinterest_{pin_id}_{res_dim}p.mp4"
                         video_formats.append({
                             "id": f"yt-pin-{yf.get('format_id') or len(video_formats)}",
-                            "quality": f"{q_label} – With Audio" if len(video_formats) == 0 else q_label,
+                            "quality": f"{q_label} • With Audio" if len(video_formats) == 0 else q_label,
                             "height": h,
                             "width": w,
                             "ext": "mp4",
