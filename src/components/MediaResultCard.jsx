@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Volume2, 
   Sparkles, 
+  Layers, 
   FileText, 
   Subtitles, 
   Image as ImageIcon, 
@@ -38,16 +39,14 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
   const isInstagram = platform === 'instagram';
   const isTikTok = platform === 'tiktok';
 
-  // Automatically switch tab to carousel if carousel slides exist, or thumbnails if no video
+  // Respect user intent: keep on requested tab, don't force carousel if user is on video or audio
   useEffect(() => {
-    if (data.is_carousel || (data.carousel_media && data.carousel_media.length > 0)) {
+    if (initialTab === 'carousel' || (data.is_carousel && initialTab !== 'video' && initialTab !== 'audio')) {
       setActiveTab('carousel');
+    } else if (initialTab === 'profile' || (data.is_channel && initialTab === 'profile')) {
+      setActiveTab('thumbnails');
     } else if (initialTab) {
-      if (initialTab === 'video' && (!data.video_formats || data.video_formats.length === 0) && (data.thumbnails && data.thumbnails.length > 0)) {
-        setActiveTab('thumbnails');
-      } else {
-        setActiveTab(initialTab);
-      }
+      setActiveTab(initialTab);
     }
   }, [initialTab, data]);
 
@@ -347,6 +346,26 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
           </div>
         </div>
 
+        {/* Informational Notification Banner (e.g., photo requested on video tab) */}
+        {data.notice && (
+          <div className="my-5 p-4 rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-indigo-500/10 border border-pink-500/30 flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2.5 text-xs text-slate-200">
+              <Sparkles className="w-4 h-4 text-pink-400 shrink-0" />
+              <span>{data.notice}</span>
+            </div>
+            {data.is_carousel && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('carousel')}
+                className="px-3.5 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-pink-600/30"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Switch to Carousel Tab ({data.carousel_media?.length || 0} Photos)</span>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Channel & Profile Link Notice */}
         {data.is_channel && (
           <div className={`my-6 p-5 rounded-2xl border ${
@@ -393,6 +412,50 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                     <span>Download Full-Size DP (HD)</span>
                   </a>
                 )}
+              </div>
+            )}
+
+            {/* Instagram Recent / Pinned Posts with Instant HD Download */}
+            {isInstagram && data.recent_posts && data.recent_posts.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-slate-800">
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+                    Latest Pinned & Profile Posts ({data.recent_posts.length})
+                  </span>
+                  <span className="text-[10px] text-pink-400 font-medium font-mono-data">
+                    Original 1080p HD
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {data.recent_posts.map((post, pIdx) => (
+                    <div
+                      key={pIdx}
+                      className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800 hover:border-pink-500/40 flex flex-col justify-between group transition"
+                    >
+                      <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-900 mb-2">
+                        <img
+                          src={post.preview || post.url}
+                          alt={post.download_name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                        />
+                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-black/70 text-white">
+                          #{post.index || pIdx + 1}
+                        </span>
+                      </div>
+                      <a
+                        href={formatStreamUrl(post.stream_url || post.url)}
+                        download={post.download_name}
+                        target="_blank"
+                        rel="noopener"
+                        className="w-full py-1.5 px-2 rounded-lg bg-pink-600/20 hover:bg-pink-600 text-pink-300 hover:text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition border border-pink-500/30"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Download Post</span>
+                      </a>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -662,25 +725,65 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                 </div>
               ))
             ) : (
-              <div className="py-12 px-4 text-center bg-slate-950/40 rounded-2xl border border-slate-800/60">
-                <ImageIcon className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-                <h4 className="text-sm font-bold text-white mb-1">
-                  {isFacebook ? 'Facebook Photo / Post Detected' : 'No Video Stream Detected'}
-                </h4>
-                <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-                  {isFacebook 
-                    ? 'This link contains high-resolution photo/profile artwork. You can download the full-resolution image in the Cover & Photos tab.'
-                    : 'No direct video stream was found for this link. Check the Thumbnails tab for available artwork.'}
-                </p>
-                {thumbnails.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('thumbnails')}
-                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${theme.btnGrad}`}
-                  >
-                    <ImageIcon className="w-3.5 h-3.5" />
-                    <span>View & Download Cover Photo</span>
-                  </button>
+              <div className="py-10 px-5 text-center bg-slate-950/60 rounded-2xl border border-slate-800/80">
+                {data.is_carousel || (data.carousel_media && data.carousel_media.length > 0) ? (
+                  <div>
+                    <Layers className="w-10 h-10 text-pink-400 mx-auto mb-2" />
+                    <h4 className="text-sm sm:text-base font-bold text-white mb-1">
+                      Instagram Carousel Album Detected ({data.carousel_media?.length || 0} Photos)
+                    </h4>
+                    <p className="text-xs text-slate-300 max-w-md mx-auto mb-4 leading-relaxed">
+                      This post is a multi-slide carousel photo album, not a video clip. You can view all {data.carousel_media?.length || 0} high-res slides in the Carousel tab.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('carousel')}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:opacity-90 text-white shadow-lg shadow-pink-600/30 cursor-pointer"
+                    >
+                      <Layers className="w-4 h-4" />
+                      <span>View & Download All {data.carousel_media?.length || 0} Photos</span>
+                    </button>
+                  </div>
+                ) : (data.is_channel || data.is_profile) ? (
+                  <div>
+                    <User className="w-10 h-10 text-pink-400 mx-auto mb-2" />
+                    <h4 className="text-sm font-bold text-white mb-1">
+                      Instagram Profile: {data.uploader || data.title}
+                    </h4>
+                    <p className="text-xs text-slate-300 max-w-md mx-auto mb-4 leading-relaxed">
+                      {data.views || 'Public Instagram profile found'}. Download the Full HD Avatar picture (DP) below:
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('thumbnails')}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition bg-gradient-to-r from-pink-600 to-purple-600 hover:opacity-90 text-white shadow-lg shadow-pink-600/30 cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download HD Profile Picture (DP)</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <ImageIcon className="w-9 h-9 text-pink-400 mx-auto mb-2" />
+                    <h4 className="text-sm font-bold text-white mb-1">
+                      {isInstagram ? 'Instagram Photo Post' : isFacebook ? 'Facebook Photo / Post' : 'No Video Stream Detected'}
+                    </h4>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
+                      {isInstagram 
+                        ? 'This link contains a full-resolution photo post rather than a video stream. Download the original JPG below.'
+                        : 'No direct video stream was found for this link. Check available artwork below.'}
+                    </p>
+                    {thumbnails.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('thumbnails')}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${theme.btnGrad}`}
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span>View & Download Original Photo</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )}

@@ -287,12 +287,125 @@ def extract_youtube_fallback(url: str, video_id: str):
 
 
 
-def extract_instagram_fallback(url: str):
-    """Extract real Instagram photos, carousel albums (all slides), reels, and profile DP."""
-    clean_url = url.split('?')[0].rstrip('/')
-    post_id = clean_url.split('/')[-1]
-    is_profile = not any(x in clean_url for x in ["/p/", "/reel/", "/tv/", "/stories/"])
+def extract_instagram_profile(clean_url: str, post_id: str):
+    """
+    Extract real-time Instagram profile picture in Full HD, bio metrics, and recent pinned posts.
+    Never fabricates fake images or carousel slides.
+    """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+    req = urllib.request.Request(clean_url + '/', headers=headers)
+    with urllib.request.urlopen(req, timeout=12) as resp:
+        webpage = resp.read().decode('utf-8', errors='ignore')
+
+    # Profile Title & Name
+    og_titles = re.findall(r'property="og:title" content="(.*?)"', webpage)
+    title = html.unescape(og_titles[0]).strip() if og_titles else f"Instagram Profile @{post_id}"
     
+    # Description (contains followers, following, posts)
+    og_descs = re.findall(r'property="og:description" content="(.*?)"', webpage)
+    desc_text = html.unescape(og_descs[0]).strip() if og_descs else ""
+
+    # Avatar / DP
+    og_imgs = re.findall(r'property="og:image" content="([^"]+)"', webpage)
+    dp_url = html.unescape(og_imgs[0]) if og_imgs else "https://www.instagram.com/static/images/ico/favicon.ico/dfa400762ccd.ico"
+
+    # Extract Recent / Pinned posts from Polaris JSON
+    recent_posts = []
+    scripts = re.findall(r'<script[^>]*>(.*?)</script>', webpage, re.DOTALL)
+    for s in scripts:
+        if '"carousel_media":[' in s or '"image_versions2":' in s:
+            try:
+                data = json.loads(s)
+                def find_items(obj):
+                    items = []
+                    if isinstance(obj, dict):
+                        if 'carousel_media' in obj and isinstance(obj['carousel_media'], list):
+                            return obj['carousel_media']
+                        for v in obj.values():
+                            sub = find_items(v)
+                            if sub: items.extend(sub)
+                    elif isinstance(obj, list):
+                        for it in obj:
+                            sub = find_items(it)
+                            if sub: items.extend(sub)
+                    return items
+                its = find_items(data)
+                for i_idx, it in enumerate(its[:6]):
+                    cands = it.get('image_versions2', {}).get('candidates', [])
+                    if cands:
+                        p_url = cands[0].get('url')
+                        p_fn = f"{post_id}_post_{i_idx+1}.jpg"
+                        recent_posts.append({
+                            "index": i_idx + 1,
+                            "preview": p_url,
+                            "url": p_url,
+                            "stream_url": f"/api/stream?url={urllib.parse.quote(p_url)}&filename={urllib.parse.quote(p_fn)}",
+                            "download_name": p_fn,
+                            "quality": "Full HD Post"
+                        })
+                if recent_posts:
+                    break
+            except Exception:
+                pass
+
+    dp_filename = f"{post_id}_profile_dp.jpg"
+    thumbnails = [{
+        "quality": "Full HD Profile Picture (DP)",
+        "resolution": "Original HD 1080p+",
+        "label": "Original Profile Avatar",
+        "url": dp_url,
+        "stream_url": f"/api/stream?url={urllib.parse.quote(dp_url)}&filename={urllib.parse.quote(dp_filename)}",
+        "download_name": dp_filename
+    }]
+
+    return {
+        "platform": "instagram",
+        "id": post_id,
+        "title": title,
+        "uploader": f"@{post_id}",
+        "thumbnail": dp_url,
+        "duration": None,
+        "views": desc_text or "Instagram Public Profile",
+        "video_formats": [],
+        "audio_formats": [],
+        "thumbnails": thumbnails,
+        "carousel_media": [],
+        "recent_posts": recent_posts,
+        "is_carousel": False,
+        "is_video": False,
+        "is_channel": True,
+        "is_profile": True,
+        "message": f"Instagram profile @{post_id} extracted successfully."
+    }
+
+
+def extract_instagram_core(url: str, feature: Optional[str] = None):
+    """
+    Dedicated, isolated extractor for Instagram.
+    Extracts real-time Polaris GraphQL data:
+    - Videos & Reels: Genuine MP4 stream with sound & MP3 audio track
+    - Photos: Full HD JPG images
+    - Carousel: EXACT slides belonging to that album (no sidebar pollution)
+    - Profile: HD avatar DP, follower metrics, and recent posts
+    """
+    raw_input = url.strip()
+    if not raw_input.startswith("http"):
+        handle = raw_input.lstrip("@").strip()
+        clean_url = f"https://www.instagram.com/{handle}"
+    else:
+        clean_url = raw_input.split('?')[0].rstrip('/')
+
+    parts = [p for p in clean_url.split('/') if p and 'instagram.com' not in p and 'http' not in p]
+    post_id = parts[-1] if parts else "media"
+    
+    is_profile = not any(x in clean_url for x in ["/p/", "/reel/", "/tv/", "/stories/"])
+    if feature in ["profile", "viewer", "dp", "avatar"] or is_profile:
+        return extract_instagram_profile(clean_url, post_id)
+
     headers = {
         'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -302,12 +415,12 @@ def extract_instagram_fallback(url: str):
     try:
         req = urllib.request.Request(clean_url + '/', headers=headers)
         with urllib.request.urlopen(req, timeout=12) as resp:
-            raw = resp.read().decode('utf-8', errors='ignore')
-            
-        descs = re.findall(r'property="og:description" content="(.*?)"', raw)
-        desc_text = html.unescape(descs[0]) if descs else ""
+            webpage = resp.read().decode('utf-8', errors='ignore')
+
+        # 1. Author & Description from OpenGraph
+        og_descs = re.findall(r'property="og:description" content="(.*?)"', webpage)
+        desc_text = html.unescape(og_descs[0]) if og_descs else ""
         
-        # Extract author
         uploader = ""
         author_match = re.search(r'-\s*([a-zA-Z0-9._]+)\s+on\s+[A-Za-z]+', desc_text)
         if author_match:
@@ -316,17 +429,15 @@ def extract_instagram_fallback(url: str):
             m2 = re.search(r'from\s+([a-zA-Z0-9._]+)\s*\(@([a-zA-Z0-9._]+)\)', desc_text)
             if m2:
                 uploader = m2.group(2)
-        if not uploader and is_profile:
-            uploader = post_id
-            
-        # Extract title
+
+        # 2. Title / Caption
         title = ""
         if '"' in desc_text:
             q_m = re.search(r'"([^"]+)"', desc_text)
             if q_m:
                 title = q_m.group(1).strip()
         if not title:
-            titles = re.findall(r'<title>(.*?)</title>', raw)
+            titles = re.findall(r'<title>(.*?)</title>', webpage)
             if titles:
                 t0 = html.unescape(titles[0]).strip()
                 if t0 != 'Instagram':
@@ -334,113 +445,178 @@ def extract_instagram_fallback(url: str):
         if not title:
             title = f"Instagram Post by @{uploader}" if uploader else f"Instagram Media {post_id}"
 
-        # Extract ALL real carousel image slides
-        img_srcs = re.findall(r'<img[^>]+src="([^"]+)"', raw)
+        # 3. Polaris JSON in <script> tags
+        scripts = re.findall(r'<script[^>]*>(.*?)</script>', webpage, re.DOTALL)
+        media_dict = None
+        for s in scripts:
+            if any(k in s for k in ['"carousel_media":', '"video_versions":', '"image_versions2":']):
+                try:
+                    data = json.loads(s)
+                    def find_media(obj):
+                        if isinstance(obj, dict):
+                            if any(k in obj for k in ['carousel_media', 'video_versions']) and any(k in obj for k in ['id', 'pk', 'code', 'taken_at']):
+                                return obj
+                            for v in obj.values():
+                                res = find_media(v)
+                                if res: return res
+                        elif isinstance(obj, list):
+                            for it in obj:
+                                res = find_media(it)
+                                if res: return res
+                        return None
+                    m = find_media(data)
+                    if m:
+                        media_dict = m
+                        break
+                except Exception:
+                    pass
+
         carousel_slides = []
-        seen_img = set()
-        
-        for src in img_srcs:
-            clean_src = html.unescape(src)
-            if 'scontent' in clean_src and 't51.2885-19' not in clean_src and 'static.cdninstagram' not in clean_src:
-                m_id = clean_src.split('/')[-1].split('?')[0]
-                if m_id not in seen_img:
-                    seen_img.add(m_id)
-                    s_idx = len(carousel_slides) + 1
-                    s_filename = f"{uploader or 'instagram'}_{post_id}_slide_{s_idx}.jpg"
-                    carousel_slides.append({
-                        "index": s_idx,
-                        "type": "photo",
-                        "preview": clean_src,
-                        "url": clean_src,
-                        "stream_url": f"/api/stream?url={urllib.parse.quote(clean_src)}&filename={urllib.parse.quote(s_filename)}",
-                        "download_name": s_filename,
-                        "quality": f"Photo {s_idx} (Full HD)",
-                        "resolution": "Original HD 1080p"
-                    })
+        video_versions = []
+        primary_image = None
 
-        # Extract video tags
-        video_srcs = re.findall(r'<video[^>]+src="([^"]+)"', raw) + re.findall(r'property="og:video(?::secure_url)?" content="([^"]+)"', raw)
-        videos = []
-        seen_vids = set()
-        for v in video_srcs:
-            clean_v = html.unescape(v)
-            if clean_v not in seen_vids:
-                seen_vids.add(clean_v)
-                v_idx = len(videos) + 1
-                v_filename = f"{uploader or 'instagram'}_{post_id}_video_{v_idx}.mp4"
-                videos.append({
-                    "index": v_idx,
-                    "type": "video",
-                    "preview": carousel_slides[0]["url"] if carousel_slides else "",
-                    "url": clean_v,
-                    "stream_url": f"/api/stream?url={urllib.parse.quote(clean_v)}&filename={urllib.parse.quote(v_filename)}",
-                    "download_name": v_filename,
-                    "has_audio": True,
-                    "quality": "1080p Full HD • With Sound (MP4)",
-                    "resolution": "1080p Video"
-                })
+        if media_dict:
+            # Genuine carousel slides
+            c_items = media_dict.get('carousel_media', [])
+            if c_items:
+                for idx, item in enumerate(c_items):
+                    v_vers = item.get('video_versions', [])
+                    disp_uri = item.get('display_uri')
+                    cands = item.get('image_versions2', {}).get('candidates', [])
+                    top_img = disp_uri or (cands[0].get('url') if cands else None)
+                    top_vid = v_vers[0].get('url') if v_vers else None
+                    s_num = idx + 1
+                    is_slide_vid = bool(top_vid)
+                    s_filename = f"{uploader or 'instagram'}_{post_id}_slide_{s_num}.{'mp4' if is_slide_vid else 'jpg'}"
+                    chosen_url = top_vid if is_slide_vid else top_img
+                    if chosen_url:
+                        carousel_slides.append({
+                            "index": s_num,
+                            "type": "video" if is_slide_vid else "photo",
+                            "preview": top_img or chosen_url,
+                            "url": chosen_url,
+                            "stream_url": f"/api/stream?url={urllib.parse.quote(chosen_url)}&filename={urllib.parse.quote(s_filename)}",
+                            "download_name": s_filename,
+                            "quality": f"{'Video' if is_slide_vid else 'Photo'} {s_num} (Full HD)",
+                            "resolution": "1080p Full HD"
+                        })
+            
+            # Genuine video versions
+            v_vers = media_dict.get('video_versions', [])
+            if v_vers:
+                for idx, v in enumerate(v_vers):
+                    v_url = v.get('url')
+                    if v_url:
+                        w = v.get('width', 1080)
+                        h = v.get('height', 1920)
+                        v_filename = f"{uploader or 'instagram'}_{post_id}_{h}p.mp4"
+                        video_versions.append({
+                            "id": f"ig-vid-{idx+1}",
+                            "quality": f"{h}p HD – With Audio (MP4)" if idx == 0 else f"{h}p (MP4)",
+                            "height": h,
+                            "width": w,
+                            "ext": "mp4",
+                            "has_audio": True,
+                            "url": v_url,
+                            "stream_url": f"/api/stream?url={urllib.parse.quote(v_url)}&filename={urllib.parse.quote(v_filename)}",
+                            "download_name": v_filename,
+                            "is_best": idx == 0
+                        })
+            
+            # Primary image
+            disp_uri = media_dict.get('display_uri')
+            cands = media_dict.get('image_versions2', {}).get('candidates', [])
+            primary_image = disp_uri or (cands[0].get('url') if cands else None)
 
-        first_image = carousel_slides[0]["url"] if carousel_slides else "https://www.instagram.com/static/images/ico/favicon.ico/dfa400762ccd.ico"
-        
-        video_formats = []
-        audio_formats = []
-
-        if videos:
-            for vid in videos:
-                video_formats.append({
-                    "id": f"ig-vid-{vid['index']}",
-                    "quality": vid["quality"],
+        # Fallback to OG video tags
+        if not video_versions:
+            og_vids = re.findall(r'property="og:video(?::secure_url)?" content="([^"]+)"', webpage)
+            for idx, ov in enumerate(og_vids):
+                clean_ov = html.unescape(ov)
+                v_fn = f"{uploader or 'instagram'}_{post_id}_{idx+1}.mp4"
+                video_versions.append({
+                    "id": f"ig-og-vid-{idx+1}",
+                    "quality": "1080p HD – With Audio (MP4)",
                     "height": 1080,
                     "ext": "mp4",
                     "has_audio": True,
-                    "url": vid["url"],
-                    "stream_url": vid["stream_url"],
-                    "download_name": vid["download_name"],
-                    "is_best": True
+                    "url": clean_ov,
+                    "stream_url": f"/api/stream?url={urllib.parse.quote(clean_ov)}&filename={urllib.parse.quote(v_fn)}",
+                    "download_name": v_fn,
+                    "is_best": idx == 0
                 })
-                # Audio extraction option for Instagram video
-                audio_filename = f"{uploader or 'instagram'}_{post_id}_audio.mp3"
-                audio_formats.append({
-                    "id": "ig-audio-1",
-                    "quality": "Original Audio Track (MP3)",
-                    "format": "MP3",
-                    "size": "Original Sound",
-                    "url": vid["url"],
-                    "stream_url": f"/api/stream?url={urllib.parse.quote(vid['url'])}&filename={urllib.parse.quote(audio_filename)}",
-                    "download_name": audio_filename
-                })
-        elif carousel_slides:
-            for slide in carousel_slides:
-                video_formats.append({
-                    "id": f"ig-slide-{slide['index']}",
-                    "quality": f"Photo {slide['index']} of {len(carousel_slides)} (Full HD)",
-                    "height": 1080,
-                    "ext": "jpg",
-                    "has_audio": False,
-                    "url": slide["url"],
-                    "stream_url": slide["stream_url"],
-                    "download_name": slide["download_name"],
-                    "is_best": slide['index'] == 1
-                })
+
+        if not primary_image:
+            og_imgs = re.findall(r'property="og:image" content="([^"]+)"', webpage)
+            if og_imgs:
+                primary_image = html.unescape(og_imgs[0])
+            elif carousel_slides:
+                primary_image = carousel_slides[0]["preview"]
+            else:
+                primary_image = "https://www.instagram.com/static/images/ico/favicon.ico/dfa400762ccd.ico"
+
+        # Audio formats (from video stream)
+        audio_formats = []
+        if video_versions:
+            best_v = video_versions[0]["url"]
+            a_fn = f"{uploader or 'instagram'}_{post_id}_audio.mp3"
+            audio_formats.append({
+                "id": "ig-audio-1",
+                "quality": "Original Audio Track (MP3)",
+                "format": "MP3",
+                "size": "Original Sound",
+                "url": best_v,
+                "stream_url": f"/api/stream?url={urllib.parse.quote(best_v)}&filename={urllib.parse.quote(a_fn)}",
+                "download_name": a_fn
+            })
+
+        is_carousel = len(carousel_slides) > 1
+        is_video = len(video_versions) > 0
+
+        # Thumbnails / Photos
+        thumbnails = []
+        p_fn = f"{uploader or 'instagram'}_{post_id}_photo.jpg"
+        thumbnails.append({
+            "quality": "Original Photo (Full HD)",
+            "resolution": "1080p HD",
+            "label": "Original Post Photo",
+            "url": primary_image,
+            "stream_url": f"/api/stream?url={urllib.parse.quote(primary_image)}&filename={urllib.parse.quote(p_fn)}",
+            "download_name": p_fn
+        })
+
+        notice_msg = ""
+        if feature in ["video", "reel", "reels", "igtv"] and not is_video:
+            if is_carousel:
+                notice_msg = f"Notice: This Instagram link is a Carousel Photo Album ({len(carousel_slides)} Photos), not a Video. You can switch to the Carousel tab below to download all photos."
+            else:
+                notice_msg = "Notice: This Instagram link is a Single Photo post, not a Video. Download the high-resolution photo in the Cover & Photos tab below."
 
         return {
             "platform": "instagram",
             "id": post_id,
             "title": title,
-            "thumbnail": first_image,
+            "thumbnail": primary_image,
             "duration": None,
             "uploader": f"@{uploader}" if uploader else "@instagram",
             "views": desc_text or "Instagram Public Media",
-            "video_formats": video_formats,
+            "video_formats": video_versions,
             "audio_formats": audio_formats,
-            "thumbnails": carousel_slides,
-            "carousel_media": carousel_slides if len(carousel_slides) > 1 else [],
-            "is_carousel": len(carousel_slides) > 1,
-            "is_channel": is_profile,
-            "message": f"Instagram {'Carousel Album with ' + str(len(carousel_slides)) + ' real slides' if len(carousel_slides) > 1 else 'media'} extracted successfully."
+            "thumbnails": thumbnails,
+            "carousel_media": carousel_slides,
+            "is_carousel": is_carousel,
+            "is_video": is_video,
+            "is_channel": False,
+            "notice": notice_msg,
+            "message": notice_msg or f"Instagram media extracted successfully."
         }
     except Exception as exc:
         raise ValueError(f"Could not extract Instagram media: {str(exc)}")
+
+
+def extract_instagram_fallback(url: str):
+    """Backward compatibility wrapper for Instagram extraction."""
+    return extract_instagram_core(url)
 
 
 def extract_youtube_channel(url: str):
@@ -622,11 +798,7 @@ def extract_instagram(url: str, feature: Optional[str] = None):
     Handles: posts, reels, carousel albums (all slides), stories, and profiles.
     Completely isolated from YouTube and Facebook logic.
     """
-    clean_url = url.split('?')[0].rstrip('/')
-    is_profile = not any(x in clean_url for x in ["/p/", "/reel/", "/tv/", "/stories/"])
-    if feature in ["profile", "dp", "avatar"] or is_profile:
-        return extract_instagram_fallback(url)
-    return extract_instagram_fallback(url)
+    return extract_instagram_core(url, feature)
 
 def extract_facebook(url: str, feature: Optional[str] = None):
     """

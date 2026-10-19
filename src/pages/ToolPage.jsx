@@ -51,7 +51,7 @@ export default function ToolPage({ config = {} }) {
 
     // Select dedicated platform endpoint for clean architectural isolation
     let endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/extract';
-    const pKey = (safeConfig.platform || '').toLowerCase();
+    const pKey = (safeConfig.platform || safeConfig.category || '').toLowerCase();
     const fKey = (safeConfig.subfeature || '').toLowerCase();
     if (pKey && ['instagram', 'facebook', 'youtube', 'tiktok', 'twitter'].includes(pKey)) {
       endpoint = fKey 
@@ -102,7 +102,10 @@ export default function ToolPage({ config = {} }) {
             safeConfig.subfeature === 'mp3' ? 'audio' :
             safeConfig.subfeature === 'transcript' ? 'transcript' :
             safeConfig.subfeature === 'subtitles' ? 'subtitles' :
-            safeConfig.subfeature === 'thumbnails' ? 'thumbnails' : 'video'
+            safeConfig.subfeature === 'carousel' ? 'carousel' :
+            safeConfig.subfeature === 'viewer' || safeConfig.subfeature === 'profile' ? 'profile' :
+            safeConfig.subfeature === 'thumbnails' || safeConfig.subfeature === 'photo' || safeConfig.subfeature === 'post' ? 'thumbnails' :
+            'video'
           }
         />
       )}
