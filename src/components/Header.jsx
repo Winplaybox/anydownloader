@@ -28,16 +28,19 @@ import {
 export default function Header() {
   const [openYoutubeMenu, setOpenYoutubeMenu] = useState(false);
   const [openFacebookMenu, setOpenFacebookMenu] = useState(false);
+  const [openInstagramMenu, setOpenInstagramMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const ytMenuRef = useRef(null);
   const fbMenuRef = useRef(null);
+  const igMenuRef = useRef(null);
   const location = useLocation();
 
   // Close menus on route change
   useEffect(() => {
     setOpenYoutubeMenu(false);
     setOpenFacebookMenu(false);
+    setOpenInstagramMenu(false);
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
@@ -62,6 +65,9 @@ export default function Header() {
       if (fbMenuRef.current && !fbMenuRef.current.contains(e.target)) {
         setOpenFacebookMenu(false);
       }
+      if (igMenuRef.current && !igMenuRef.current.contains(e.target)) {
+        setOpenInstagramMenu(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -75,6 +81,26 @@ export default function Header() {
     { title: 'YouTube Transcript', desc: 'Interactive timestamped transcript generator', icon: FileText, path: '/youtube/youtube-transcript' },
     { title: 'YouTube Subtitles', desc: 'Download subtitles in SRT & VTT formats', icon: Subtitles, path: '/youtube/youtube-subtitles' },
     { title: 'YouTube Thumbnails', desc: 'Maxres 1080p, HD, SD & HQ image downloads', icon: ImageIcon, path: '/youtube/youtube-thumbnails' },
+  ];
+
+
+  const igTools = [
+    { title: 'Instagram Video Downloader', desc: 'Download public feed videos in 1080p Full HD MP4', icon: Video, path: '/instagram/instagram-video-downloader' },
+    { title: 'Instagram Photo Downloader', desc: 'Save original full-resolution photos & wallpapers', icon: ImageIcon, path: '/instagram/instagram-photo-downloader' },
+    { title: 'Instagram Reels', desc: 'Save viral 9:16 vertical reels with audio & zero watermark', icon: Sparkles, path: '/instagram/instagram-reels-downloader' },
+    { title: 'Instagram Stories', desc: 'Archive stories & highlights before 24-hour expiration', icon: FileText, path: '/instagram/instagram-story-downloader' },
+    { title: 'Instagram IGTV', desc: 'Download long-form video episodes & broadcasts in 1080p', icon: Video, path: '/instagram/instagram-igtv-downloader' },
+    { title: 'Instagram Carousel', desc: 'Download multi-slide photo & video albums in batch', icon: Download, path: '/instagram/instagram-carousel-downloader' },
+    { title: 'Instagram Viewer & DP', desc: 'Anonymous profile viewer & HD profile picture downloader', icon: Award, path: '/instagram/instagram-viewer' },
+  ];
+
+  const quickIgCountries = [
+    { name: 'United States', flag: '🇺🇸' },
+    { name: 'Portugal', flag: '🇵🇹' },
+    { name: 'Argentina', flag: '🇦🇷' },
+    { name: 'India', flag: '🇮🇳' },
+    { name: 'Brazil', flag: '🇧🇷' },
+    { name: 'United Kingdom', flag: '🇬🇧' }
   ];
 
   const fbTools = [
@@ -171,18 +197,26 @@ export default function Header() {
             </button>
           </div>
 
-          {/* 3. Instagram */}
-          <Link
-            to="/instagram/instagram-downloader"
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition ${
-              location.pathname.startsWith('/instagram')
-                ? 'bg-slate-900 text-white border border-slate-800'
-                : 'hover:bg-slate-900 hover:text-white'
-            }`}
-          >
-            <InstagramIcon className="w-3.5 h-3.5 text-pink-500" />
-            <span>Instagram</span>
-          </Link>
+          {/* 3. Instagram Dropdown Toggle */}
+          <div className="relative" ref={igMenuRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setOpenInstagramMenu(!openInstagramMenu);
+                setOpenYoutubeMenu(false);
+                setOpenFacebookMenu(false);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition cursor-pointer ${
+                openInstagramMenu || location.pathname.startsWith('/instagram')
+                  ? 'bg-slate-900 text-white border border-slate-800'
+                  : 'hover:bg-slate-900 hover:text-white'
+              }`}
+            >
+              <InstagramIcon className="w-3.5 h-3.5 text-pink-500" />
+              <span>Instagram</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition transform ${openInstagramMenu ? 'rotate-180 text-pink-500' : 'text-slate-500'}`} />
+            </button>
+          </div>
 
           {/* 4. TikTok */}
           <Link
@@ -659,24 +693,61 @@ export default function Header() {
                 </div>
               </div>
 
-              {/* 3. Other Platforms */}
+              {/* 3. Instagram Complete Suite */}
+              <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-pink-400 uppercase tracking-wider">
+                    <InstagramIcon className="w-3.5 h-3.5 text-pink-500" />
+                    <span>Instagram Suite</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-semibold">8 Tools</span>
+                </div>
+
+                {/* Top 100 Instagram Accounts Banner */}
+                <Link
+                  to="/instagram/top-100-instagram-accounts"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-pink-950/30 border border-pink-500/30 hover:border-pink-500/50 text-white font-bold text-xs transition group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Award className="w-3.5 h-3.5 text-pink-400" />
+                    <span>Top 100 Instagram Accounts</span>
+                  </div>
+                  <span className="text-[9px] bg-gradient-to-r from-pink-500 to-purple-600 text-white px-2 py-0.5 rounded-full font-bold">12H Sync</span>
+                </Link>
+
+                {/* All 7 Instagram Tools */}
+                <div className="space-y-1 pl-1">
+                  {igTools.map((t, idx) => {
+                    const Icon = t.icon;
+                    return (
+                      <Link
+                        key={idx}
+                        to={t.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center justify-between p-2 rounded-xl text-xs transition ${
+                          location.pathname === t.path
+                            ? 'bg-pink-500/15 text-pink-300 font-semibold border border-pink-500/30'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon className="w-3.5 h-3.5 text-pink-400" />
+                          <span>{t.title}</span>
+                        </div>
+                        <ChevronDown className="w-3 h-3 text-slate-600 -rotate-90" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 4. Other Platforms */}
               <div className="space-y-2 pt-2 border-t border-slate-800/80">
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
                   Other Platforms
                 </div>
                 <div className="space-y-1 pl-1">
-                  <Link
-                    to="/instagram/instagram-downloader"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center justify-between p-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <InstagramIcon className="w-3.5 h-3.5 text-pink-500" />
-                      <span>Instagram Downloader</span>
-                    </div>
-                    <ChevronDown className="w-3 h-3 text-slate-600 -rotate-90" />
-                  </Link>
-
                   <Link
                     to="/tiktok/tiktok-downloader"
                     onClick={() => setMobileMenuOpen(false)}
@@ -733,6 +804,149 @@ export default function Header() {
           </div>
         </div>
       )}
+      {/* SPACIOUS INSTAGRAM MEGA MENU (DESKTOP) */}
+      {openInstagramMenu && (
+        <div
+          ref={igMenuRef}
+          className="fixed inset-x-0 top-16 flex justify-center z-50 px-4 pt-3 pointer-events-none"
+        >
+          <div className="pointer-events-auto w-full max-w-4xl bg-slate-950/98 border border-slate-800 rounded-3xl p-6 sm:p-7 shadow-2xl backdrop-blur-2xl text-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-800/80">
+              <div className="flex items-center gap-2">
+                <InstagramIcon className="w-5 h-5 text-pink-500" />
+                <span className="font-extrabold text-white text-sm">Instagram Complete Suite & Rankings</span>
+              </div>
+              <Link
+                to="/instagram/top-100-instagram-accounts"
+                onClick={() => setOpenInstagramMenu(false)}
+                className="text-xs font-bold text-pink-400 hover:text-pink-300 flex items-center gap-1 transition"
+              >
+                <span>View Full Top 100 Database &rarr;</span>
+              </Link>
+            </div>
+
+            {/* Clean 2-Column Layout */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-7 items-start">
+              
+              {/* Left Column: Instagram Tools */}
+              <div className="space-y-1 md:border-r md:border-slate-800/80 md:pr-6">
+                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2.5">
+                  Instagram Tools & Downloaders
+                </div>
+                {igTools.map((feat, idx) => {
+                  const Icon = feat.icon;
+                  return (
+                    <Link
+                      key={idx}
+                      to={feat.path}
+                      onClick={() => setOpenInstagramMenu(false)}
+                      className="w-full text-left p-2 rounded-xl hover:bg-slate-900 flex items-start gap-3 transition group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-pink-500/10 text-pink-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-gradient-to-tr group-hover:from-pink-500 group-hover:to-purple-600 group-hover:text-white transition">
+                        <Icon className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-white text-xs group-hover:text-pink-400 transition">
+                          {feat.title}
+                        </div>
+                        <div className="text-[10px] text-slate-400 leading-tight truncate">
+                          {feat.desc}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Right Column: Top 100 Instagram Accounts */}
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between h-full">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Award className="w-4 h-4 text-pink-400" />
+                      <span className="font-extrabold text-white text-xs">Top 100 Most Followed Accounts</span>
+                    </div>
+                    <span className="text-[9px] bg-gradient-to-r from-pink-500 to-purple-600 text-white font-extrabold px-2 py-0.5 rounded-full shadow-sm">
+                      12H Sync
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+                    Global rankings calibrated every 12 hours from verified public follower counts worldwide.
+                  </p>
+
+                  {/* Filter by Country quick chips */}
+                  <div className="mb-4">
+                    <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2">
+                      Popular Country Filters
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {quickIgCountries.map((c, i) => (
+                        <Link
+                          key={i}
+                          to={`/instagram/top-100-instagram-accounts?country=${encodeURIComponent(c.name)}`}
+                          onClick={() => setOpenInstagramMenu(false)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-slate-800 border border-slate-800 text-[11px] text-slate-300 hover:text-white transition flex items-center gap-1.5"
+                        >
+                          <span>{c.flag}</span>
+                          <span>{c.name}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Top 3 Quick Preview */}
+                  <div className="space-y-1.5 mb-4">
+                    <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">
+                      Current Top 3 Worldwide
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-extrabold text-pink-400 w-3.5">#1</span>
+                        <span className="font-bold text-white">Instagram</span>
+                        <span className="text-[10px] text-slate-500">🇺🇸 Brand</span>
+                      </div>
+                      <span className="font-mono font-bold text-pink-400 text-[11px]">678M</span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-extrabold text-pink-400 w-3.5">#2</span>
+                        <span className="font-bold text-white">Cristiano Ronaldo</span>
+                        <span className="text-[10px] text-slate-500">🇵🇹 Sports</span>
+                      </div>
+                      <span className="font-mono font-bold text-pink-400 text-[11px]">642M</span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-extrabold text-pink-400 w-3.5">#3</span>
+                        <span className="font-bold text-white">Lionel Messi</span>
+                        <span className="text-[10px] text-slate-500">🇦🇷 Sports</span>
+                      </div>
+                      <span className="font-mono font-bold text-pink-400 text-[11px]">504M</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  to="/instagram/top-100-instagram-accounts"
+                  onClick={() => setOpenInstagramMenu(false)}
+                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:via-purple-500 hover:to-indigo-500 text-white font-bold text-xs text-center transition flex items-center justify-center gap-1.5 shadow-lg shadow-pink-600/20"
+                >
+                  <span>Explore All 100 Accounts Database</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
     </header>
   );
 }

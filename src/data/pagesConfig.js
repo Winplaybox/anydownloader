@@ -268,7 +268,183 @@ export const pagesConfig = {
     ]
   },
 
-  'tiktok/tiktok-downloader': {
+  
+  'instagram/instagram-video-downloader': {
+    title: 'Instagram Video Downloader',
+    badge: '1080p Full HD MP4 Video Downloads',
+    category: 'instagram',
+    subfeature: 'video',
+    guideTitle: 'How to Download Instagram Videos in 1080p HD',
+    guideIntro: 'Download your favorite Instagram feed videos, clips, and lifestyle videos in original high-definition MP4 format with audio intact.',
+    sections: [
+      {
+        heading: 'Fast & High-Quality Instagram Video Saver',
+        body: 'OVD Instagram Video Downloader enables you to save public Instagram feed videos directly to your device without installing third-party apps or giving away account credentials. Simply copy the link to any public Instagram video post, paste it into our search bar, and get instant access to clean MP4 video downloads.'
+      },
+      {
+        heading: 'Crisp 1080p Resolution with Audio',
+        body: 'Unlike screen-recording apps that degrade video resolution and capture notifications or UI elements, OVD retrieves the pristine direct video stream from Instagram servers, ensuring you retain the exact 1080x1080 or 1080x1350 resolution and clear AAC audio.'
+      },
+      {
+        heading: 'Compatible with All Operating Systems',
+        body: 'Our web-based downloader works seamlessly on Apple iPhone (iOS Safari), Android smartphones (Chrome/Samsung Internet), Windows PC, and macOS. No extensions or jailbreaking required.'
+      }
+    ]
+  },
+
+  'instagram/instagram-photo-downloader': {
+    title: 'Instagram Photo Downloader',
+    badge: 'Original HD Full-Resolution Photos & Wallpapers',
+    category: 'instagram',
+    subfeature: 'photo',
+    guideTitle: 'Download High-Resolution Instagram Photos & Wallpapers',
+    guideIntro: 'Save original full-size Instagram photos, single image posts, portrait shots, and landscape photography in crisp uncompressed quality.',
+    sections: [
+      {
+        heading: 'Save Original High-Res Instagram Photos',
+        body: 'Instagram is home to stunning photography, digital art, travel shots, and fashion inspiration. OVD lets you extract the original full-resolution JPG/PNG images directly from Instagram without the quality compression caused by taking phone screenshots.'
+      },
+      {
+        heading: 'Uncompressed Image Clarity',
+        body: 'When you take a screenshot of an Instagram photo, you lose pixel fidelity and capture screen borders. OVD accesses the source CDN image URL, delivering the sharpest available image file ready for wallpapers, creative design, or archiving.'
+      },
+      {
+        heading: 'Step-by-Step Photo Saving Guide',
+        body: '1. Open Instagram and locate the photo you wish to download.\n2. Tap the three dots (···) or Share icon on the post and select Copy Link.\n3. Paste the link into OVD and tap Download to save the image to your photo gallery.'
+      }
+    ]
+  },
+
+  'instagram/instagram-reels-downloader': {
+    title: 'Instagram Reels Downloader',
+    badge: 'Full HD 1080p Reels with Audio & No Watermark',
+    category: 'instagram',
+    subfeature: 'reels',
+    guideTitle: 'How to Download Instagram Reels in 1080p MP4',
+    guideIntro: 'Download trending viral Instagram Reels with synchronized background music, voiceovers, and crystal-clear 1080p vertical video.',
+    sections: [
+      {
+        heading: 'Trending Instagram Reels Downloader',
+        body: 'Instagram Reels have become the world favorite medium for short-form video discovery, humor, education, and artistic expression. OVD Instagram Reels Downloader provides high-speed, direct MP4 downloading for any public reel.'
+      },
+      {
+        heading: 'Zero Watermark & Full Audio Fidelity',
+        body: 'Unlike in-app Instagram saves that sometimes mute licensed songs or overlay heavy compression, OVD preserves the original audio track and highest bitrates for seamless offline viewing and sharing across messaging apps.'
+      },
+      {
+        heading: 'Fast Batch & Mobile Ready',
+        body: 'Optimized for mobile users, our platform allows you to quickly download reels in seconds on 5G, 4G, or Wi-Fi without signups, registrations, or software downloads.'
+      }
+    ]
+  },
+
+  'instagram/instagram-reels': {
+    title: 'Instagram Reels Downloader',
+    badge: 'Fast Vertical 9:16 Video Saver',
+    category: 'instagram',
+    subfeature: 'reels',
+    guideTitle: 'Save Viral Instagram Reels Directly to Camera Roll',
+    guideIntro: 'Download high-speed Instagram Reels in 1080p MP4 with original audio tracks.',
+    sections: [
+      {
+        heading: 'High Definition Instagram Reels',
+        body: 'Save public 9:16 vertical videos in seconds. Perfect for offline archiving, fitness workouts, recipes, and video inspiration.'
+      }
+    ]
+  },
+
+  'instagram/instagram-story-downloader': {
+    title: 'Instagram Story Downloader',
+    badge: 'Archive Public Stories & Highlights Before 24h Expiry',
+    category: 'instagram',
+    subfeature: 'story',
+    guideTitle: 'How to Download Instagram Stories & Highlights',
+    guideIntro: 'Archive and save public Instagram Stories, clips, and profile Highlights in full quality before the 24-hour expiration window closes.',
+    sections: [
+      {
+        heading: 'Save Temporary Instagram Stories Permanently',
+        body: 'Instagram Stories vanish after 24 hours, making it impossible to revisit memorable updates or creator announcements. OVD Instagram Story Downloader allows you to preserve valuable stories, behind-the-scenes clips, and tutorials directly to your device.'
+      },
+      {
+        heading: 'Anonymous & Private Viewing',
+        body: 'Download stories completely anonymously without appearing in the account story viewer list. Your identity is never exposed or logged when using our cloud-based extraction engine.'
+      },
+      {
+        heading: 'Download Story Highlights',
+        body: 'Easily archive pinned profile Highlights with full video and audio fidelity by pasting the highlight link into OVD.'
+      }
+    ]
+  },
+
+  'instagram/instagram-igtv-downloader': {
+    title: 'Instagram IGTV Downloader',
+    badge: 'Long-Form Video Broadcasts & Episodes in 1080p',
+    category: 'instagram',
+    subfeature: 'igtv',
+    guideTitle: 'Download Instagram IGTV & Long-Form Videos in HD',
+    guideIntro: 'Download extended Instagram video broadcasts, series episodes, podcasts, and long documentaries in crystal-clear 1080p MP4.',
+    sections: [
+      {
+        heading: 'High-Bitrate IGTV Video Downloader',
+        body: 'Instagram IGTV allows creators to publish long-format videos extending up to 60 minutes. OVD IGTV Downloader lets you save these comprehensive interviews, cooking tutorials, masterclasses, and workout routines for offline playback.'
+      },
+      {
+        heading: 'Save Storage & Mobile Data',
+        body: 'Download heavy long-form videos while connected to home Wi-Fi and watch them during your commute, flights, or travel without burning mobile data.'
+      },
+      {
+        heading: 'Universal Compatibility',
+        body: 'IGTV videos downloaded via OVD are encoded in standard H.264 MP4 with stereo AAC audio, playable on VLC, Apple QuickTime, Windows Media Player, smart TVs, and all mobile operating systems.'
+      }
+    ]
+  },
+
+  'instagram/instagram-carousel-downloader': {
+    title: 'Instagram Carousel Downloader',
+    badge: 'Download Multi-Slide Photo & Video Albums in Batch',
+    category: 'instagram',
+    subfeature: 'carousel',
+    guideTitle: 'How to Download Multi-Post Instagram Carousel Albums',
+    guideIntro: 'Download complete Instagram carousel albums containing multiple photos, slides, and videos in high-definition quality.',
+    sections: [
+      {
+        heading: 'Extract All Carousel Slides & Images',
+        body: 'Instagram allows users to post up to 10 or 20 photos and videos in a single swipeable carousel album. OVD Instagram Carousel Downloader parses the album metadata and provides download options for all individual slides.'
+      },
+      {
+        heading: 'Full Resolution for Every Slide',
+        body: 'Each photo and video slide in the carousel is downloaded in its native dimensions and resolution without cropping, watermarks, or lossy re-encoding.'
+      },
+      {
+        heading: 'Simple Single-Link Workflow',
+        body: 'No need to copy separate links for each photo. Just copy the main carousel post URL and let OVD extract the entire album.'
+      }
+    ]
+  },
+
+  'instagram/instagram-viewer': {
+    title: 'Instagram Viewer & Profile Picture (DP) Downloader',
+    badge: 'Anonymous Profile Viewer & Full-HD Avatar Downloader',
+    category: 'instagram',
+    subfeature: 'viewer',
+    guideTitle: 'Anonymous Instagram Viewer & High-Res Profile Picture Downloader',
+    guideIntro: 'View public Instagram profiles anonymously and download original full-resolution profile pictures (DP) in full HD.',
+    sections: [
+      {
+        heading: 'Anonymous Instagram Profile Viewer',
+        body: 'Look up public Instagram creators, influencers, and brands without logging in or leaving a digital footprint. OVD enables safe, private profile browsing and metadata inspection.'
+      },
+      {
+        heading: 'Full-Size HD Profile Picture (DP) Downloader',
+        body: 'Instagram displays circular thumbnail avatars that cannot be expanded within the official app. OVD extracts the original uncompressed profile photo directly from Instagram CDN servers so you can zoom, view, and save the full-resolution DP.'
+      },
+      {
+        heading: 'How to Use Instagram Viewer',
+        body: 'Simply enter any public Instagram username (e.g., @cristiano) or profile URL (e.g., https://www.instagram.com/cristiano/) into the search box to view public bio details, follower statistics, and download the full-res avatar.'
+      }
+    ]
+  },
+'tiktok/tiktok-downloader': {
     title: 'TikTok Video Downloader Without Watermark',
     badge: 'Clean HD MP4 & Original Audio MP3',
     category: 'tiktok',

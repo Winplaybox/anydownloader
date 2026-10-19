@@ -21,6 +21,7 @@ import {
 } from './BrandIcons.jsx';
 import YouTubePills from './YouTubePills.jsx';
 import FacebookPills from './FacebookPills.jsx';
+import InstagramPills from './InstagramPills.jsx';
 
 export default function HeroDownloader({ 
   url = '', 
@@ -165,11 +166,59 @@ export default function HeroDownloader({
       };
     }
     if (activeCategory === 'instagram') {
+      if (activeSubfeature === 'photo') {
+        return {
+          badge: 'High-Res Uncompressed Photo Downloader',
+          title: 'Instagram Photo Downloader',
+          gradient: 'Save Original HD Photos & Wallpapers',
+          desc: 'Download original high-resolution Instagram photos, portrait shots, and full-size pictures in uncompressed clarity.'
+        };
+      }
+      if (activeSubfeature === 'reels') {
+        return {
+          badge: 'Instagram Reels Downloader 1080p Full HD',
+          title: 'Instagram Reels Downloader',
+          gradient: 'Viral 9:16 Reels With Clean Audio',
+          desc: 'Download trending viral Instagram Reels in 1080p Full HD MP4 with synchronized original audio and zero watermark.'
+        };
+      }
+      if (activeSubfeature === 'story') {
+        return {
+          badge: 'Archive Stories & Highlights Privately',
+          title: 'Instagram Story Downloader',
+          gradient: 'Save Stories Before 24h Expiration',
+          desc: 'Archive and download public Instagram stories, clips, and profile highlights before the 24-hour expiration window closes.'
+        };
+      }
+      if (activeSubfeature === 'igtv') {
+        return {
+          badge: 'Long-Form Video Episodes & Shows in HD',
+          title: 'Instagram IGTV Downloader',
+          gradient: 'Full-Length 1080p MP4 Broadcasts',
+          desc: 'Download extended Instagram IGTV broadcasts, series episodes, podcasts, and masterclass videos in 1080p MP4.'
+        };
+      }
+      if (activeSubfeature === 'carousel') {
+        return {
+          badge: 'Multi-Slide Album & Carousel Downloader',
+          title: 'Instagram Carousel Downloader',
+          gradient: 'Download All Photos & Videos in Batch',
+          desc: 'Download multi-slide Instagram carousel albums with all high-resolution photos and videos in full original quality.'
+        };
+      }
+      if (activeSubfeature === 'viewer') {
+        return {
+          badge: 'Anonymous Profile Viewer & DP Downloader',
+          title: 'Instagram Viewer & DP Downloader',
+          gradient: 'Full-Size Profile Pictures & Metadata',
+          desc: 'View public Instagram profiles anonymously and download original full-resolution profile pictures (DP) in full HD.'
+        };
+      }
       return {
-        badge: 'Instagram Reels, Stories & Posts',
+        badge: 'Instagram 1080p Video, Reel & Photo Downloader',
         title: 'Instagram Downloader',
-        gradient: 'Reels, Carousels & High-Res Photos',
-        desc: 'Save Instagram reels without quality loss, download stories, videos, and HD photos directly to your device.'
+        gradient: 'Videos, Reels, Stories & Photos in HD',
+        desc: 'Save high-definition Instagram feed videos, viral reels, stories, and carousel albums directly to your device.'
       };
     }
     if (activeCategory === 'tiktok') {
@@ -204,7 +253,15 @@ export default function HeroDownloader({
       if (activeSubfeature === 'mp3') return 'Paste Facebook video link to extract high-bitrate MP3...';
       return 'Paste Facebook video, reel, post, or story link...';
     }
-    if (activeCategory === 'instagram') return 'Paste Instagram reel, story, or post link (e.g. https://www.instagram.com/reel/...)...';
+    if (activeCategory === 'instagram') {
+      if (activeSubfeature === 'photo') return 'Paste Instagram photo post link (e.g. https://www.instagram.com/p/...)...';
+      if (activeSubfeature === 'reels') return 'Paste Instagram Reel link (e.g. https://www.instagram.com/reel/...)...';
+      if (activeSubfeature === 'story') return 'Paste Instagram Story or profile link (e.g. https://www.instagram.com/stories/...)...';
+      if (activeSubfeature === 'igtv') return 'Paste Instagram IGTV video link (e.g. https://www.instagram.com/tv/...)...';
+      if (activeSubfeature === 'carousel') return 'Paste Instagram multi-photo carousel link (e.g. https://www.instagram.com/p/...)...';
+      if (activeSubfeature === 'viewer') return 'Enter Instagram username or profile URL (e.g. https://www.instagram.com/cristiano/)...';
+      return 'Paste Instagram video, reel, or photo link (e.g. https://www.instagram.com/p/...)...';
+    }
     if (activeCategory === 'tiktok') return 'Paste TikTok video link (e.g. https://www.tiktok.com/@...)...';
     return 'Paste video, reel, or audio link here...';
   }
@@ -271,6 +328,11 @@ export default function HeroDownloader({
         {/* Facebook Tool Suite Pills */}
         {activeCategory === 'facebook' && (
           <FacebookPills activeSubfeature={activeSubfeature} />
+        )}
+
+        {/* Instagram Tool Suite Pills */}
+        {activeCategory === 'instagram' && (
+          <InstagramPills activeSubfeature={activeSubfeature} />
         )}
 
         {/* Big Input Bar */}
@@ -445,13 +507,38 @@ export default function HeroDownloader({
               </Link>
             </>
           ) : activeCategory === 'instagram' ? (
-            <button
-              type="button"
-              onClick={() => setUrl('https://www.instagram.com/reels/')}
-              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-            >
-              Instagram Reel Sample
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setUrl('https://www.instagram.com/cristiano/')}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+                title="Cristiano Ronaldo Profile / Avatar"
+              >
+                📸 Cristiano (Profile)
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrl('https://www.instagram.com/reel/C8qXbO_I7Zq/')}
+                className="px-2.5 py-1 rounded-lg bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 border border-pink-500/30 transition cursor-pointer font-medium"
+                title="Viral Instagram Reel"
+              >
+                ⚡ Viral Reel
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrl('https://www.instagram.com/p/C9wXbO_I123/')}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+                title="Photo / Carousel Post"
+              >
+                🖼️ Photo Post
+              </button>
+              <Link
+                to="/instagram/top-100-instagram-accounts"
+                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 text-pink-300 border border-pink-500/30 transition font-semibold"
+              >
+                Top 100 Accounts &rarr;
+              </Link>
+            </>
           ) : (
             <button
               type="button"

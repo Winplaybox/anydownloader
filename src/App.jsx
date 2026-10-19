@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage.jsx';
 import ToolPage from './pages/ToolPage.jsx';
 import TopChannelsPage from './pages/TopChannelsPage.jsx';
 import TopFacebookPagesPage from './pages/TopFacebookPagesPage.jsx';
+import TopInstagramAccountsPage from './pages/TopInstagramAccountsPage.jsx';
 import BlogsPage from './pages/BlogsPage.jsx';
 import UpdatesPage from './pages/UpdatesPage.jsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
@@ -37,6 +38,9 @@ function SEOHead() {
     } else if (cleanPath === 'facebook/top-100-facebook-pages' || cleanPath === 'facebook/top-100-pages') {
       title = 'Top 100 Facebook Pages - Global Follower Rankings | OVD';
       desc = 'Explore the live top 100 most followed Facebook pages worldwide. 12-hour automated synchronization with country filtering.';
+    } else if (cleanPath === 'instagram/top-100-instagram-accounts' || cleanPath === 'instagram/top-100-accounts') {
+      title = 'Top 100 Instagram Accounts - Global Follower Rankings | OVD';
+      desc = 'Explore the live top 100 most followed Instagram accounts worldwide. 12-hour automated synchronization with country and category filters.';
     } else if (cleanPath === 'blogs' || cleanPath === 'blog') {
       title = 'Social Media Updates Blog - Real-Time Creator News & Guides | OVD';
       desc = 'Stay ahead of social media algorithm shifts, video compression settings, TikTok audio guidelines, and creator monetization updates.';
@@ -138,6 +142,21 @@ export default function App() {
             {/* Instagram Category Nested Routes */}
             <Route path="/instagram" element={<Navigate to="/instagram/instagram-downloader" replace />} />
             <Route path="/instagram/instagram-downloader" element={<ToolPage config={pagesConfig['instagram/instagram-downloader']} />} />
+            <Route path="/instagram/instagram-video-downloader" element={<ToolPage config={pagesConfig['instagram/instagram-video-downloader']} />} />
+            <Route path="/instagram/instagram-photo-downloader" element={<ToolPage config={pagesConfig['instagram/instagram-photo-downloader']} />} />
+            <Route path="/instagram/instagram-reels-downloader" element={<ToolPage config={pagesConfig['instagram/instagram-reels-downloader']} />} />
+            <Route path="/instagram/instagram-reels" element={<ToolPage config={pagesConfig['instagram/instagram-reels']} />} />
+            <Route path="/instagram/instagram-story-downloader" element={<ToolPage config={pagesConfig['instagram/instagram-story-downloader']} />} />
+            <Route path="/instagram/instagram-story" element={<Navigate to="/instagram/instagram-story-downloader" replace />} />
+            <Route path="/instagram/instagram-igtv-downloader" element={<ToolPage config={pagesConfig['instagram/instagram-igtv-downloader']} />} />
+            <Route path="/instagram/instagram-igtv" element={<Navigate to="/instagram/instagram-igtv-downloader" replace />} />
+            <Route path="/instagram/instagram-carousel-downloader" element={<ToolPage config={pagesConfig['instagram/instagram-carousel-downloader']} />} />
+            <Route path="/instagram/instagram-carousel" element={<Navigate to="/instagram/instagram-carousel-downloader" replace />} />
+            <Route path="/instagram/instagram-viewer" element={<ToolPage config={pagesConfig['instagram/instagram-viewer']} />} />
+
+            {/* Top 100 Instagram Accounts Dedicated Database Page */}
+            <Route path="/instagram/top-100-instagram-accounts" element={<TopInstagramAccountsPage />} />
+            <Route path="/instagram/top-100-accounts" element={<Navigate to="/instagram/top-100-instagram-accounts" replace />} />
 
             {/* TikTok Category Nested Routes */}
             <Route path="/tiktok" element={<Navigate to="/tiktok/tiktok-downloader" replace />} />
@@ -166,6 +185,15 @@ export default function App() {
             <Route path="/facebook-transcript" element={<Navigate to="/facebook/facebook-transcript" replace />} />
             <Route path="/top-100-facebook-pages" element={<Navigate to="/facebook/top-100-facebook-pages" replace />} />
             <Route path="/instagram-downloader" element={<Navigate to="/instagram/instagram-downloader" replace />} />
+            <Route path="/instagram-video-downloader" element={<Navigate to="/instagram/instagram-video-downloader" replace />} />
+            <Route path="/instagram-photo-downloader" element={<Navigate to="/instagram/instagram-photo-downloader" replace />} />
+            <Route path="/instagram-reels-downloader" element={<Navigate to="/instagram/instagram-reels-downloader" replace />} />
+            <Route path="/instagram-reels" element={<Navigate to="/instagram/instagram-reels-downloader" replace />} />
+            <Route path="/instagram-story-downloader" element={<Navigate to="/instagram/instagram-story-downloader" replace />} />
+            <Route path="/instagram-igtv-downloader" element={<Navigate to="/instagram/instagram-igtv-downloader" replace />} />
+            <Route path="/instagram-carousel-downloader" element={<Navigate to="/instagram/instagram-carousel-downloader" replace />} />
+            <Route path="/instagram-viewer" element={<Navigate to="/instagram/instagram-viewer" replace />} />
+            <Route path="/top-100-instagram-accounts" element={<Navigate to="/instagram/top-100-instagram-accounts" replace />} />
             <Route path="/tiktok-downloader" element={<Navigate to="/tiktok/tiktok-downloader" replace />} />
 
             {/* Mandatory Google AdSense Legal & Policy Pages */}

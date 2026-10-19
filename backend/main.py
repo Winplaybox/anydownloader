@@ -271,6 +271,83 @@ def extract_youtube_fallback(url: str, video_id: str):
 
 
 
+
+def extract_instagram_profile(url: str):
+    """Extract Instagram profile info, follower metrics, and original full-res avatar (DP)."""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+    # Clean username from url
+    clean = url.split('?')[0].rstrip('/')
+    username = clean.split('/')[-1].lstrip('@')
+    
+    title = f"Instagram Profile (@{username})"
+    avatar_url = ""
+    bio = ""
+    
+    try:
+        req = urllib.request.Request(f"https://www.instagram.com/{username}/", headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = resp.read().decode('utf-8', errors='ignore')
+            titles = re.findall(r'<title>(.*?)</title>', raw)
+            images = re.findall(r'property="og:image" content="(.*?)"', raw)
+            descs = re.findall(r'property="og:description" content="(.*?)"', raw)
+            
+            if titles:
+                raw_t = html.unescape(titles[0])
+                title = re.sub(r'\s*[•\-|]\s*Instagram.*$', '', raw_t).strip() or f"@{username}"
+            if images:
+                avatar_url = html.unescape(images[0])
+            if descs:
+                bio = html.unescape(descs[0])
+    except Exception:
+        pass
+        
+    thumbnails_list = []
+    video_formats = []
+    
+    if avatar_url:
+        stream_link = f"/api/stream?url={urllib.parse.quote(avatar_url)}&filename={urllib.parse.quote(f'{username}_profile_dp.jpg')}"
+        thumbnails_list.append({
+            "quality": "Original HD Avatar",
+            "resolution": "Full Size (DP)",
+            "label": "Original Profile Picture",
+            "url": avatar_url,
+            "stream_url": stream_link
+        })
+        video_formats.append({
+            "format_id": "profile_avatar_hd",
+            "quality": "Full Resolution Image",
+            "resolution": "Original HD DP",
+            "ext": "jpg",
+            "url": avatar_url,
+            "stream_url": stream_link,
+            "filesize": None,
+            "has_video": True,
+            "has_audio": False,
+            "is_best": True
+        })
+
+    return {
+        "platform": "instagram",
+        "id": username,
+        "title": title,
+        "thumbnail": avatar_url or "https://www.instagram.com/static/images/ico/favicon.ico/dfa400762ccd.ico",
+        "duration": None,
+        "uploader": f"@{username}",
+        "views": bio or "Public Instagram Profile",
+        "video_formats": video_formats,
+        "audio_formats": [],
+        "thumbnails": thumbnails_list,
+        "subtitles": [],
+        "transcript": [],
+        "original_url": url,
+        "is_channel": True,
+        "message": f"Instagram Profile @{username} loaded. You can view and download the original full-size profile picture (DP) below."
+    }
+
 def extract_youtube_channel(url: str):
     """Extract YouTube Channel info and latest uploads when user pastes a channel link."""
     clean_url = url.split('?')[0].rstrip('/')
@@ -449,6 +526,13 @@ def extract_media(url: str):
     # Check if this is a YouTube channel / profile link
     if platform == "youtube" and any(x in url for x in ["/@", "/channel/", "/c/", "/user/"]) and not any(x in url for x in ["/watch", "/shorts", "/live"]):
         return extract_youtube_channel(url)
+
+    # Check if this is an Instagram profile / viewer link
+    if platform == "instagram":
+        clean_path = url.split('?')[0].rstrip('/')
+        parts = [p for p in clean_path.split('/') if p and 'instagram.com' not in p and 'http' not in p]
+        if parts and not any(x in clean_path for x in ["/p/", "/reel/", "/tv/", "/stories/", "/explore/"]):
+            return extract_instagram_profile(url)
     yt_m = re.search(r'(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})', url) if platform == "youtube" else None
     video_id = yt_m.group(1) if yt_m else ""
 
@@ -474,6 +558,10 @@ def extract_media(url: str):
     except Exception as e:
         if platform == "facebook":
             return extract_facebook_fallback(url)
+        elif platform == "instagram":
+            clean_path = url.split('?')[0].rstrip('/')
+            if not any(x in clean_path for x in ["/p/", "/reel/", "/tv/", "/stories/"]):
+                return extract_instagram_profile(url)
         elif platform == "youtube" or video_id:
             return extract_youtube_fallback(url, video_id)
         raise e
@@ -481,6 +569,10 @@ def extract_media(url: str):
     if not info:
         if platform == "facebook":
             return extract_facebook_fallback(url)
+        elif platform == "instagram":
+            clean_path = url.split('?')[0].rstrip('/')
+            if not any(x in clean_path for x in ["/p/", "/reel/", "/tv/", "/stories/"]):
+                return extract_instagram_profile(url)
         elif platform == "youtube" or video_id:
             return extract_youtube_fallback(url, video_id)
         raise ValueError("Could not extract media info from URL")
