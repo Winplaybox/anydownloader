@@ -38,9 +38,11 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
   const isInstagram = platform === 'instagram';
   const isTikTok = platform === 'tiktok';
 
-  // Automatically switch tab if there are no video formats but there are thumbnails/images
+  // Automatically switch tab to carousel if carousel slides exist, or thumbnails if no video
   useEffect(() => {
-    if (initialTab) {
+    if (data.is_carousel || (data.carousel_media && data.carousel_media.length > 0)) {
+      setActiveTab('carousel');
+    } else if (initialTab) {
       if (initialTab === 'video' && (!data.video_formats || data.video_formats.length === 0) && (data.thumbnails && data.thumbnails.length > 0)) {
         setActiveTab('thumbnails');
       } else {
@@ -166,6 +168,15 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
   // Determine Tab Configuration
   const tabs = useMemo(() => {
     const list = [];
+
+    // Tab 0: Carousel Album (FastDl Style)
+    if (data.is_carousel || (data.carousel_media && data.carousel_media.length > 0)) {
+      list.push({
+        id: 'carousel',
+        label: `📸 Carousel Album (${data.carousel_media?.length || 0} Photos)`,
+        icon: Sparkles
+      });
+    }
 
     // Tab 1: Video
     list.push({
@@ -477,6 +488,127 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
         </div>
 
         {/* TAB 1: Video Formats */}
+                {/* CAROUSEL ALBUM TAB (FastDl Style) */}
+        {activeTab === 'carousel' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-pink-900/40 via-purple-900/30 to-indigo-900/40 border border-pink-500/30 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                    📸 Instagram Carousel Album
+                  </span>
+                  <span className="text-xs text-slate-300 font-medium">
+                    {data.carousel_media?.length || 0} High-Res Slides Extracted
+                  </span>
+                </div>
+                <h4 className="text-white font-bold text-sm line-clamp-1">
+                  {data.title || 'Instagram Album'}
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Real data fetched in full 1080p resolution directly from Instagram CDN
+                </p>
+              </div>
+
+              {data.carousel_media && data.carousel_media.length > 0 && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      data.carousel_media.forEach((slide, i) => {
+                        setTimeout(() => {
+                          const link = document.createElement('a');
+                          link.href = formatStreamUrl(slide.stream_url || slide.url);
+                          link.download = slide.download_name;
+                          link.target = '_blank';
+                          link.rel = 'noopener';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }, i * 350);
+                      });
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-pink-600/30 transition active:scale-95 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download All ({data.carousel_media.length}) Photos</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Responsive Grid matching FastDl */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {(data.carousel_media || []).map((slide, idx) => (
+                <div
+                  key={idx}
+                  className="bg-slate-950/80 border border-slate-800/90 hover:border-pink-500/50 rounded-2xl overflow-hidden shadow-xl transition-all duration-300 flex flex-col group"
+                >
+                  <div className="relative aspect-[4/5] bg-slate-900 overflow-hidden">
+                    <img
+                      src={slide.preview || slide.url}
+                      alt={slide.download_name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 opacity-70 group-hover:opacity-90 transition-opacity" />
+                    
+                    {/* Top Badges */}
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-black/75 backdrop-blur text-white border border-white/20">
+                        Photo {slide.index || idx + 1} of {data.carousel_media?.length}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-pink-600 text-white shadow-md">
+                        1080p Full HD
+                      </span>
+                    </div>
+
+                    {/* Bottom overlay info */}
+                    <div className="absolute bottom-3 left-3 right-3 pointer-events-none">
+                      <span className="text-[11px] text-slate-300 font-mono-data truncate block">
+                        {slide.download_name}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 flex flex-col gap-3 flex-1 justify-between bg-slate-900/50">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-semibold text-slate-300">
+                        {slide.quality || `Photo ${idx + 1}`}
+                      </span>
+                      <span className="text-[11px] text-pink-400 font-mono-data font-bold">
+                        {slide.resolution || 'Original HD'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={formatStreamUrl(slide.stream_url || slide.url)}
+                        download={slide.download_name}
+                        target="_blank"
+                        rel="noopener"
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-pink-600/20 transition active:scale-95 cursor-pointer"
+                      >
+                        <ArrowDownToLine className="w-4 h-4" />
+                        <span>Download Photo {slide.index || idx + 1}</span>
+                      </a>
+                      <button
+                        onClick={() => copyThumbUrl(slide.url, idx)}
+                        title="Copy direct image link"
+                        className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer"
+                      >
+                        {copiedThumbIdx === idx ? (
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'video' && (
           <div className="space-y-3">
             <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between px-1">
@@ -524,7 +656,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                       className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${theme.btnGrad}`}
                     >
                       <ArrowDownToLine className="w-4 h-4" />
-                      <span>Download MP4</span>
+                      <span>{fmt.has_audio ? "Download MP4 (With Sound)" : "Download MP4"}</span>
                     </a>
                   </div>
                 </div>

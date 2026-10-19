@@ -6,12 +6,20 @@ import json
 import asyncio
 import urllib.parse
 import shutil
+import tempfile
+try:
+    import static_ffmpeg
+    static_ffmpeg.add_paths()
+except Exception as _ffmpeg_err:
+    pass
+
 from typing import Optional
 
 import yt_dlp
 import httpx
 from starlette.applications import Starlette
-from starlette.responses import JSONResponse, StreamingResponse, Response
+from starlette.responses import JSONResponse, StreamingResponse, Response, FileResponse
+from starlette.background import BackgroundTask
 from starlette.routing import Route
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -180,49 +188,50 @@ def extract_youtube_fallback(url: str, video_id: str):
         }
     ]
 
+    yt_full_url = f"https://www.youtube.com/watch?v={video_id}"
     video_formats = [
         {
             "id": "1080p",
-            "quality": "1080p (Full HD)",
+            "quality": "1080p (Full HD) • With Sound",
             "height": 1080,
             "ext": "mp4",
             "size": "HD Stream",
             "has_audio": True,
-            "url": f"https://www.youtube.com/watch?v={video_id}",
-            "stream_url": None,
+            "url": yt_full_url,
+            "stream_url": f"/api/download_video?url={urllib.parse.quote(yt_full_url)}&height=1080&title={urllib.parse.quote(title_clean)}",
             "download_name": f"{title_clean}_1080p.mp4"
         },
         {
             "id": "720p",
-            "quality": "720p (HD)",
+            "quality": "720p (HD) • With Sound",
             "height": 720,
             "ext": "mp4",
             "size": "Standard HD",
             "has_audio": True,
-            "url": f"https://www.youtube.com/watch?v={video_id}",
-            "stream_url": None,
+            "url": yt_full_url,
+            "stream_url": f"/api/download_video?url={urllib.parse.quote(yt_full_url)}&height=720&title={urllib.parse.quote(title_clean)}",
             "download_name": f"{title_clean}_720p.mp4"
         },
         {
             "id": "480p",
-            "quality": "480p (SD)",
+            "quality": "480p (SD) • With Sound",
             "height": 480,
             "ext": "mp4",
             "size": "SD Stream",
             "has_audio": True,
-            "url": f"https://www.youtube.com/watch?v={video_id}",
-            "stream_url": None,
+            "url": yt_full_url,
+            "stream_url": f"/api/download_video?url={urllib.parse.quote(yt_full_url)}&height=480&title={urllib.parse.quote(title_clean)}",
             "download_name": f"{title_clean}_480p.mp4"
         },
         {
             "id": "360p",
-            "quality": "360p (Mobile)",
+            "quality": "360p (Mobile) • With Sound",
             "height": 360,
             "ext": "mp4",
             "size": "Compact Stream",
             "has_audio": True,
-            "url": f"https://www.youtube.com/watch?v={video_id}",
-            "stream_url": None,
+            "url": yt_full_url,
+            "stream_url": f"/api/download_video?url={urllib.parse.quote(yt_full_url)}&height=360&title={urllib.parse.quote(title_clean)}",
             "download_name": f"{title_clean}_360p.mp4"
         }
     ]
@@ -233,8 +242,8 @@ def extract_youtube_fallback(url: str, video_id: str):
             "quality": "320 kbps High Fidelity",
             "format": "MP3",
             "size": "High Bitrate",
-            "url": f"https://www.youtube.com/watch?v={video_id}",
-            "stream_url": None,
+            "url": yt_full_url,
+            "stream_url": f"/api/download_audio?url={urllib.parse.quote(yt_full_url)}&quality=320&title={urllib.parse.quote(title_clean)}",
             "download_name": f"{title_clean}_320kbps.mp3"
         },
         {
@@ -242,8 +251,8 @@ def extract_youtube_fallback(url: str, video_id: str):
             "quality": "192 kbps Standard Audio",
             "format": "MP3",
             "size": "Standard Bitrate",
-            "url": f"https://www.youtube.com/watch?v={video_id}",
-            "stream_url": None,
+            "url": yt_full_url,
+            "stream_url": f"/api/download_audio?url={urllib.parse.quote(yt_full_url)}&quality=192&title={urllib.parse.quote(title_clean)}",
             "download_name": f"{title_clean}_192kbps.mp3"
         }
     ]
@@ -279,199 +288,160 @@ def extract_youtube_fallback(url: str, video_id: str):
 
 
 def extract_instagram_fallback(url: str):
-    """Extract Instagram photos, carousel albums, stories, posts, and profiles via OpenGraph."""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-    }
-    
+    """Extract real Instagram photos, carousel albums (all slides), reels, and profile DP."""
     clean_url = url.split('?')[0].rstrip('/')
     post_id = clean_url.split('/')[-1]
     is_profile = not any(x in clean_url for x in ["/p/", "/reel/", "/tv/", "/stories/"])
     
-    try:
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            raw = resp.read().decode('utf-8', errors='ignore')
-            
-            og_images = re.findall(r'property="og:image" content="(.*?)"', raw)
-            og_videos = re.findall(r'property="og:video(?::secure_url)?" content="(.*?)"', raw)
-            og_titles = re.findall(r'property="og:title" content="(.*?)"', raw)
-            titles = re.findall(r'<title>(.*?)</title>', raw)
-            descs = re.findall(r'property="og:description" content="(.*?)"', raw)
-            
-            desc_text = html.unescape(descs[0]) if descs else ""
-            
-            # Extract author / uploader
-            uploader = ""
-            author_match = re.search(r'-\s*([a-zA-Z0-9._]+)\s+on\s+[A-Za-z]+', desc_text)
-            if author_match:
-                uploader = author_match.group(1)
-            elif "from " in desc_text:
-                m2 = re.search(r'from\s+([a-zA-Z0-9._]+)\s*\(@([a-zA-Z0-9._]+)\)', desc_text)
-                if m2:
-                    uploader = m2.group(2)
-            if not uploader and is_profile:
-                uploader = post_id
-                
-            # Extract title / caption
-            title = ""
-            if '"' in desc_text:
-                quote_match = re.search(r'"([^"]+)"', desc_text)
-                if quote_match:
-                    title = quote_match.group(1).strip()
-            if not title and og_titles:
-                title = html.unescape(og_titles[0]).strip()
-            if not title and titles:
-                t0 = html.unescape(titles[0]).strip()
-                if t0 != 'Instagram':
-                    title = re.sub(r'\s*[•\-|]\s*Instagram.*$', '', t0).strip()
-            if not title:
-                title = f"Instagram Post by @{uploader}" if uploader else f"Instagram Media {post_id}"
-                
-            image_url = html.unescape(og_images[0]) if og_images else ""
-            video_url = html.unescape(og_videos[0]) if og_videos else ""
-            
-            video_formats = []
-            thumbnails_list = []
-            
-            if video_url:
-                v_filename = f"{uploader or 'instagram'}_{post_id}.mp4"
-                video_formats.append({
-                    "format_id": "instagram_video_hd",
-                    "quality": "1080p Full HD Video",
-                    "resolution": "1080p MP4",
-                    "ext": "mp4",
-                    "url": video_url,
-                    "stream_url": f"/api/stream?url={urllib.parse.quote(video_url)}&filename={urllib.parse.quote(v_filename)}",
-                    "filesize": None,
-                    "has_video": True,
-                    "has_audio": True,
-                    "is_best": True
-                })
-                
-            if image_url:
-                p_filename = f"{uploader or 'instagram'}_{post_id}_photo.jpg"
-                p_stream = f"/api/stream?url={urllib.parse.quote(image_url)}&filename={urllib.parse.quote(p_filename)}"
-                thumbnails_list.append({
-                    "quality": "Original Full Resolution",
-                    "resolution": "Original HD",
-                    "label": "Original Photo / Avatar",
-                    "url": image_url,
-                    "stream_url": p_stream
-                })
-                
-                # If no video was detected (it's a photo or carousel), provide prominent image download format
-                if not video_formats:
-                    video_formats.append({
-                        "format_id": "instagram_photo_full_hd",
-                        "quality": "Original HD Resolution",
-                        "resolution": "Full Size Photo",
-                        "ext": "jpg",
-                        "url": image_url,
-                        "stream_url": p_stream,
-                        "filesize": None,
-                        "has_video": True,
-                        "has_audio": False,
-                        "is_best": True
-                    })
-                    
-            return {
-                "platform": "instagram",
-                "id": post_id,
-                "title": title,
-                "thumbnail": image_url or "https://www.instagram.com/static/images/ico/favicon.ico/dfa400762ccd.ico",
-                "duration": None,
-                "uploader": f"@{uploader}" if uploader else "@instagram",
-                "views": desc_text or "Instagram Public Media",
-                "video_formats": video_formats,
-                "audio_formats": [],
-                "thumbnails": thumbnails_list,
-                "subtitles": [],
-                "transcript": [],
-                "original_url": url,
-                "is_channel": is_profile,
-                "message": f"Instagram {'Profile' if is_profile else 'Photo / Post'} extracted successfully in original resolution."
-            }
-    except Exception as exc:
-        raise ValueError(f"Could not extract Instagram media: {str(exc)}")
-
-def extract_instagram_profile(url: str):
-    """Extract Instagram profile info, follower metrics, and original full-res avatar (DP)."""
     headers = {
         'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
     }
-    # Clean username from url
-    clean = url.split('?')[0].rstrip('/')
-    username = clean.split('/')[-1].lstrip('@')
-    
-    title = f"Instagram Profile (@{username})"
-    avatar_url = ""
-    bio = ""
     
     try:
-        req = urllib.request.Request(f"https://www.instagram.com/{username}/", headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        req = urllib.request.Request(clean_url + '/', headers=headers)
+        with urllib.request.urlopen(req, timeout=12) as resp:
             raw = resp.read().decode('utf-8', errors='ignore')
-            titles = re.findall(r'<title>(.*?)</title>', raw)
-            images = re.findall(r'property="og:image" content="(.*?)"', raw)
-            descs = re.findall(r'property="og:description" content="(.*?)"', raw)
             
-            if titles:
-                raw_t = html.unescape(titles[0])
-                title = re.sub(r'\s*[•\-|]\s*Instagram.*$', '', raw_t).strip() or f"@{username}"
-            if images:
-                avatar_url = html.unescape(images[0])
-            if descs:
-                bio = html.unescape(descs[0])
-    except Exception:
-        pass
+        descs = re.findall(r'property="og:description" content="(.*?)"', raw)
+        desc_text = html.unescape(descs[0]) if descs else ""
         
-    thumbnails_list = []
-    video_formats = []
-    
-    if avatar_url:
-        stream_link = f"/api/stream?url={urllib.parse.quote(avatar_url)}&filename={urllib.parse.quote(f'{username}_profile_dp.jpg')}"
-        thumbnails_list.append({
-            "quality": "Original HD Avatar",
-            "resolution": "Full Size (DP)",
-            "label": "Original Profile Picture",
-            "url": avatar_url,
-            "stream_url": stream_link
-        })
-        video_formats.append({
-            "format_id": "profile_avatar_hd",
-            "quality": "Full Resolution Image",
-            "resolution": "Original HD DP",
-            "ext": "jpg",
-            "url": avatar_url,
-            "stream_url": stream_link,
-            "filesize": None,
-            "has_video": True,
-            "has_audio": False,
-            "is_best": True
-        })
+        # Extract author
+        uploader = ""
+        author_match = re.search(r'-\s*([a-zA-Z0-9._]+)\s+on\s+[A-Za-z]+', desc_text)
+        if author_match:
+            uploader = author_match.group(1)
+        elif "from " in desc_text:
+            m2 = re.search(r'from\s+([a-zA-Z0-9._]+)\s*\(@([a-zA-Z0-9._]+)\)', desc_text)
+            if m2:
+                uploader = m2.group(2)
+        if not uploader and is_profile:
+            uploader = post_id
+            
+        # Extract title
+        title = ""
+        if '"' in desc_text:
+            q_m = re.search(r'"([^"]+)"', desc_text)
+            if q_m:
+                title = q_m.group(1).strip()
+        if not title:
+            titles = re.findall(r'<title>(.*?)</title>', raw)
+            if titles:
+                t0 = html.unescape(titles[0]).strip()
+                if t0 != 'Instagram':
+                    title = re.sub(r'\s*[•\-|]\s*Instagram.*$', '', t0).strip()
+        if not title:
+            title = f"Instagram Post by @{uploader}" if uploader else f"Instagram Media {post_id}"
 
-    return {
-        "platform": "instagram",
-        "id": username,
-        "title": title,
-        "thumbnail": avatar_url or "https://www.instagram.com/static/images/ico/favicon.ico/dfa400762ccd.ico",
-        "duration": None,
-        "uploader": f"@{username}",
-        "views": bio or "Public Instagram Profile",
-        "video_formats": video_formats,
-        "audio_formats": [],
-        "thumbnails": thumbnails_list,
-        "subtitles": [],
-        "transcript": [],
-        "original_url": url,
-        "is_channel": True,
-        "message": f"Instagram Profile @{username} loaded. You can view and download the original full-size profile picture (DP) below."
-    }
+        # Extract ALL real carousel image slides
+        img_srcs = re.findall(r'<img[^>]+src="([^"]+)"', raw)
+        carousel_slides = []
+        seen_img = set()
+        
+        for src in img_srcs:
+            clean_src = html.unescape(src)
+            if 'scontent' in clean_src and 't51.2885-19' not in clean_src and 'static.cdninstagram' not in clean_src:
+                m_id = clean_src.split('/')[-1].split('?')[0]
+                if m_id not in seen_img:
+                    seen_img.add(m_id)
+                    s_idx = len(carousel_slides) + 1
+                    s_filename = f"{uploader or 'instagram'}_{post_id}_slide_{s_idx}.jpg"
+                    carousel_slides.append({
+                        "index": s_idx,
+                        "type": "photo",
+                        "preview": clean_src,
+                        "url": clean_src,
+                        "stream_url": f"/api/stream?url={urllib.parse.quote(clean_src)}&filename={urllib.parse.quote(s_filename)}",
+                        "download_name": s_filename,
+                        "quality": f"Photo {s_idx} (Full HD)",
+                        "resolution": "Original HD 1080p"
+                    })
+
+        # Extract video tags
+        video_srcs = re.findall(r'<video[^>]+src="([^"]+)"', raw) + re.findall(r'property="og:video(?::secure_url)?" content="([^"]+)"', raw)
+        videos = []
+        seen_vids = set()
+        for v in video_srcs:
+            clean_v = html.unescape(v)
+            if clean_v not in seen_vids:
+                seen_vids.add(clean_v)
+                v_idx = len(videos) + 1
+                v_filename = f"{uploader or 'instagram'}_{post_id}_video_{v_idx}.mp4"
+                videos.append({
+                    "index": v_idx,
+                    "type": "video",
+                    "preview": carousel_slides[0]["url"] if carousel_slides else "",
+                    "url": clean_v,
+                    "stream_url": f"/api/stream?url={urllib.parse.quote(clean_v)}&filename={urllib.parse.quote(v_filename)}",
+                    "download_name": v_filename,
+                    "has_audio": True,
+                    "quality": "1080p Full HD • With Sound (MP4)",
+                    "resolution": "1080p Video"
+                })
+
+        first_image = carousel_slides[0]["url"] if carousel_slides else "https://www.instagram.com/static/images/ico/favicon.ico/dfa400762ccd.ico"
+        
+        video_formats = []
+        audio_formats = []
+
+        if videos:
+            for vid in videos:
+                video_formats.append({
+                    "id": f"ig-vid-{vid['index']}",
+                    "quality": vid["quality"],
+                    "height": 1080,
+                    "ext": "mp4",
+                    "has_audio": True,
+                    "url": vid["url"],
+                    "stream_url": vid["stream_url"],
+                    "download_name": vid["download_name"],
+                    "is_best": True
+                })
+                # Audio extraction option for Instagram video
+                audio_filename = f"{uploader or 'instagram'}_{post_id}_audio.mp3"
+                audio_formats.append({
+                    "id": "ig-audio-1",
+                    "quality": "Original Audio Track (MP3)",
+                    "format": "MP3",
+                    "size": "Original Sound",
+                    "url": vid["url"],
+                    "stream_url": f"/api/stream?url={urllib.parse.quote(vid['url'])}&filename={urllib.parse.quote(audio_filename)}",
+                    "download_name": audio_filename
+                })
+        elif carousel_slides:
+            for slide in carousel_slides:
+                video_formats.append({
+                    "id": f"ig-slide-{slide['index']}",
+                    "quality": f"Photo {slide['index']} of {len(carousel_slides)} (Full HD)",
+                    "height": 1080,
+                    "ext": "jpg",
+                    "has_audio": False,
+                    "url": slide["url"],
+                    "stream_url": slide["stream_url"],
+                    "download_name": slide["download_name"],
+                    "is_best": slide['index'] == 1
+                })
+
+        return {
+            "platform": "instagram",
+            "id": post_id,
+            "title": title,
+            "thumbnail": first_image,
+            "duration": None,
+            "uploader": f"@{uploader}" if uploader else "@instagram",
+            "views": desc_text or "Instagram Public Media",
+            "video_formats": video_formats,
+            "audio_formats": audio_formats,
+            "thumbnails": carousel_slides,
+            "carousel_media": carousel_slides if len(carousel_slides) > 1 else [],
+            "is_carousel": len(carousel_slides) > 1,
+            "is_channel": is_profile,
+            "message": f"Instagram {'Carousel Album with ' + str(len(carousel_slides)) + ' real slides' if len(carousel_slides) > 1 else 'media'} extracted successfully."
+        }
+    except Exception as exc:
+        raise ValueError(f"Could not extract Instagram media: {str(exc)}")
+
 
 def extract_youtube_channel(url: str):
     """Extract YouTube Channel info and latest uploads when user pastes a channel link."""
@@ -710,9 +680,14 @@ def extract_media(url: str):
     audio_formats = []
     seen_heights = set()
 
+    # Sort formats prioritizing:
+    # 1. Formats that have BOTH video AND audio (progressive MP4s with sound)
+    # 2. Resolution (height)
+    # 3. Bitrate (tbr)
     sorted_formats = sorted(
         all_formats,
         key=lambda f: (
+            1 if (f.get("acodec") not in [None, "none"] and f.get("vcodec") not in [None, "none"]) else 0,
             f.get("height") or 0,
             f.get("tbr") or 0,
             f.get("filesize") or 0
@@ -758,7 +733,13 @@ def extract_media(url: str):
         has_audio = f.get("acodec") != "none"
 
         safe_filename = f"{title_clean}_{height}p.{ext}"
-        stream_proxy_url = f"/api/stream?url={urllib.parse.quote(format_url)}&filename={urllib.parse.quote(safe_filename)}"
+        if platform == "youtube":
+            stream_proxy_url = f"/api/download_video?url={urllib.parse.quote(url)}&height={height}&title={urllib.parse.quote(title_clean)}"
+            has_audio = True
+            if "With Sound" not in quality_label:
+                quality_label += " • With Sound"
+        else:
+            stream_proxy_url = f"/api/stream?url={urllib.parse.quote(format_url)}&filename={urllib.parse.quote(safe_filename)}"
 
         video_formats.append({
             "id": f.get("format_id"),
@@ -797,13 +778,20 @@ def extract_media(url: str):
         name_192 = f"{title_clean}_192kbps.mp3"
         name_orig = f"{title_clean}.{primary_audio.get('ext') or 'm4a'}"
 
+        if platform == "youtube":
+            audio_stream_320 = f"/api/download_audio?url={urllib.parse.quote(url)}&quality=320&title={urllib.parse.quote(title_clean)}"
+            audio_stream_192 = f"/api/download_audio?url={urllib.parse.quote(url)}&quality=192&title={urllib.parse.quote(title_clean)}"
+        else:
+            audio_stream_320 = f"/api/stream?url={urllib.parse.quote(audio_url)}&filename={urllib.parse.quote(name_320)}"
+            audio_stream_192 = f"/api/stream?url={urllib.parse.quote(audio_url)}&filename={urllib.parse.quote(name_192)}"
+
         audio_formats.append({
             "id": "mp3-320",
             "quality": "320 kbps High Fidelity",
             "format": "MP3",
             "size": audio_size,
             "url": audio_url,
-            "stream_url": f"/api/stream?url={urllib.parse.quote(audio_url)}&filename={urllib.parse.quote(name_320)}",
+            "stream_url": audio_stream_320,
             "download_name": name_320
         })
         audio_formats.append({
@@ -812,7 +800,7 @@ def extract_media(url: str):
             "format": "MP3",
             "size": audio_size,
             "url": audio_url,
-            "stream_url": f"/api/stream?url={urllib.parse.quote(audio_url)}&filename={urllib.parse.quote(name_192)}",
+            "stream_url": audio_stream_192,
             "download_name": name_192
         })
         audio_formats.append({
@@ -992,6 +980,112 @@ async def extract_handler(request):
             error_msg = "This video is private or restricted by the author."
         return JSONResponse({"success": False, "error": error_msg}, status_code=500)
 
+
+def run_download_video_task(source_url: str, height: int, output_template: str):
+    """Download video stream with audio merged using yt-dlp and ffmpeg."""
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'format': f'bestvideo[height<={height}]+bestaudio/best',
+        'outtmpl': output_template,
+        'merge_output_format': 'mp4'
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([source_url])
+
+def run_download_audio_task(source_url: str, quality: str, output_template: str):
+    """Download audio stream and extract MP3 using yt-dlp and ffmpeg."""
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'format': 'bestaudio/best',
+        'outtmpl': output_template,
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': quality,
+        }]
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([source_url])
+
+async def download_video_handler(request):
+    """Handler that merges video and audio with ffmpeg, streaming genuine audio-enabled MP4."""
+    source_url = request.query_params.get("url")
+    height_str = request.query_params.get("height", "720")
+    title = request.query_params.get("title") or "video"
+    
+    if not source_url:
+        return Response("Missing video url parameter", status_code=400)
+    
+    try:
+        height = int(height_str)
+    except Exception:
+        height = 720
+
+    clean_title = re.sub(r'[\/*?:"<>|]', "", title).strip() or "video"
+    safe_filename = f"{clean_title}_{height}p.mp4"
+    
+    temp_dir = tempfile.mkdtemp(prefix="wpb_vid_")
+    out_tmpl = os.path.join(temp_dir, "media.%(ext)s")
+    
+    try:
+        await asyncio.to_thread(run_download_video_task, source_url, height, out_tmpl)
+        final_mp4 = os.path.join(temp_dir, "media.mp4")
+        if not os.path.exists(final_mp4):
+            files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if not f.endswith(('.part', '.ytdl'))]
+            if files:
+                final_mp4 = files[0]
+            else:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return Response("Failed to generate video with audio", status_code=500)
+        
+        return FileResponse(
+            final_mp4,
+            media_type="video/mp4",
+            filename=safe_filename,
+            background=BackgroundTask(shutil.rmtree, temp_dir, ignore_errors=True)
+        )
+    except Exception as exc:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        return Response(f"Error processing video download: {str(exc)}", status_code=500)
+
+async def download_audio_handler(request):
+    """Handler that extracts pure audio MP3 with tags using ffmpeg, streaming MP3 with sound."""
+    source_url = request.query_params.get("url")
+    quality = request.query_params.get("quality", "192")
+    title = request.query_params.get("title") or "audio"
+    
+    if not source_url:
+        return Response("Missing audio url parameter", status_code=400)
+    
+    clean_title = re.sub(r'[\/*?:"<>|]', "", title).strip() or "audio"
+    safe_filename = f"{clean_title}_{quality}kbps.mp3"
+    
+    temp_dir = tempfile.mkdtemp(prefix="wpb_aud_")
+    out_tmpl = os.path.join(temp_dir, "media.%(ext)s")
+    
+    try:
+        await asyncio.to_thread(run_download_audio_task, source_url, quality, out_tmpl)
+        final_mp3 = os.path.join(temp_dir, "media.mp3")
+        if not os.path.exists(final_mp3):
+            files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.endswith('.mp3')]
+            if files:
+                final_mp3 = files[0]
+            else:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return Response("Failed to generate audio mp3", status_code=500)
+        
+        return FileResponse(
+            final_mp3,
+            media_type="audio/mpeg",
+            filename=safe_filename,
+            background=BackgroundTask(shutil.rmtree, temp_dir, ignore_errors=True)
+        )
+    except Exception as exc:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        return Response(f"Error processing audio download: {str(exc)}", status_code=500)
+
 async def stream_download_handler(request):
     target_url = request.query_params.get("url")
     filename = request.query_params.get("filename") or "download.mp4"
@@ -1058,7 +1152,7 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
-        if request.url.path in ("/", "/health", "/api/health", "/api/stream"):
+        if request.url.path in ("/", "/health", "/api/health", "/api/stream", "/api/download_video", "/api/download_audio"):
             return await call_next(request)
 
         # 3. Verify origin, referer, or extension secret key
@@ -1094,6 +1188,8 @@ routes = [
     Route("/health", health_handler, methods=["GET"]),
     Route("/api/extract", extract_handler, methods=["POST"]),
     Route("/api/stream", stream_download_handler, methods=["GET"]),
+    Route("/api/download_video", download_video_handler, methods=["GET"]),
+    Route("/api/download_audio", download_audio_handler, methods=["GET"]),
     Route("/api/health", health_handler, methods=["GET"])
 ]
 
