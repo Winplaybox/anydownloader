@@ -6,19 +6,22 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      width: 380px;
+      width: 390px;
       background: #090d16;
       color: #f1f5f9;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       padding: 16px;
+      overflow-x: hidden;
     }
+    
+    /* Header */
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       border-bottom: 1px solid #1e293b;
       padding-bottom: 12px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
     .logo-container {
       display: flex;
@@ -53,10 +56,144 @@
       font-weight: 800;
       background: rgba(244, 63, 94, 0.15);
       color: #fb7185;
-      padding: 2px 6px;
+      padding: 3px 8px;
       border-radius: 999px;
       border: 1px solid rgba(244, 63, 94, 0.3);
+      letter-spacing: 0.5px;
     }
+
+    /* Active Platform Context Banner */
+    .platform-banner {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.3s ease;
+    }
+    .platform-banner.fb {
+      border-color: rgba(59, 130, 246, 0.4);
+      background: linear-gradient(135deg, rgba(30, 58, 138, 0.25), rgba(15, 23, 42, 0.95));
+    }
+    .platform-banner.ig {
+      border-color: rgba(236, 72, 153, 0.4);
+      background: linear-gradient(135deg, rgba(131, 24, 67, 0.25), rgba(15, 23, 42, 0.95));
+    }
+    .platform-banner.tw {
+      border-color: rgba(148, 163, 184, 0.4);
+      background: linear-gradient(135deg, rgba(51, 65, 85, 0.3), rgba(15, 23, 42, 0.95));
+    }
+    .platform-banner.pin {
+      border-color: rgba(239, 68, 68, 0.4);
+      background: linear-gradient(135deg, rgba(127, 29, 29, 0.25), rgba(15, 23, 42, 0.95));
+    }
+    .platform-banner.yt {
+      border-color: rgba(244, 63, 94, 0.4);
+      background: linear-gradient(135deg, rgba(159, 18, 57, 0.25), rgba(15, 23, 42, 0.95));
+    }
+    .platform-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .platform-icon {
+      font-size: 16px;
+    }
+    .platform-text-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .platform-text-subtitle {
+      font-size: 10px;
+      color: #94a3b8;
+    }
+    .platform-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 3px 6px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.1);
+      color: #38bdf8;
+    }
+
+    /* Platform-specific quick feature chips */
+    .feature-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .chip {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 5px 9px;
+      background: #1e293b;
+      color: #cbd5e1;
+      border-radius: 999px;
+      border: 1px solid #334155;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .chip:hover {
+      background: #334155;
+      color: #fff;
+      border-color: #f43f5e;
+    }
+
+    /* In-Page Media Detected Box */
+    .detected-media-box {
+      display: none;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    .detected-media-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .detected-media-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #34d399;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .detected-media-items {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .detected-item-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      color: #f1f5f9;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .detected-item-btn:hover {
+      border-color: #10b981;
+      background: #1e293b;
+    }
+
+    /* Input Section */
     .input-label {
       font-size: 11px;
       font-weight: 700;
@@ -101,6 +238,8 @@
       opacity: 0.95;
       transform: translateY(-1px);
     }
+
+    /* Status Msg */
     .status-msg {
       font-size: 11px;
       margin-top: 10px;
@@ -109,6 +248,8 @@
     }
     .status-error { color: #fb7185; }
     .status-info { color: #38bdf8; }
+
+    /* Results */
     .result-area {
       margin-top: 12px;
       display: none;
@@ -144,6 +285,8 @@
       font-size: 11px;
       font-weight: 700;
       transition: background 0.2s;
+      cursor: pointer;
+      border: none;
     }
     .download-btn:hover {
       background: #334155;
@@ -152,13 +295,35 @@
     .download-btn.mp4 { border-left: 3px solid #f43f5e; }
     .download-btn.mp3 { border-left: 3px solid #f59e0b; }
     .download-btn.photo { border-left: 3px solid #ec4899; }
+
+    /* Security Note */
+    .sec-badge {
+      margin-top: 12px;
+      padding: 8px 10px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      font-size: 10px;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .sec-badge span.dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+
+    /* Quick Links */
     .quick-links {
-      margin-top: 14px;
+      margin-top: 12px;
       border-top: 1px solid #1e293b;
       padding-top: 10px;
       display: flex;
       justify-content: space-around;
-      font-size: 11px;
+      font-size: 10px;
     }
     .quick-link {
       color: #94a3b8;
@@ -171,20 +336,45 @@
 <body>
   <div class="header">
     <div class="logo-container">
-      <div class="logo-badge">↓</div>
+      <div class="logo-badge">&#10515;</div>
       <div class="logo-title">OVD <span>PRO</span></div>
     </div>
-    <span class="badge-pro">v1.0 EXTENSION</span>
+    <span class="badge-pro">v1.2 EXTENSION</span>
   </div>
 
+  <!-- Dynamic Platform Status Banner -->
+  <div id="platform-banner" class="platform-banner">
+    <div class="platform-info">
+      <span id="platform-icon" class="platform-icon">&#127760;</span>
+      <div>
+        <div id="platform-title" class="platform-text-title">Universal Downloader</div>
+        <div id="platform-subtitle" class="platform-text-subtitle">Paste any link or browse media</div>
+      </div>
+    </div>
+    <span id="platform-badge" class="platform-badge">READY</span>
+  </div>
+
+  <!-- Platform Quick Feature Chips -->
+  <div id="feature-chips" class="feature-chips"></div>
+
+  <!-- In-Page Media Detected Section (Live DOM Sniffer) -->
+  <div id="detected-box" class="detected-media-box">
+    <div class="detected-media-header">
+      <span class="detected-media-title">&#9889; Media Found On Active Tab</span>
+      <span style="font-size: 9px; color: #10b981; font-weight: 700;">1-CLICK SAVE</span>
+    </div>
+    <div id="detected-items" class="detected-media-items"></div>
+  </div>
+
+  <!-- Media URL Input -->
   <div class="input-label">
     <span>Media URL:</span>
-    <span id="detected-tag" style="color: #38bdf8; font-weight: normal;">Auto-detected from tab</span>
+    <span id="detected-tag" style="color: #38bdf8; font-weight: normal;">Auto-detected</span>
   </div>
-  <input type="text" id="url-input" class="input-box" placeholder="Paste YouTube, Instagram, Facebook, or TikTok URL..." />
+  <input type="text" id="url-input" class="input-box" placeholder="Paste YouTube, Facebook, Instagram, X or TikTok link..." />
 
   <button type="button" id="fetch-btn" class="btn-fetch">
-    <span>⚡ Download Media</span>
+    <span>&#10515; Extract Download Streams</span>
   </button>
 
   <div id="status" class="status-msg"></div>
@@ -194,10 +384,17 @@
     <div id="result-buttons" class="result-buttons"></div>
   </div>
 
+  <div class="sec-badge">
+    <span class="dot"></span>
+    <span>Encrypted & Safe: Zero cookies stored. Authenticated via extension key.</span>
+  </div>
+
   <div class="quick-links">
-    <a href="https://ovd.winplaybox.in" target="_blank" class="quick-link">Web App</a>
-    <a href="https://ovd.winplaybox.in/youtube/top-100-youtube-channels" target="_blank" class="quick-link">Top Channels</a>
-    <a href="https://ovd.winplaybox.in/instagram/top-100-instagram-accounts" target="_blank" class="quick-link">Top Instagram</a>
+    <a href="https://ovd.winplaybox.in" target="_blank" class="quick-link">OVD Web</a>
+    <a href="https://ovd.winplaybox.in/facebook-reels" target="_blank" class="quick-link">FB Reels</a>
+    <a href="https://ovd.winplaybox.in/instagram-reels" target="_blank" class="quick-link">IG Reels</a>
+    <a href="https://ovd.winplaybox.in/twitter-video-downloader" target="_blank" class="quick-link">X (Twitter)</a>
+    <a href="https://ovd.winplaybox.in/security" target="_blank" class="quick-link">Security</a>
   </div>
 
   <script src="popup.js"></script>

@@ -78,6 +78,7 @@ export default function Footer() {
               Legal & Policies
             </h4>
             <ul className="space-y-2 text-xs">
+              <li><Link to="/security" className="text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1.5 transition"><Lock className="w-3.5 h-3.5" />Security & Self-XSS</Link></li>
               <li><Link to="/privacy-policy" className="hover:text-slate-200 transition">Privacy Policy</Link></li>
               <li><Link to="/terms-of-service" className="hover:text-slate-200 transition">Terms of Service</Link></li>
               <li><Link to="/contact" className="hover:text-slate-200 transition">Contact Us & Feedback</Link></li>

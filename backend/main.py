@@ -771,6 +771,9 @@ def extract_facebook_fallback(url: str):
                 "download_name": name_192
             })
 
+        is_reel_or_video = any(k in url.lower() for k in ["/reel", "/watch", "/videos", "/video"])
+        is_restricted = is_reel_or_video and len(video_formats) == 0
+
         return {
             "platform": "facebook",
             "id": "facebook",
@@ -785,7 +788,13 @@ def extract_facebook_fallback(url: str):
             "subtitles": [],
             "transcript": [],
             "original_url": url,
-            "is_post_or_profile": not bool(video_url)
+            "is_post_or_profile": not bool(video_url),
+            "is_private_or_restricted": is_restricted,
+            "restriction_type": "facebook_login_gate" if is_restricted else None,
+            "restriction_message": (
+                "Facebook requires an active login session to stream this Reel. Remote servers cannot bypass Facebook's session wall without credentials. Use the OVD Browser Extension to save this Reel directly from your active browser session in 1-click."
+                if is_restricted else None
+            )
         }
     except Exception as e:
         raise ValueError(f"Could not extract Facebook media: {e}")
@@ -804,8 +813,14 @@ def extract_facebook(url: str, feature: Optional[str] = None):
     """
     Dedicated extractor for Facebook.
     Handles: videos, reels, posts, photos, watch links.
-    Completely isolated from Instagram and YouTube logic.
+    Tries yt-dlp first for public streams, then falls back to OpenGraph & DOM regex.
     """
+    try:
+        data = extract_media_base(url, "facebook")
+        if data and data.get("video_formats") and len(data["video_formats"]) > 0:
+            return data
+    except Exception:
+        pass
     return extract_facebook_fallback(url)
 
 def extract_youtube(url: str, feature: Optional[str] = None):

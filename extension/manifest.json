@@ -1,17 +1,23 @@
-{
+﻿{
   "manifest_version": 3,
   "name": "OVD Downloader PRO - Video, Reel & Audio Saver",
-  "version": "1.0.0",
-  "description": "Download 1080p/4K YouTube videos, Instagram Reels & Photos, Facebook videos, and 320kbps MP3 audio in 1-click.",
+  "version": "1.2.0",
+  "description": "Download 1080p/4K YouTube videos, Instagram Reels, Facebook videos & reels, Twitter/X media, and 320kbps MP3 audio in 1-click.",
   "permissions": [
     "activeTab",
-    "contextMenus",
-    "storage"
+    "tabs",
+    "storage",
+    "downloads",
+    "scripting",
+    "contextMenus"
   ],
   "host_permissions": [
     "*://*.youtube.com/*",
     "*://*.instagram.com/*",
     "*://*.facebook.com/*",
+    "*://*.twitter.com/*",
+    "*://*.x.com/*",
+    "*://*.pinterest.com/*",
     "*://*.tiktok.com/*",
     "https://anydownloader-backend-vvbj.onrender.com/*",
     "https://ovd.winplaybox.in/*"
@@ -33,9 +39,14 @@
       "matches": [
         "*://*.youtube.com/*",
         "*://*.instagram.com/*",
-        "*://*.facebook.com/*"
+        "*://*.facebook.com/*",
+        "*://*.twitter.com/*",
+        "*://*.x.com/*",
+        "*://*.pinterest.com/*",
+        "*://*.tiktok.com/*"
       ],
       "js": ["content.js"],
+      "css": ["content.css"],
       "run_at": "document_idle"
     }
   ],

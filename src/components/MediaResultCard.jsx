@@ -18,7 +18,10 @@ import {
   Image as ImageIcon, 
   Search,
   CheckCircle2,
-  Share2
+  Share2,
+  Lock,
+  Shield,
+  AlertCircle
 } from 'lucide-react';
 
 const BACKEND_BASE = 'https://anydownloader-backend-vvbj.onrender.com';
@@ -1210,27 +1213,75 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                     </button>
                   </div>
                 ) : (
-                  <div>
-                    <ImageIcon className="w-9 h-9 text-pink-400 mx-auto mb-2" />
-                    <h4 className="text-sm font-bold text-white mb-1">
-                      {isInstagram ? 'Instagram Photo Post' : isFacebook ? 'Facebook Photo / Post' : 'No Video Stream Detected'}
-                    </h4>
-                    <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-                      {isInstagram 
-                        ? 'This link contains a full-resolution photo post rather than a video stream. Download the original JPG below.'
-                        : 'No direct video stream was found for this link. Check available artwork below.'}
-                    </p>
-                    {thumbnails.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('thumbnails')}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${theme.btnGrad}`}
-                      >
-                        <ImageIcon className="w-3.5 h-3.5" />
-                        <span>View & Download Original Photo</span>
-                      </button>
-                    )}
-                  </div>
+                  isFacebook && (data?.is_private_or_restricted || (data?.original_url && (data.original_url.includes('/reel') || data.original_url.includes('/watch') || data.original_url.includes('/video')))) ? (
+                    <div className="p-5 rounded-2xl bg-blue-950/40 border border-blue-500/30 text-left max-w-xl mx-auto shadow-xl shadow-blue-950/50">
+                      <div className="flex items-start gap-3.5">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 shrink-0 shadow-md">
+                          <Lock className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                            <h4 className="text-sm font-bold text-white">
+                              Facebook Login-Gated / Restricted Reel
+                            </h4>
+                            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                              Protected Stream
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-300 leading-relaxed mb-3">
+                            Facebook requires an active login session to stream this Reel. Because our cloud servers never ask for or store your personal Facebook password, public bots are blocked by Facebook's login wall.
+                          </p>
+                          <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px] text-slate-300 mb-3 flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span>
+                              <strong>Solution:</strong> Use our free <strong>OVD Browser Extension</strong>. It downloads the active Reel directly from your browser's existing Facebook session with zero passwords required!
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <a
+                              href="/security"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-blue-600/30 hover:bg-blue-600/40 text-blue-200 border border-blue-500/40 transition"
+                            >
+                              <Shield className="w-3.5 h-3.5 text-blue-400" />
+                              <span>How Extension Saves Private Reels</span>
+                            </a>
+                            {thumbnails.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setActiveTab('thumbnails')}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+                              >
+                                <ImageIcon className="w-3.5 h-3.5" />
+                                <span>View Artwork & Cover Photo</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <ImageIcon className="w-9 h-9 text-pink-400 mx-auto mb-2" />
+                      <h4 className="text-sm font-bold text-white mb-1">
+                        {isInstagram ? 'Instagram Photo Post' : isFacebook ? 'Facebook Photo / Post' : 'No Video Stream Detected'}
+                      </h4>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
+                        {isInstagram 
+                          ? 'This link contains a full-resolution photo post rather than a video stream. Download the original JPG below.'
+                          : 'No direct video stream was found for this link. Check available artwork below.'}
+                      </p>
+                      {thumbnails.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('thumbnails')}
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${theme.btnGrad}`}
+                        >
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          <span>View & Download Original Photo</span>
+                        </button>
+                      )}
+                    </div>
+                  )
                 )}
               </div>
             )}

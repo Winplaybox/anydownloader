@@ -12,6 +12,7 @@ import UpdatesPage from './pages/UpdatesPage.jsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 import TermsPage from './pages/TermsPage.jsx';
 import ContactPage from './pages/ContactPage.jsx';
+import SecurityPage from './pages/SecurityPage.jsx';
 import { pagesConfig } from './data/pagesConfig.js';
 
 // Auto scroll to top on navigation
@@ -247,6 +248,8 @@ export default function App() {
             <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
             <Route path="/terms-of-service" element={<TermsPage />} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/security" element={<SecurityPage />} />
+            <Route path="/selfxss" element={<Navigate to="/security" replace />} />
 
             {/* Fallback */}
             <Route path="*" element={<HomePage />} />
