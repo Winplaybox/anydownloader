@@ -49,8 +49,18 @@ export default function ToolPage({ config = {} }) {
     setError('');
     setMediaData(null);
 
+    // Select dedicated platform endpoint for clean architectural isolation
+    let endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/extract';
+    const pKey = (safeConfig.platform || '').toLowerCase();
+    const fKey = (safeConfig.subfeature || '').toLowerCase();
+    if (pKey && ['instagram', 'facebook', 'youtube', 'tiktok', 'twitter'].includes(pKey)) {
+      endpoint = fKey 
+        ? `https://anydownloader-backend-vvbj.onrender.com/api/${pKey}/${fKey}`
+        : `https://anydownloader-backend-vvbj.onrender.com/api/${pKey}/extract`;
+    }
+
     try {
-      const res = await fetch('https://anydownloader-backend-vvbj.onrender.com/api/extract', {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: targetUrl })

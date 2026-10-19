@@ -41,8 +41,23 @@ export default function HomePage() {
     setError('');
     setMediaData(null);
 
+    // Target dedicated platform endpoint based on URL
+    let endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/extract';
+    const lower = targetUrl.toLowerCase();
+    if (lower.includes('instagram.com')) {
+      endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/instagram/extract';
+    } else if (lower.includes('facebook.com') || lower.includes('fb.watch')) {
+      endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/facebook/extract';
+    } else if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+      endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/youtube/extract';
+    } else if (lower.includes('tiktok.com')) {
+      endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/tiktok/extract';
+    } else if (lower.includes('twitter.com') || lower.includes('x.com')) {
+      endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/twitter/extract';
+    }
+
     try {
-      const res = await fetch('https://anydownloader-backend-vvbj.onrender.com/api/extract', {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: targetUrl })

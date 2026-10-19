@@ -615,7 +615,46 @@ def extract_facebook_fallback(url: str):
         raise ValueError(f"Could not extract Facebook media: {e}")
 
 
-def extract_media(url: str):
+
+def extract_instagram(url: str, feature: Optional[str] = None):
+    """
+    Dedicated extractor for Instagram.
+    Handles: posts, reels, carousel albums (all slides), stories, and profiles.
+    Completely isolated from YouTube and Facebook logic.
+    """
+    clean_url = url.split('?')[0].rstrip('/')
+    is_profile = not any(x in clean_url for x in ["/p/", "/reel/", "/tv/", "/stories/"])
+    if feature in ["profile", "dp", "avatar"] or is_profile:
+        return extract_instagram_fallback(url)
+    return extract_instagram_fallback(url)
+
+def extract_facebook(url: str, feature: Optional[str] = None):
+    """
+    Dedicated extractor for Facebook.
+    Handles: videos, reels, posts, photos, watch links.
+    Completely isolated from Instagram and YouTube logic.
+    """
+    return extract_facebook_fallback(url)
+
+def extract_youtube(url: str, feature: Optional[str] = None):
+    """
+    Dedicated extractor for YouTube.
+    Handles: videos, shorts, channels, audio tracks.
+    """
+    if feature in ["channel", "profile"] or (any(x in url for x in ["/@", "/channel/", "/c/", "/user/"]) and not any(x in url for x in ["/watch", "/shorts", "/live"])):
+        return extract_youtube_channel(url)
+    return extract_media_base(url, "youtube")
+
+def extract_tiktok(url: str, feature: Optional[str] = None):
+    """Dedicated extractor for TikTok."""
+    return extract_media_base(url, "tiktok")
+
+def extract_twitter(url: str, feature: Optional[str] = None):
+    """Dedicated extractor for Twitter / X."""
+    return extract_media_base(url, "twitter")
+
+def extract_media_base(url: str, forced_platform: Optional[str] = None):
+    platform = forced_platform or detect_platform(url)
     platform = detect_platform(url)
 
     # Check if this is a YouTube channel / profile link
@@ -627,7 +666,7 @@ def extract_media(url: str):
         clean_path = url.split('?')[0].rstrip('/')
         parts = [p for p in clean_path.split('/') if p and 'instagram.com' not in p and 'http' not in p]
         if parts and not any(x in clean_path for x in ["/p/", "/reel/", "/tv/", "/stories/", "/explore/"]):
-            return extract_instagram_profile(url)
+            return extract_instagram_fallback(url)
     yt_m = re.search(r'(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})', url) if platform == "youtube" else None
     video_id = yt_m.group(1) if yt_m else ""
 
@@ -960,6 +999,73 @@ def extract_media(url: str):
         "original_url": url
     }
 
+
+def extract_media(url: str):
+    """
+    Universal gateway extractor.
+    Dispatches to dedicated, isolated extractors for each social media platform.
+    """
+    platform = detect_platform(url)
+    if platform == "instagram":
+        return extract_instagram(url)
+    elif platform == "facebook":
+        return extract_facebook(url)
+    elif platform == "youtube":
+        return extract_youtube(url)
+    elif platform == "tiktok":
+        return extract_tiktok(url)
+    elif platform == "twitter":
+        return extract_twitter(url)
+    return extract_media_base(url, platform)
+
+
+async def platform_extract_handler(request):
+    """
+    Dedicated handler for platform-specific endpoints:
+    /api/instagram/extract, /api/instagram/{feature}
+    /api/facebook/extract, /api/facebook/{feature}
+    /api/youtube/extract, /api/youtube/{feature}
+    /api/tiktok/extract, /api/tiktok/{feature}
+    /api/twitter/extract, /api/twitter/{feature}
+    """
+    try:
+        data = await request.json()
+        url = data.get("url", "").strip()
+
+        if not url:
+            return JSONResponse({"success": False, "error": "Please provide a valid media URL"}, status_code=400)
+
+        platform = request.path_params.get("platform", "").lower()
+        feature = request.path_params.get("feature", "").lower() if request.path_params.get("feature") else None
+
+        loop = asyncio.get_event_loop()
+        if platform == "instagram":
+            media_info = await loop.run_in_executor(None, extract_instagram, url, feature)
+        elif platform == "facebook":
+            media_info = await loop.run_in_executor(None, extract_facebook, url, feature)
+        elif platform == "youtube":
+            media_info = await loop.run_in_executor(None, extract_youtube, url, feature)
+        elif platform == "tiktok":
+            media_info = await loop.run_in_executor(None, extract_tiktok, url, feature)
+        elif platform == "twitter":
+            media_info = await loop.run_in_executor(None, extract_twitter, url, feature)
+        else:
+            media_info = await loop.run_in_executor(None, extract_media, url)
+
+        return JSONResponse({
+            "success": True,
+            "platform": platform or media_info.get("platform"),
+            "feature": feature,
+            "data": media_info
+        })
+    except Exception as e:
+        error_msg = str(e)
+        if "Sign in to confirm you're not a bot" in error_msg:
+            error_msg = "Verification requested for this media. Try another link or video format."
+        elif "Private video" in error_msg:
+            error_msg = "This media is private or restricted by the author."
+        return JSONResponse({"success": False, "error": error_msg}, status_code=500)
+
 async def extract_handler(request):
     try:
         data = await request.json()
@@ -1186,11 +1292,16 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
 routes = [
     Route("/", health_handler, methods=["GET"]),
     Route("/health", health_handler, methods=["GET"]),
+    Route("/api/health", health_handler, methods=["GET"]),
+    # Universal extraction gateway
     Route("/api/extract", extract_handler, methods=["POST"]),
+    # Dedicated platform-specific endpoints
+    Route("/api/{platform}/extract", platform_extract_handler, methods=["POST"]),
+    Route("/api/{platform}/{feature}", platform_extract_handler, methods=["POST"]),
+    # Streaming & audio-merged downloads
     Route("/api/stream", stream_download_handler, methods=["GET"]),
     Route("/api/download_video", download_video_handler, methods=["GET"]),
-    Route("/api/download_audio", download_audio_handler, methods=["GET"]),
-    Route("/api/health", health_handler, methods=["GET"])
+    Route("/api/download_audio", download_audio_handler, methods=["GET"])
 ]
 
 middleware = [
