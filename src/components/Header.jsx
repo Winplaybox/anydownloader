@@ -22,18 +22,21 @@ import {
   YoutubeIcon, 
   InstagramIcon, 
   TiktokIcon, 
-  FacebookIcon 
+  FacebookIcon,
+  PinterestIcon
 } from './BrandIcons.jsx';
 
 export default function Header() {
   const [openYoutubeMenu, setOpenYoutubeMenu] = useState(false);
   const [openFacebookMenu, setOpenFacebookMenu] = useState(false);
   const [openInstagramMenu, setOpenInstagramMenu] = useState(false);
+  const [openPinterestMenu, setOpenPinterestMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const ytMenuRef = useRef(null);
   const fbMenuRef = useRef(null);
   const igMenuRef = useRef(null);
+  const pinMenuRef = useRef(null);
   const location = useLocation();
 
   // Close menus on route change
@@ -41,6 +44,7 @@ export default function Header() {
     setOpenYoutubeMenu(false);
     setOpenFacebookMenu(false);
     setOpenInstagramMenu(false);
+    setOpenPinterestMenu(false);
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
@@ -68,6 +72,9 @@ export default function Header() {
       if (igMenuRef.current && !igMenuRef.current.contains(e.target)) {
         setOpenInstagramMenu(false);
       }
+      if (pinMenuRef.current && !pinMenuRef.current.contains(e.target)) {
+        setOpenPinterestMenu(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -92,6 +99,15 @@ export default function Header() {
     { title: 'Instagram IGTV', desc: 'Download long-form video episodes & broadcasts in 1080p', icon: Video, path: '/instagram/instagram-igtv-downloader' },
     { title: 'Instagram Carousel', desc: 'Download multi-slide photo & video albums in batch', icon: Download, path: '/instagram/instagram-carousel-downloader' },
     { title: 'Instagram Viewer & DP', desc: 'Anonymous profile viewer & HD profile picture downloader', icon: Award, path: '/instagram/instagram-viewer' },
+  ];
+
+    const pinTools = [
+    { title: 'Pinterest Video Downloader', desc: 'Download Pinterest clips in 1080p MP4 with sound', icon: Video, path: '/pinterest/pinterest-video-downloader' },
+    { title: 'Pinterest Photo Downloader', desc: 'Save uncompressed master HD photos & artworks', icon: ImageIcon, path: '/pinterest/pinterest-photo-downloader' },
+    { title: 'Pinterest GIF Downloader', desc: 'Download animated GIF loops & MP4 clips', icon: Sparkles, path: '/pinterest/pinterest-gif-downloader' },
+    { title: 'Pinterest Idea Pin / Stories', desc: 'Download multi-slide Idea Pins & story cards', icon: FileText, path: '/pinterest/pinterest-story-downloader' },
+    { title: 'Pinterest Board Downloader', desc: 'Batch download all pins from public boards', icon: Download, path: '/pinterest/pinterest-board-downloader' },
+    { title: 'Pinterest Profile & DP', desc: 'HD profile avatar downloader & creator viewer', icon: Award, path: '/pinterest/pinterest-profile-downloader' },
   ];
 
   const quickIgCountries = [
@@ -218,7 +234,29 @@ export default function Header() {
             </button>
           </div>
 
-          {/* 4. TikTok */}
+                    {/* 4. Pinterest Dropdown Toggle */}
+          <div className="relative" ref={pinMenuRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setOpenPinterestMenu(!openPinterestMenu);
+                setOpenYoutubeMenu(false);
+                setOpenFacebookMenu(false);
+                setOpenInstagramMenu(false);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition cursor-pointer ${
+                openPinterestMenu || location.pathname.startsWith('/pinterest')
+                  ? 'bg-slate-900 text-white border border-slate-800'
+                  : 'hover:bg-slate-900 hover:text-white'
+              }`}
+            >
+              <PinterestIcon className="w-3.5 h-3.5 text-red-500" />
+              <span>Pinterest</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition transform ${openPinterestMenu ? 'rotate-180 text-red-500' : 'text-slate-500'}`} />
+            </button>
+          </div>
+
+          {/* 5. TikTok */}
           <Link
             to="/tiktok/tiktok-downloader"
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition ${
@@ -938,6 +976,113 @@ export default function Header() {
                   className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:via-purple-500 hover:to-indigo-500 text-white font-bold text-xs text-center transition flex items-center justify-center gap-1.5 shadow-lg shadow-pink-600/20"
                 >
                   <span>Explore All 100 Accounts Database</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SPACIOUS PINTEREST MEGA MENU (DESKTOP) */}
+      {openPinterestMenu && (
+        <div
+          ref={pinMenuRef}
+          className="fixed inset-x-0 top-16 flex justify-center z-50 px-4 pt-3 pointer-events-none"
+        >
+          <div className="pointer-events-auto w-full max-w-4xl bg-slate-950/98 border border-slate-800 rounded-3xl p-6 sm:p-7 shadow-2xl backdrop-blur-2xl text-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-800/80">
+              <div className="flex items-center gap-2">
+                <PinterestIcon className="w-5 h-5 text-red-500" />
+                <span className="font-extrabold text-white text-sm">Pinterest Complete Downloader Suite</span>
+              </div>
+              <Link
+                to="/pinterest/pinterest-board-downloader"
+                onClick={() => setOpenPinterestMenu(false)}
+                className="text-xs font-bold text-red-400 hover:text-red-300 flex items-center gap-1 transition"
+              >
+                <span>Bulk Board Downloader &rarr;</span>
+              </Link>
+            </div>
+
+            {/* Clean 2-Column Layout */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-7 items-start">
+              
+              {/* Left Column: Pinterest Tools */}
+              <div className="space-y-1 md:border-r md:border-slate-800/80 md:pr-6">
+                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2.5">
+                  Pinterest Tools & Extractors
+                </div>
+                {pinTools.map((feat, idx) => {
+                  const Icon = feat.icon;
+                  return (
+                    <Link
+                      key={idx}
+                      to={feat.path}
+                      onClick={() => setOpenPinterestMenu(false)}
+                      className="w-full text-left p-2 rounded-xl hover:bg-slate-900 flex items-start gap-3 transition group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-gradient-to-tr group-hover:from-red-600 group-hover:to-rose-600 group-hover:text-white transition">
+                        <Icon className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-white text-xs group-hover:text-red-400 transition">
+                          {feat.title}
+                        </div>
+                        <div className="text-[10px] text-slate-400 leading-tight truncate">
+                          {feat.desc}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Right Column: Board & Media Capabilities */}
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between h-full">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-red-400" />
+                      <span className="font-extrabold text-white text-xs">Direct Master CDN Downloads</span>
+                    </div>
+                    <span className="text-[9px] bg-gradient-to-r from-red-600 to-rose-600 text-white font-extrabold px-2 py-0.5 rounded-full shadow-sm">
+                      100% Real-Time
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+                    All Pinterest downloads are served directly from official CDN nodes (<span className="text-red-300 font-mono">i.pinimg.com</span> and <span className="text-red-300 font-mono">v1.pinimg.com</span>) in uncompressed original quality.
+                  </p>
+
+                  <div className="space-y-2 mb-4">
+                    <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">
+                      Key Highlights
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs">
+                      <span className="font-bold text-white block mb-0.5">🎥 Full HD MP4 Video with Audio</span>
+                      <span className="text-[11px] text-slate-400">Progressive 1080p and 720p streams with audio track intact.</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs">
+                      <span className="font-bold text-white block mb-0.5">📌 Public Board Batch Extraction</span>
+                      <span className="text-[11px] text-slate-400">Paste any board link (e.g. @natgeo/animals) and download all pins with one click.</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs">
+                      <span className="font-bold text-white block mb-0.5">🖼️ Original Master Quality Photos</span>
+                      <span className="text-[11px] text-slate-400">Direct access to raw uncompressed original files without resizing artifacts.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  to="/pinterest/pinterest-downloader"
+                  onClick={() => setOpenPinterestMenu(false)}
+                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 hover:opacity-95 text-white font-bold text-xs text-center transition flex items-center justify-center gap-1.5 shadow-lg shadow-red-600/20"
+                >
+                  <span>Launch Pinterest Downloader</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>

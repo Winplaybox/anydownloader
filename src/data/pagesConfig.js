@@ -643,6 +643,181 @@ export const pagesConfig = {
       }
     ]
   },
+  'pinterest/pinterest-downloader': {
+    title: 'Pinterest Video, Photo & Board Downloader',
+    badge: 'Download 1080p Videos, Original Photos, GIFs & Boards',
+    category: 'pinterest',
+    subfeature: 'all',
+    guideTitle: 'How to Download Pinterest Videos, Images, GIFs & Boards in HD',
+    guideIntro: 'Save high-definition Pinterest videos, uncompressed original photo pins, animated GIFs, Idea Pins, and complete boards directly to your device without quality loss.',
+    sections: [
+      {
+        heading: 'Save Original Uncompressed Pinterest Pins',
+        body: 'Pinterest is home to millions of design inspirations, fashion trends, home decor, and recipes. OVD allows you to save these pins in their native highest resolution directly from Pinterest servers.'
+      },
+      {
+        heading: 'Full Support for Videos, GIFs, Idea Pins & Boards',
+        body: 'Whether it is a 1080p vertical video pin, an animated loop GIF, a multi-page Idea Pin, or an entire user board, OVD detects the content type and provides instant download links.'
+      },
+      {
+        heading: 'Zero Login & Free Unlimited Downloads',
+        body: 'No Pinterest login or third-party extensions required. Simply paste the link from the Pinterest app or website to begin downloading.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'How do I download a Pinterest video or photo?',
+        a: 'Open Pinterest, tap the Share or three dots icon on any pin, click "Copy Link", paste it into OVD search bar, and click Fetch Media.'
+      },
+      {
+        q: 'Does OVD support short pin.it links?',
+        a: 'Yes, OVD automatically resolves mobile pin.it short links to the full Pinterest post URL.'
+      }
+    ]
+  },
+
+  'pinterest/pinterest-video-downloader': {
+    title: 'Pinterest Video Downloader 1080p Full HD',
+    badge: 'Download Pinterest MP4 Videos with Audio in HD',
+    category: 'pinterest',
+    subfeature: 'video',
+    guideTitle: 'Download Pinterest Videos in 1080p MP4 with Clean Audio',
+    guideIntro: 'Download trending Pinterest workout clips, craft tutorials, recipe videos, and aesthetic animations in crystal-clear MP4 with synchronized sound.',
+    sections: [
+      {
+        heading: 'High Definition Pinterest Video Downloads',
+        body: 'Pinterest serves progressive MP4 and adaptive video streams. OVD extracts the highest bitrate 1080p or 720p MP4 file with crisp stereo sound.'
+      },
+      {
+        heading: 'Audio Preservation (MP4 + MP3 Options)',
+        body: 'Save the complete video file with sound intact, or extract the audio track as an MP3 file for offline listening.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Can I download Pinterest videos on iPhone and Android?',
+        a: 'Yes, OVD works seamlessly across Safari, Chrome, Edge, and all mobile browsers. Downloaded MP4 videos save directly to your camera roll or downloads folder.'
+      }
+    ]
+  },
+
+  'pinterest/pinterest-photo-downloader': {
+    title: 'Pinterest Photo & Image Downloader (Original 4K/HD)',
+    badge: 'Extract Original Uncompressed High-Res Pins',
+    category: 'pinterest',
+    subfeature: 'photo',
+    guideTitle: 'Download Original Full-Size Pinterest Photos & Wallpapers',
+    guideIntro: 'Download original uncompressed full-resolution Pinterest photos, artwork, wallpapers, and aesthetic photography directly from Pinterest CDNs.',
+    sections: [
+      {
+        heading: 'Extract the Master Resolution Photo',
+        body: 'When viewing pins on Pinterest web or mobile, compressed previews are often displayed. OVD bypasses compression to retrieve the master "originals" image in full uncompressed resolution.'
+      },
+      {
+        heading: 'Perfect for High-Resolution Printing & Design',
+        body: 'Retain crisp pixel clarity for graphic design projects, digital wallpapers, mood boards, and artistic reference without taking fuzzy screenshots.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Why download via OVD instead of right-clicking "Save Image As"?',
+        a: 'Right-clicking on Pinterest often only saves a 236px or 564px scaled thumbnail. OVD fetches the true master "originals" image at full pixel dimensions.'
+      }
+    ]
+  },
+
+  'pinterest/pinterest-gif-downloader': {
+    title: 'Pinterest GIF Downloader',
+    badge: 'Download Animated GIFs & Video Loops',
+    category: 'pinterest',
+    subfeature: 'gif',
+    guideTitle: 'How to Save Animated Pinterest GIFs & Motion Pins',
+    guideIntro: 'Save trending animated Pinterest GIFs, aesthetic motion graphics, and looping stickers in original .gif and .mp4 formats.',
+    sections: [
+      {
+        heading: 'Preserve Full Animation & High Bitrate',
+        body: 'Download animated GIF pins with complete frame sequences intact. Perfect for messaging apps, Discord reactions, and presentations.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Are downloaded GIFs animated?',
+        a: 'Yes, downloaded GIFs preserve all animation frames and looping behavior.'
+      }
+    ]
+  },
+
+  'pinterest/pinterest-story-downloader': {
+    title: 'Pinterest Idea Pin & Story Downloader',
+    badge: 'Download Multi-Page Idea Pins & Story Clips',
+    category: 'pinterest',
+    subfeature: 'story',
+    guideTitle: 'Save Pinterest Idea Pins & Multi-Page Stories in HD',
+    guideIntro: 'Download complete multi-page Pinterest Idea Pins, sequential tutorials, and story videos in full resolution.',
+    sections: [
+      {
+        heading: 'Save All Slides & Video Clips in an Idea Pin',
+        body: 'Idea Pins feature sequential slides combining videos, text, and photos. OVD parses the story metadata and lets you download each individual page or all slides.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Can I download individual pages from an Idea Pin?',
+        a: 'Yes, each slide in the Idea Pin is displayed with its own preview and dedicated download button.'
+      }
+    ]
+  },
+
+  'pinterest/pinterest-board-downloader': {
+    title: 'Pinterest Board Downloader',
+    badge: 'Download All Pins & Artwork from Any Public Board',
+    category: 'pinterest',
+    subfeature: 'board',
+    guideTitle: 'Download Entire Pinterest Boards & Pin Collections',
+    guideIntro: 'Extract and download all high-resolution pins, photos, and artwork from any public Pinterest board in batch.',
+    sections: [
+      {
+        heading: 'Batch Pin Extraction for Complete Boards',
+        body: 'Instead of opening and saving pins one by one, enter the URL of any public Pinterest board (e.g., pinterest.com/username/board/) to extract all pins simultaneously.'
+      },
+      {
+        heading: 'High Resolution for Every Board Item',
+        body: 'Every pin inside the board is extracted in original full resolution with individual download links and batch download capabilities.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Can I download secret or private boards?',
+        a: 'No, OVD only downloads from public boards to protect creator privacy and account security.'
+      }
+    ]
+  },
+
+  'pinterest/pinterest-profile-downloader': {
+    title: 'Pinterest Profile Viewer & DP Downloader',
+    badge: 'Anonymous Profile Viewer & High-Res DP Downloader',
+    category: 'pinterest',
+    subfeature: 'profile',
+    guideTitle: 'View Pinterest Profiles & Download Full-Size Avatars (DP)',
+    guideIntro: 'Inspect public Pinterest creator profiles anonymously, view follower and board statistics, and download original full-resolution profile pictures (DP).',
+    sections: [
+      {
+        heading: 'Anonymous Profile Lookup',
+        body: 'Enter any Pinterest username or profile link to view verified public follower counts, following numbers, total pins, and boards created.'
+      },
+      {
+        heading: 'Full HD Avatar Picture (DP)',
+        body: 'Pinterest avatars are small circular thumbnails in the app. OVD extracts the uncompressed high-resolution profile picture file so you can zoom and save in full clarity.'
+      }
+    ],
+    faqs: [
+      {
+        q: 'Can I look up a profile just using the username?',
+        a: 'Yes, you can enter @username or the full profile link (e.g. pinterest.com/natgeo/).'
+      }
+    ]
+  },
+
 };
 
 // Backwards-compatible aliases
@@ -657,3 +832,13 @@ pagesConfig['youtube/youtube-thumbnail'] = pagesConfig['youtube/youtube-thumbnai
 pagesConfig['facebook-video-downloader'] = pagesConfig['facebook/facebook-video-downloader'];
 pagesConfig['instagram-downloader'] = pagesConfig['instagram/instagram-downloader'];
 pagesConfig['tiktok-downloader'] = pagesConfig['tiktok/tiktok-downloader'];
+
+pagesConfig['pinterest-downloader'] = pagesConfig['pinterest/pinterest-downloader'];
+pagesConfig['pinterest-video-downloader'] = pagesConfig['pinterest/pinterest-video-downloader'];
+pagesConfig['pinterest-photo-downloader'] = pagesConfig['pinterest/pinterest-photo-downloader'];
+pagesConfig['pinterest-image-downloader'] = pagesConfig['pinterest/pinterest-photo-downloader'];
+pagesConfig['pinterest-gif-downloader'] = pagesConfig['pinterest/pinterest-gif-downloader'];
+pagesConfig['pinterest-story-downloader'] = pagesConfig['pinterest/pinterest-story-downloader'];
+pagesConfig['pinterest-board-downloader'] = pagesConfig['pinterest/pinterest-board-downloader'];
+pagesConfig['pinterest-profile-downloader'] = pagesConfig['pinterest/pinterest-profile-downloader'];
+pagesConfig['pinterest'] = pagesConfig['pinterest/pinterest-downloader'];

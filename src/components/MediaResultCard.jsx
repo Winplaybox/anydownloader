@@ -38,10 +38,13 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
   const isYouTube = platform === 'youtube';
   const isInstagram = platform === 'instagram';
   const isTikTok = platform === 'tiktok';
+  const isPinterest = platform === 'pinterest';
 
   // Respect user intent: keep on requested tab, don't force carousel if user is on video or audio
   useEffect(() => {
-    if (initialTab === 'carousel' || (data.is_carousel && initialTab !== 'video' && initialTab !== 'audio')) {
+    if (initialTab === 'board' || data.is_board) {
+      setActiveTab('board');
+    } else if (initialTab === 'carousel' || (data.is_carousel && initialTab !== 'video' && initialTab !== 'audio')) {
       setActiveTab('carousel');
     } else if (initialTab === 'profile' || (data.is_channel && initialTab === 'profile')) {
       setActiveTab('thumbnails');
@@ -168,11 +171,22 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
   const tabs = useMemo(() => {
     const list = [];
 
-    // Tab 0: Carousel Album (FastDl Style)
-    if (data.is_carousel || (data.carousel_media && data.carousel_media.length > 0)) {
+    // Tab 0: Board Pins (If Pinterest board)
+    if (isPinterest && (data.is_board || (data.board_pins && data.board_pins.length > 0))) {
+      list.push({
+        id: 'board',
+        label: `📌 Board Pins (${data.board_pins?.length || data.carousel_media?.length || 0})`,
+        icon: Layers
+      });
+    }
+
+    // Tab 0.5: Carousel Album / Idea Pin Slides
+    if (!data.is_board && (data.is_carousel || (data.carousel_media && data.carousel_media.length > 0))) {
       list.push({
         id: 'carousel',
-        label: `📸 Carousel Album (${data.carousel_media?.length || 0} Photos)`,
+        label: isPinterest 
+          ? `📸 Idea Pin Slides (${data.carousel_media?.length || 0})`
+          : `📸 Carousel Album (${data.carousel_media?.length || 0} Photos)`,
         icon: Sparkles
       });
     }
@@ -186,6 +200,8 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
         ? 'Instagram Video (MP4)' 
         : isTikTok 
         ? 'TikTok Video (MP4)' 
+        : isPinterest
+        ? 'Pinterest Video (MP4)'
         : 'YouTube MP4 / Video',
       icon: Video
     });
@@ -199,6 +215,8 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
         ? 'Audio (MP3)' 
         : isTikTok 
         ? 'Sound (MP3)' 
+        : isPinterest
+        ? 'Original Audio (MP3)'
         : 'YouTube MP3 / Audio',
       icon: Music
     });
@@ -212,6 +230,8 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
         ? 'Cover Artwork' 
         : isTikTok 
         ? 'Video Cover' 
+        : isPinterest
+        ? (data.is_profile ? 'Full HD DP (Avatar)' : (data.is_gif ? 'Animated GIF' : 'Original HD Photo'))
         : 'Thumbnails (All Qualities)',
       icon: ImageIcon
     });
@@ -235,7 +255,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
     }
 
     return list;
-  }, [isFacebook, isInstagram, isTikTok, isYouTube, rawTranscript.length, data.subtitles]);
+  }, [isFacebook, isInstagram, isTikTok, isPinterest, isYouTube, rawTranscript.length, data.subtitles, data.is_board, data.board_pins, data.carousel_media, data.is_gif, data.is_profile]);
 
   // Color theme tokens
   const theme = useMemo(() => {
@@ -269,6 +289,16 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
         borderAccent: 'border-cyan-500/30'
       };
     }
+    if (isPinterest) {
+      return {
+        badgeBg: 'bg-red-500/10 text-red-400 border-red-500/20',
+        activeTab: 'bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 text-white shadow-md shadow-red-600/30',
+        btnGrad: 'bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 hover:opacity-90 text-white shadow-lg shadow-red-600/20',
+        btnSolid: 'bg-red-600 hover:bg-red-500 text-white shadow-md shadow-red-600/20',
+        textAccent: 'text-red-400',
+        borderAccent: 'border-red-500/30'
+      };
+    }
     // Default YouTube
     return {
       badgeBg: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
@@ -278,7 +308,7 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
       textAccent: 'text-rose-400',
       borderAccent: 'border-rose-500/30'
     };
-  }, [isFacebook, isInstagram, isTikTok]);
+  }, [isFacebook, isInstagram, isTikTok, isPinterest]);
 
   return (
     <div className="max-w-4xl mx-auto px-4 mb-20 animate-in fade-in slide-in-from-bottom-6 duration-300">
@@ -373,12 +403,14 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
               ? 'bg-gradient-to-r from-pink-500/10 to-purple-500/10 border-pink-500/30' 
               : isFacebook 
                 ? 'bg-blue-500/10 border-blue-500/30' 
+                : isPinterest
+                ? 'bg-red-500/10 border-red-500/30'
                 : 'bg-rose-500/10 border-rose-500/30'
           }`}>
             <div className="flex items-center gap-2 mb-2 font-bold text-sm">
-              <Sparkles className={`w-4 h-4 ${isInstagram ? 'text-pink-400' : isFacebook ? 'text-blue-400' : 'text-rose-400'}`} />
-              <span className={isInstagram ? 'text-pink-300' : isFacebook ? 'text-blue-300' : 'text-rose-300'}>
-                {isInstagram ? 'Instagram Profile Detected' : isFacebook ? 'Facebook Page / Profile Detected' : 'YouTube Channel Detected'}: {data.uploader || data.title}
+              <Sparkles className={`w-4 h-4 ${isInstagram ? 'text-pink-400' : isFacebook ? 'text-blue-400' : isPinterest ? 'text-red-400' : 'text-rose-400'}`} />
+              <span className={isInstagram ? 'text-pink-300' : isFacebook ? 'text-blue-300' : isPinterest ? 'text-red-300' : 'text-rose-300'}>
+                {isInstagram ? 'Instagram Profile Detected' : isFacebook ? 'Facebook Page / Profile Detected' : isPinterest ? 'Pinterest Profile Detected' : 'YouTube Channel Detected'}: {data.uploader || data.title}
               </span>
             </div>
             
@@ -387,9 +419,35 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
                 ? 'Public Instagram profile found. You can download the original full-resolution profile picture (DP) below, or inspect follower stats:'
                 : isFacebook 
                   ? 'Public Facebook page or profile found. Download official page artwork, avatar pictures, or related posts below:'
+                  : isPinterest
+                  ? 'Public Pinterest creator profile found. You can download the original full-resolution avatar picture (DP) below, or inspect creator stats:'
                   : 'Official YouTube Channel found. Download channel artwork below or choose any recent upload to extract Video (1080p MP4) or Audio (320kbps MP3):'
               }
             </p>
+
+                        {/* Pinterest Profile Quick Action Card */}
+            {isPinterest && data.thumbnail && (
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                <div className="flex items-center gap-3">
+                  <img src={data.thumbnail} alt={data.title} className="w-14 h-14 rounded-full object-cover border-2 border-red-500/50 shadow-md" />
+                  <div>
+                    <h4 className="text-xs font-bold text-white">{data.title}</h4>
+                    <p className="text-[11px] text-slate-400">{data.views}</p>
+                  </div>
+                </div>
+                {data.thumbnails && data.thumbnails[0] && (
+                  <a
+                    href={`${BACKEND_BASE}${data.thumbnails[0].stream_url}`}
+                    target="_blank"
+                    rel="noopener"
+                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 hover:opacity-95 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-md shadow-red-600/20"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Full HD DP</span>
+                  </a>
+                )}
+              </div>
+            )}
 
             {/* Instagram Profile Quick Action Card */}
             {isInstagram && data.thumbnail && (
@@ -551,7 +609,108 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
         </div>
 
         {/* TAB 1: Video Formats */}
-                {/* CAROUSEL ALBUM TAB (FastDl Style) */}
+                        {/* PINTEREST BOARD TAB */}
+        {activeTab === 'board' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-red-900/40 via-rose-900/30 to-pink-900/40 border border-red-500/30 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                    📌 Pinterest Board Showcase
+                  </span>
+                  <span className="text-xs text-slate-300 font-medium">
+                    {(data.board_pins || data.carousel_media)?.length || 0} Pins Ready to Download
+                  </span>
+                </div>
+                <h4 className="text-white font-bold text-sm line-clamp-1">
+                  {data.title || 'Pinterest Board'}
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Extracted in original uncompressed master clarity directly from Pinterest CDN
+                </p>
+              </div>
+
+              {(data.board_pins || data.carousel_media) && (data.board_pins || data.carousel_media).length > 0 && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      const pins = data.board_pins || data.carousel_media;
+                      pins.forEach((pin, i) => {
+                        setTimeout(() => {
+                          const link = document.createElement('a');
+                          link.href = formatStreamUrl(pin.stream_url || pin.url);
+                          link.download = pin.download_name;
+                          link.target = '_blank';
+                          link.rel = 'noopener';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }, i * 350);
+                      });
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 hover:opacity-95 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-600/30 transition active:scale-95 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download All ({(data.board_pins || data.carousel_media).length}) Pins</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Grid of Board Pins */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {(data.board_pins || data.carousel_media || []).map((pin, idx) => (
+                <div
+                  key={idx}
+                  className="bg-slate-950/80 border border-slate-800/90 hover:border-red-500/50 rounded-2xl overflow-hidden shadow-xl transition-all duration-300 flex flex-col group"
+                >
+                  <div className="relative aspect-[3/4] bg-slate-900 overflow-hidden">
+                    <img
+                      src={pin.preview || pin.url}
+                      alt={pin.download_name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 opacity-70 group-hover:opacity-90 transition-opacity" />
+                    
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-black/75 backdrop-blur text-white border border-white/20">
+                        Pin {pin.index || idx + 1}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-600/90 text-white uppercase tracking-wider">
+                        Original HD
+                      </span>
+                    </div>
+
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <p className="text-white font-bold text-xs line-clamp-2 drop-shadow-md">
+                        {pin.title || `Pin #${idx + 1}`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-slate-950 flex items-center justify-between gap-2 border-t border-slate-800/80">
+                    <span className="text-[11px] font-mono text-slate-400">
+                      {pin.quality || 'Original Image'}
+                    </span>
+                    <a
+                      href={formatStreamUrl(pin.stream_url || pin.url)}
+                      download={pin.download_name}
+                      target="_blank"
+                      rel="noopener"
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:opacity-90 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-md shadow-red-600/20"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download</span>
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* CAROUSEL ALBUM TAB (FastDl Style) */}
         {activeTab === 'carousel' && (
           <div className="space-y-6">
             <div className="bg-gradient-to-r from-pink-900/40 via-purple-900/30 to-indigo-900/40 border border-pink-500/30 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">

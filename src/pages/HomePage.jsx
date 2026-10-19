@@ -54,6 +54,8 @@ export default function HomePage() {
       endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/tiktok/extract';
     } else if (lower.includes('twitter.com') || lower.includes('x.com')) {
       endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/twitter/extract';
+    } else if (lower.includes('pinterest.com') || lower.includes('pin.it')) {
+      endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/pinterest/extract';
     }
 
     try {

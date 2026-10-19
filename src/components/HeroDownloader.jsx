@@ -17,11 +17,13 @@ import {
   YoutubeIcon, 
   InstagramIcon, 
   TiktokIcon, 
-  FacebookIcon 
+  FacebookIcon,
+  PinterestIcon
 } from './BrandIcons.jsx';
 import YouTubePills from './YouTubePills.jsx';
 import FacebookPills from './FacebookPills.jsx';
 import InstagramPills from './InstagramPills.jsx';
+import PinterestPills from './PinterestPills.jsx';
 
 export default function HeroDownloader({ 
   url = '', 
@@ -221,6 +223,62 @@ export default function HeroDownloader({
         desc: 'Save high-definition Instagram feed videos, viral reels, stories, and carousel albums directly to your device.'
       };
     }
+        if (activeCategory === 'pinterest') {
+      if (activeSubfeature === 'video') {
+        return {
+          badge: 'Pinterest 1080p Video Downloader With Audio',
+          title: 'Pinterest Video Downloader',
+          gradient: '1080p Full HD MP4 Video & MP3 Audio',
+          desc: 'Download Pinterest videos and clips in crisp 1080p or 720p Full HD MP4 with synchronized original audio and zero watermark.'
+        };
+      }
+      if (activeSubfeature === 'photo') {
+        return {
+          badge: 'Pinterest Original High-Resolution Photo Downloader',
+          title: 'Pinterest Photo Downloader',
+          gradient: 'Download Original Master Quality HD Photos',
+          desc: 'Extract and download original uncompressed Pinterest photos, digital artworks, and aesthetic wallpapers directly from Pinterest CDN.'
+        };
+      }
+      if (activeSubfeature === 'gif') {
+        return {
+          badge: 'Pinterest Animated GIF Downloader',
+          title: 'Pinterest GIF Downloader',
+          gradient: 'High Quality Animated GIFs & Video Loops',
+          desc: 'Download animated Pinterest GIFs and looping animations directly in original .gif and .mp4 formats with instant preview.'
+        };
+      }
+      if (activeSubfeature === 'story') {
+        return {
+          badge: 'Pinterest Idea Pin & Story Downloader',
+          title: 'Pinterest Idea Pin Downloader',
+          gradient: 'Sequential Multi-Page Story Slides',
+          desc: 'Download full multi-slide Pinterest Idea Pins and story cards with all embedded videos and high-resolution slides.'
+        };
+      }
+      if (activeSubfeature === 'board') {
+        return {
+          badge: 'Pinterest Board Bulk Downloader',
+          title: 'Pinterest Board Downloader',
+          gradient: 'Download All Pins From Public Pinterest Boards',
+          desc: 'Enter any public Pinterest board URL to extract and download all pinned images, artworks, and video pins in bulk with one click.'
+        };
+      }
+      if (activeSubfeature === 'profile') {
+        return {
+          badge: 'Pinterest Profile Viewer & Full HD Avatar Downloader',
+          title: 'Pinterest Profile & DP Downloader',
+          gradient: 'Full-Resolution Avatar Picture & Creator Stats',
+          desc: 'View public Pinterest profiles anonymously, download high-definition avatar profile pictures (DP), and inspect follower metrics.'
+        };
+      }
+      return {
+        badge: 'Pinterest Video, Photo, GIF & Board Downloader',
+        title: 'Pinterest Downloader',
+        gradient: 'Videos, 4K Photos, GIFs, Idea Pins & Boards',
+        desc: 'Save Pinterest videos in 1080p MP4 with sound, original master photos, animated GIFs, full boards, and user profile pictures in seconds.'
+      };
+    }
     if (activeCategory === 'tiktok') {
       return {
         badge: 'TikTok Video Downloader Without Watermark',
@@ -262,6 +320,15 @@ export default function HeroDownloader({
       if (activeSubfeature === 'viewer') return 'Enter Instagram username or profile URL (e.g. https://www.instagram.com/cristiano/)...';
       return 'Paste Instagram video, reel, or photo link (e.g. https://www.instagram.com/p/...)...';
     }
+        if (activeCategory === 'pinterest') {
+      if (activeSubfeature === 'video') return 'Paste Pinterest video pin link (e.g. https://www.pinterest.com/pin/... or pin.it/...)...';
+      if (activeSubfeature === 'photo') return 'Paste Pinterest photo pin link (e.g. https://www.pinterest.com/pin/...)...';
+      if (activeSubfeature === 'gif') return 'Paste Pinterest GIF pin link (e.g. https://www.pinterest.com/pin/...)...';
+      if (activeSubfeature === 'story') return 'Paste Pinterest Idea Pin / Story link (e.g. https://www.pinterest.com/pin/...)...';
+      if (activeSubfeature === 'board') return 'Paste Pinterest board link (e.g. https://www.pinterest.com/username/board-name/)...';
+      if (activeSubfeature === 'profile') return 'Enter Pinterest username or profile URL (e.g. https://www.pinterest.com/natgeo/)...';
+      return 'Paste Pinterest Pin, Board, or Profile link (e.g. https://pin.it/... or pinterest.com/pin/...)...';
+    }
     if (activeCategory === 'tiktok') return 'Paste TikTok video link (e.g. https://www.tiktok.com/@...)...';
     return 'Paste video, reel, or audio link here...';
   }
@@ -276,6 +343,8 @@ export default function HeroDownloader({
           ? 'bg-gradient-to-r from-blue-600/20 via-indigo-600/20 to-sky-500/20'
           : activeCategory === 'instagram'
           ? 'bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-amber-500/20'
+          : activeCategory === 'pinterest'
+          ? 'bg-gradient-to-r from-red-600/20 via-rose-600/20 to-pink-600/20'
           : activeCategory === 'tiktok'
           ? 'bg-gradient-to-r from-cyan-600/20 via-sky-600/20 to-pink-500/20'
           : 'bg-gradient-to-r from-rose-600/20 via-purple-600/20 to-amber-500/20'
@@ -289,6 +358,8 @@ export default function HeroDownloader({
             ? 'bg-blue-500/10 border-blue-500/25 text-blue-400'
             : activeCategory === 'instagram'
             ? 'bg-pink-500/10 border-pink-500/25 text-pink-400'
+            : activeCategory === 'pinterest'
+            ? 'bg-red-500/10 border-red-500/25 text-red-400'
             : activeCategory === 'tiktok'
             ? 'bg-cyan-500/10 border-cyan-500/25 text-cyan-400'
             : 'bg-rose-500/10 border-rose-500/25 text-rose-400'
@@ -308,6 +379,8 @@ export default function HeroDownloader({
             ? 'bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-300'
             : activeCategory === 'instagram'
             ? 'bg-gradient-to-r from-pink-400 via-rose-300 to-amber-300'
+            : activeCategory === 'pinterest'
+            ? 'bg-gradient-to-r from-red-400 via-rose-300 to-pink-300'
             : activeCategory === 'tiktok'
             ? 'bg-gradient-to-r from-cyan-400 via-teal-300 to-pink-400'
             : 'bg-gradient-to-r from-rose-400 via-pink-400 to-amber-300'
@@ -335,12 +408,19 @@ export default function HeroDownloader({
           <InstagramPills activeSubfeature={activeSubfeature} />
         )}
 
+        {/* Pinterest Tool Suite Pills */}
+        {activeCategory === 'pinterest' && (
+          <PinterestPills activeSubfeature={activeSubfeature} />
+        )}
+
         {/* Big Input Bar */}
         <div className={`max-w-3xl mx-auto bg-slate-900/90 border border-slate-700/80 p-2 sm:p-2.5 rounded-2xl sm:rounded-3xl shadow-2xl backdrop-blur-md transition duration-300 ${
           activeCategory === 'facebook'
             ? 'focus-within:border-blue-500/80 focus-within:ring-4 focus-within:ring-blue-500/10'
             : activeCategory === 'instagram'
             ? 'focus-within:border-pink-500/80 focus-within:ring-4 focus-within:ring-pink-500/10'
+            : activeCategory === 'pinterest'
+            ? 'focus-within:border-red-500/80 focus-within:ring-4 focus-within:ring-red-500/10'
             : activeCategory === 'tiktok'
             ? 'focus-within:border-cyan-500/80 focus-within:ring-4 focus-within:ring-cyan-500/10'
             : 'focus-within:border-rose-500/80 focus-within:ring-4 focus-within:ring-rose-500/10'
@@ -355,6 +435,8 @@ export default function HeroDownloader({
                   <FacebookIcon className="w-5 h-5 text-blue-500" />
                 ) : activeCategory === 'instagram' ? (
                   <InstagramIcon className="w-5 h-5 text-pink-500" />
+                ) : activeCategory === 'pinterest' ? (
+                  <PinterestIcon className="w-5 h-5 text-red-500" />
                 ) : activeCategory === 'tiktok' ? (
                   <TiktokIcon className="w-5 h-5 text-cyan-400" />
                 ) : (
@@ -392,6 +474,8 @@ export default function HeroDownloader({
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-600/30'
                     : activeCategory === 'instagram'
                     ? 'bg-gradient-to-r from-fuchsia-600 to-rose-600 hover:opacity-90 shadow-pink-600/30'
+                    : activeCategory === 'pinterest'
+                    ? 'bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 hover:opacity-90 shadow-red-600/30'
                     : activeCategory === 'tiktok'
                     ? 'bg-gradient-to-r from-cyan-600 to-pink-600 hover:opacity-90 shadow-cyan-600/30'
                     : 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 shadow-rose-600/30'

@@ -53,7 +53,7 @@ export default function ToolPage({ config = {} }) {
     let endpoint = 'https://anydownloader-backend-vvbj.onrender.com/api/extract';
     const pKey = (safeConfig.platform || safeConfig.category || '').toLowerCase();
     const fKey = (safeConfig.subfeature || '').toLowerCase();
-    if (pKey && ['instagram', 'facebook', 'youtube', 'tiktok', 'twitter'].includes(pKey)) {
+    if (pKey && ['instagram', 'facebook', 'youtube', 'tiktok', 'twitter', 'pinterest'].includes(pKey)) {
       endpoint = fKey 
         ? `https://anydownloader-backend-vvbj.onrender.com/api/${pKey}/${fKey}`
         : `https://anydownloader-backend-vvbj.onrender.com/api/${pKey}/extract`;
@@ -102,9 +102,10 @@ export default function ToolPage({ config = {} }) {
             safeConfig.subfeature === 'mp3' ? 'audio' :
             safeConfig.subfeature === 'transcript' ? 'transcript' :
             safeConfig.subfeature === 'subtitles' ? 'subtitles' :
-            safeConfig.subfeature === 'carousel' ? 'carousel' :
+            safeConfig.subfeature === 'carousel' || safeConfig.subfeature === 'story' ? 'carousel' :
+            safeConfig.subfeature === 'board' ? 'board' :
             safeConfig.subfeature === 'viewer' || safeConfig.subfeature === 'profile' ? 'profile' :
-            safeConfig.subfeature === 'thumbnails' || safeConfig.subfeature === 'photo' || safeConfig.subfeature === 'post' ? 'thumbnails' :
+            safeConfig.subfeature === 'thumbnails' || safeConfig.subfeature === 'photo' || safeConfig.subfeature === 'post' || safeConfig.subfeature === 'gif' ? 'thumbnails' :
             'video'
           }
         />

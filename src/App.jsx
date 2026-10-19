@@ -158,6 +158,16 @@ export default function App() {
             <Route path="/instagram/top-100-instagram-accounts" element={<TopInstagramAccountsPage />} />
             <Route path="/instagram/top-100-accounts" element={<Navigate to="/instagram/top-100-instagram-accounts" replace />} />
 
+                        {/* Pinterest Category Nested Routes */}
+            <Route path="/pinterest" element={<Navigate to="/pinterest/pinterest-downloader" replace />} />
+            <Route path="/pinterest/pinterest-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-downloader']} />} />
+            <Route path="/pinterest/pinterest-video-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-video-downloader']} />} />
+            <Route path="/pinterest/pinterest-photo-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-photo-downloader']} />} />
+            <Route path="/pinterest/pinterest-gif-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-gif-downloader']} />} />
+            <Route path="/pinterest/pinterest-story-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-story-downloader']} />} />
+            <Route path="/pinterest/pinterest-board-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-board-downloader']} />} />
+            <Route path="/pinterest/pinterest-profile-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-profile-downloader']} />} />
+
             {/* TikTok Category Nested Routes */}
             <Route path="/tiktok" element={<Navigate to="/tiktok/tiktok-downloader" replace />} />
             <Route path="/tiktok/tiktok-downloader" element={<ToolPage config={pagesConfig['tiktok/tiktok-downloader']} />} />
@@ -195,6 +205,15 @@ export default function App() {
             <Route path="/instagram-viewer" element={<Navigate to="/instagram/instagram-viewer" replace />} />
             <Route path="/top-100-instagram-accounts" element={<Navigate to="/instagram/top-100-instagram-accounts" replace />} />
             <Route path="/tiktok-downloader" element={<Navigate to="/tiktok/tiktok-downloader" replace />} />
+            <Route path="/pinterest-downloader" element={<Navigate to="/pinterest/pinterest-downloader" replace />} />
+            <Route path="/pinterest-video-downloader" element={<Navigate to="/pinterest/pinterest-video-downloader" replace />} />
+            <Route path="/pinterest-photo-downloader" element={<Navigate to="/pinterest/pinterest-photo-downloader" replace />} />
+            <Route path="/pinterest-image-downloader" element={<Navigate to="/pinterest/pinterest-photo-downloader" replace />} />
+            <Route path="/pinterest-gif-downloader" element={<Navigate to="/pinterest/pinterest-gif-downloader" replace />} />
+            <Route path="/pinterest-story-downloader" element={<Navigate to="/pinterest/pinterest-story-downloader" replace />} />
+            <Route path="/pinterest-board-downloader" element={<Navigate to="/pinterest/pinterest-board-downloader" replace />} />
+            <Route path="/pinterest-profile-downloader" element={<Navigate to="/pinterest/pinterest-profile-downloader" replace />} />
+
 
             {/* Mandatory Google AdSense Legal & Policy Pages */}
             <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />

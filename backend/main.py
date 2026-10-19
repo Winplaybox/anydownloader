@@ -825,6 +825,367 @@ def extract_twitter(url: str, feature: Optional[str] = None):
     """Dedicated extractor for Twitter / X."""
     return extract_media_base(url, "twitter")
 
+def extract_pinterest(url: str, feature: Optional[str] = None):
+    """
+    Dedicated, isolated extractor for Pinterest.
+    Supports:
+    - Videos & Reels: 1080p / 720p progressive MP4 with audio + MP3 extraction
+    - Photos & Images: Original uncompressed full-resolution artwork (originals)
+    - Animated GIFs: Direct .gif and .mp4 extraction
+    - Idea Pins / Story Pins: Multi-slide carousel with videos and images
+    - Boards: Full board extraction with title, stats, and all pin downloads
+    - Profiles: HD avatar DP, bio, followers, following, total pins & boards
+    - Short links: Automatically resolves pin.it redirects
+    """
+    raw_input = url.strip()
+    
+    # Handle handle input like "@natgeo"
+    if raw_input.startswith("@"):
+        clean_url = f"https://www.pinterest.com/{raw_input.lstrip('@')}/"
+    elif not raw_input.startswith("http"):
+        if raw_input.isdigit():
+            clean_url = f"https://www.pinterest.com/pin/{raw_input}/"
+        else:
+            clean_url = f"https://www.pinterest.com/{raw_input}/"
+    else:
+        clean_url = raw_input.split('?')[0].rstrip('/')
+
+    # 1. Resolve short url pin.it
+    if "pin.it" in clean_url:
+        try:
+            req = urllib.request.Request(clean_url, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                clean_url = resp.geturl().split('?')[0].rstrip('/')
+        except Exception:
+            pass
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'X-Pinterest-PWS-Handler': 'www/[username].js',
+        'Accept': 'application/json',
+    }
+
+    # 2. Check if Pin, Board, or Profile
+    pin_m = re.search(r'/pin/(?:[\w-]+--)?(\d+)', clean_url)
+    path_parts = [p for p in urllib.parse.urlparse(clean_url).path.split('/') if p]
+
+    # Case A: Single Pin
+    if pin_m:
+        pin_id = pin_m.group(1)
+        api_url = "https://www.pinterest.com/resource/PinResource/get/"
+        options = {
+            "field_set_key": "unauth_react_main_pin",
+            "id": pin_id
+        }
+        params = urllib.parse.urlencode({"data": json.dumps({"options": options})})
+        req = urllib.request.Request(f"{api_url}?{params}", headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                res = json.loads(resp.read().decode('utf-8'))
+                data = res.get('resource_response', {}).get('data', {})
+        except urllib.error.HTTPError as he:
+            if he.code == 404:
+                raise ValueError(f"Pinterest Pin {pin_id} not found. Please verify the URL or ensure the pin is public.")
+            raise ValueError(f"Pinterest service returned HTTP status {he.code}. Please try again.")
+        except Exception as e:
+            if isinstance(e, ValueError): raise
+            raise ValueError(f"Unable to load Pinterest pin: {str(e)}")
+
+        if not data:
+            raise ValueError(f"Pinterest Pin {pin_id} returned no public data. The pin may be private or removed.")
+
+        title = data.get('title') or data.get('grid_title') or f"Pinterest Pin {pin_id}"
+        desc = data.get('seo_description') or data.get('description') or ""
+        
+        ca = data.get('closeup_attribution') or {}
+        pinner = data.get('pinner') or {}
+        uploader = ca.get('full_name') or pinner.get('username') or "Pinterest Creator"
+        repins = data.get('repin_count') or 0
+        comments = data.get('comment_count') or 0
+
+        # Images
+        images = data.get('images', {})
+        orig_img = (images.get('orig') or {}).get('url') or (images.get('736x') or {}).get('url') or "https://s.pinimg.com/images/favicon.png"
+        is_gif = bool(orig_img and orig_img.lower().endswith('.gif'))
+
+        # Videos
+        videos = data.get('videos', {})
+        v_list = videos.get('video_list', {}) if isinstance(videos, dict) else {}
+        
+        # Story Pin / Idea Pin videos
+        story = data.get('story_pin_data', {})
+        story_slides = []
+        if story and isinstance(story, dict):
+            pages = story.get('pages', [])
+            for idx, p in enumerate(pages):
+                for b in p.get('blocks', []):
+                    s_vids = (b.get('video') or {}).get('video_list', {})
+                    if s_vids and not v_list:
+                        v_list = s_vids
+                    b_img = ((b.get('image') or {}).get('images') or {}).get('orig', {}).get('url')
+                    if b_img:
+                        s_fn = f"pinterest_{pin_id}_slide_{idx+1}.jpg"
+                        story_slides.append({
+                            "index": idx + 1,
+                            "type": "photo",
+                            "preview": b_img,
+                            "url": b_img,
+                            "stream_url": f"/api/stream?url={urllib.parse.quote(b_img)}&filename={urllib.parse.quote(s_fn)}",
+                            "download_name": s_fn,
+                            "quality": f"Slide {idx+1} (Full HD)",
+                            "resolution": "1080p HD"
+                        })
+
+        video_formats = []
+        audio_formats = []
+        if v_list:
+            for k, v in v_list.items():
+                if not isinstance(v, dict):
+                    continue
+                v_url = v.get('url')
+                if v_url and not v_url.endswith('.m3u8'):
+                    h = v.get('height') or 720
+                    w = v.get('width') or 1280
+                    q_label = f"{h}p HD (MP4)" if h >= 720 else f"{h}p SD (MP4)"
+                    v_fn = f"pinterest_{pin_id}_{h}p.mp4"
+                    video_formats.append({
+                        "id": f"pin-vid-{k}",
+                        "quality": f"{q_label} – With Audio" if len(video_formats) == 0 else q_label,
+                        "height": h,
+                        "width": w,
+                        "ext": "mp4",
+                        "has_audio": True,
+                        "url": v_url,
+                        "stream_url": f"/api/stream?url={urllib.parse.quote(v_url)}&filename={urllib.parse.quote(v_fn)}",
+                        "download_name": v_fn,
+                        "is_best": len(video_formats) == 0
+                    })
+            if video_formats:
+                best_vid = video_formats[0]['url']
+                a_fn = f"pinterest_{pin_id}_audio.mp3"
+                audio_formats.append({
+                    "id": "pin-audio-1",
+                    "quality": "Original Audio Track (MP3)",
+                    "format": "MP3",
+                    "size": "Original Sound",
+                    "url": best_vid,
+                    "stream_url": f"/api/stream?url={urllib.parse.quote(best_vid)}&filename={urllib.parse.quote(a_fn)}",
+                    "download_name": a_fn
+                })
+
+        # Thumbnails & High-res photo formats
+        thumbnails = []
+        img_fn = f"pinterest_{pin_id}_orig.{'gif' if is_gif else 'jpg'}"
+        thumbnails.append({
+            "quality": "Original Full Resolution (Highest Quality)",
+            "resolution": "Original HD / 4K",
+            "label": "Original Uncompressed Pin Artwork",
+            "url": orig_img,
+            "stream_url": f"/api/stream?url={urllib.parse.quote(orig_img)}&filename={urllib.parse.quote(img_fn)}",
+            "download_name": img_fn
+        })
+        for res_k in ['736x', '564x', '474x']:
+            if res_k in images and isinstance(images[res_k], dict):
+                sub_url = images[res_k].get('url')
+                if sub_url and sub_url != orig_img:
+                    s_fn = f"pinterest_{pin_id}_{res_k}.jpg"
+                    thumbnails.append({
+                        "quality": f"{res_k} Standard Resolution",
+                        "resolution": res_k,
+                        "label": f"Pinterest {res_k} preview",
+                        "url": sub_url,
+                        "stream_url": f"/api/stream?url={urllib.parse.quote(sub_url)}&filename={urllib.parse.quote(s_fn)}",
+                        "download_name": s_fn
+                    })
+
+        is_video = len(video_formats) > 0
+        is_carousel = len(story_slides) > 1
+
+        notice_msg = ""
+        if feature in ["video", "reel", "reels"] and not is_video:
+            notice_msg = "Notice: This Pinterest pin is a Photo/Artwork Pin, not a video. You can download the original full-resolution image in the HD Photo tab below."
+        elif feature in ["gif"] and not is_gif:
+            notice_msg = "Notice: This Pinterest pin is a static image/video, not an animated GIF."
+
+        return {
+            "platform": "pinterest",
+            "id": pin_id,
+            "title": title,
+            "thumbnail": orig_img,
+            "duration": None,
+            "uploader": uploader,
+            "views": f"{repins:,} Saves • {comments:,} Comments" if repins or comments else "Pinterest Pin",
+            "video_formats": video_formats,
+            "audio_formats": audio_formats,
+            "thumbnails": thumbnails,
+            "carousel_media": story_slides,
+            "is_carousel": is_carousel,
+            "is_video": is_video,
+            "is_gif": is_gif,
+            "is_channel": False,
+            "notice": notice_msg,
+            "message": notice_msg or "Pinterest pin extracted successfully."
+        }
+
+    # Case B: Board (e.g. /username/board-slug/)
+    elif len(path_parts) == 2 and path_parts[0] not in ["pin", "search", "ideas", "today"]:
+        username, board_slug = path_parts[0], path_parts[1]
+        
+        # 1. Fetch Board Info
+        api_url = "https://www.pinterest.com/resource/BoardResource/get/"
+        options = {
+            "slug": board_slug,
+            "username": username,
+            "field_set_key": "detailed"
+        }
+        params = urllib.parse.urlencode({"data": json.dumps({"options": options})})
+        req = urllib.request.Request(f"{api_url}?{params}", headers={**headers, 'X-Pinterest-PWS-Handler': 'www/[username]/[slug].js'})
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                b_data = json.loads(resp.read().decode('utf-8')).get('resource_response', {}).get('data', {})
+        except urllib.error.HTTPError as he:
+            if he.code == 404:
+                raise ValueError(f"Pinterest board '{board_slug}' by @{username} not found. Please ensure the board is public.")
+            raise ValueError(f"Pinterest service returned HTTP status {he.code}. Please try again.")
+        except Exception as e:
+            if isinstance(e, ValueError): raise
+            raise ValueError(f"Unable to load Pinterest board: {str(e)}")
+
+        if not b_data:
+            raise ValueError(f"Pinterest board '{board_slug}' returned no data. It might be secret or private.")
+
+        board_id = b_data.get('id')
+        board_name = b_data.get('name') or board_slug.replace('-', ' ').title()
+        pin_count = b_data.get('pin_count') or 0
+        follower_count = b_data.get('follower_count') or 0
+        cover_img = b_data.get('image_cover_url') or "https://s.pinimg.com/images/favicon.png"
+
+        # 2. Fetch Board Pins
+        board_pins = []
+        if board_id:
+            feed_url = "https://www.pinterest.com/resource/BoardFeedResource/get/"
+            feed_options = {"board_id": board_id, "page_size": 25}
+            f_params = urllib.parse.urlencode({"data": json.dumps({"options": feed_options})})
+            f_req = urllib.request.Request(f"{feed_url}?{f_params}", headers={**headers, 'X-Pinterest-PWS-Handler': 'www/[username]/[slug].js'})
+            try:
+                with urllib.request.urlopen(f_req, timeout=12) as f_resp:
+                    raw_pins = json.loads(f_resp.read().decode('utf-8')).get('resource_response', {}).get('data', [])
+                    for idx, p in enumerate(raw_pins):
+                        p_img = (p.get('images', {}).get('orig') or {}).get('url') or (p.get('images', {}).get('736x') or {}).get('url')
+                        p_title = p.get('title') or p.get('grid_title') or f"Pin #{idx+1}"
+                        if p_img:
+                            p_fn = f"{board_slug}_pin_{idx+1}.jpg"
+                            board_pins.append({
+                                "index": idx + 1,
+                                "id": p.get('id') or f"pin-{idx+1}",
+                                "title": p_title,
+                                "preview": p_img,
+                                "url": p_img,
+                                "stream_url": f"/api/stream?url={urllib.parse.quote(p_img)}&filename={urllib.parse.quote(p_fn)}",
+                                "download_name": p_fn,
+                                "quality": "Original HD Pin"
+                            })
+            except Exception:
+                pass
+
+        cover_fn = f"{board_slug}_cover.jpg"
+        thumbnails = [{
+            "quality": "Board Cover Image",
+            "resolution": "Original",
+            "label": "Pinterest Board Cover",
+            "url": cover_img,
+            "stream_url": f"/api/stream?url={urllib.parse.quote(cover_img)}&filename={urllib.parse.quote(cover_fn)}",
+            "download_name": cover_fn
+        }]
+
+        return {
+            "platform": "pinterest",
+            "id": f"{username}_{board_slug}",
+            "title": f"Pinterest Board: {board_name}",
+            "uploader": f"@{username}",
+            "thumbnail": cover_img,
+            "duration": None,
+            "views": f"{pin_count:,} Pins • {follower_count:,} Followers",
+            "video_formats": [],
+            "audio_formats": [],
+            "thumbnails": thumbnails,
+            "carousel_media": [],
+            "board_pins": board_pins,
+            "is_board": True,
+            "is_channel": True,
+            "is_video": False,
+            "is_carousel": False,
+            "message": f"Pinterest board '{board_name}' extracted with {len(board_pins)} pins."
+        }
+
+    # Case C: Profile / User (e.g. /username/)
+    elif len(path_parts) == 1 and path_parts[0] not in ["pin", "search", "ideas", "today"]:
+        username = path_parts[0]
+        api_url = "https://www.pinterest.com/resource/UserResource/get/"
+        options = {
+            "username": username,
+            "field_set_key": "unauth_profile"
+        }
+        params = urllib.parse.urlencode({"data": json.dumps({"options": options})})
+        req = urllib.request.Request(f"{api_url}?{params}", headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                u_data = json.loads(resp.read().decode('utf-8')).get('resource_response', {}).get('data', {})
+        except urllib.error.HTTPError as he:
+            if he.code == 404:
+                raise ValueError(f"Pinterest user @{username} not found. Please check the profile URL.")
+            raise ValueError(f"Pinterest service returned HTTP status {he.code}. Please try again.")
+        except Exception as e:
+            if isinstance(e, ValueError): raise
+            raise ValueError(f"Unable to load Pinterest profile: {str(e)}")
+
+        if not u_data:
+            raise ValueError(f"Pinterest user @{username} returned no data.")
+
+        full_name = u_data.get('full_name') or username
+        bio = u_data.get('about') or ""
+        follower_count = u_data.get('follower_count') or 0
+        following_count = u_data.get('following_count') or 0
+        pin_count = u_data.get('pin_count') or 0
+        board_count = u_data.get('board_count') or 0
+        dp_url = u_data.get('image_xlarge_url') or u_data.get('image_medium_url') or "https://s.pinimg.com/images/favicon.png"
+
+        dp_fn = f"{username}_pinterest_dp.jpg"
+        thumbnails = [{
+            "quality": "Full HD Profile Picture (DP)",
+            "resolution": "Original 280x280 HD+",
+            "label": "Original Avatar DP",
+            "url": dp_url,
+            "stream_url": f"/api/stream?url={urllib.parse.quote(dp_url)}&filename={urllib.parse.quote(dp_fn)}",
+            "download_name": dp_fn
+        }]
+
+        return {
+            "platform": "pinterest",
+            "id": username,
+            "title": f"{full_name} (@{username})",
+            "uploader": f"@{username}",
+            "thumbnail": dp_url,
+            "duration": None,
+            "views": f"{follower_count:,} Followers • {following_count:,} Following • {pin_count:,} Pins • {board_count:,} Boards",
+            "video_formats": [],
+            "audio_formats": [],
+            "thumbnails": thumbnails,
+            "carousel_media": [],
+            "is_board": False,
+            "is_channel": True,
+            "is_profile": True,
+            "is_video": False,
+            "is_carousel": False,
+            "message": f"Pinterest profile @{username} extracted successfully."
+        }
+
+    else:
+        raise ValueError(f"Could not recognize Pinterest URL format: {url}")
+
+
 def extract_media_base(url: str, forced_platform: Optional[str] = None):
     platform = forced_platform or detect_platform(url)
     platform = detect_platform(url)
@@ -1188,6 +1549,8 @@ def extract_media(url: str):
         return extract_tiktok(url)
     elif platform == "twitter":
         return extract_twitter(url)
+    elif platform == "pinterest":
+        return extract_pinterest(url)
     return extract_media_base(url, platform)
 
 
@@ -1221,6 +1584,8 @@ async def platform_extract_handler(request):
             media_info = await loop.run_in_executor(None, extract_tiktok, url, feature)
         elif platform == "twitter":
             media_info = await loop.run_in_executor(None, extract_twitter, url, feature)
+        elif platform == "pinterest":
+            media_info = await loop.run_in_executor(None, extract_pinterest, url, feature)
         else:
             media_info = await loop.run_in_executor(None, extract_media, url)
 
@@ -1386,6 +1751,8 @@ async def stream_download_handler(request):
         upstream_referer = "https://www.tiktok.com/"
     elif "twitter" in t_lower or "twimg" in t_lower or "x.com" in t_lower:
         upstream_referer = "https://twitter.com/"
+    elif "pinterest" in t_lower or "pinimg" in t_lower:
+        upstream_referer = "https://www.pinterest.com/"
 
     client_headers = {
         "User-Agent": USER_AGENT,
