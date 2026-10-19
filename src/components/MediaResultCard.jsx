@@ -338,35 +338,98 @@ export default function MediaResultCard({ data, initialTab = 'video', onSelectVi
 
         {/* Channel & Profile Link Notice */}
         {data.is_channel && (
-          <div className="my-6 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/30">
-            <div className="flex items-center gap-2 mb-2 font-bold text-rose-400 text-sm">
-              <Sparkles className="w-4 h-4" />
-              <span>YouTube Channel Detected: {data.uploader || data.title}</span>
+          <div className={`my-6 p-5 rounded-2xl border ${
+            isInstagram 
+              ? 'bg-gradient-to-r from-pink-500/10 to-purple-500/10 border-pink-500/30' 
+              : isFacebook 
+                ? 'bg-blue-500/10 border-blue-500/30' 
+                : 'bg-rose-500/10 border-rose-500/30'
+          }`}>
+            <div className="flex items-center gap-2 mb-2 font-bold text-sm">
+              <Sparkles className={`w-4 h-4 ${isInstagram ? 'text-pink-400' : isFacebook ? 'text-blue-400' : 'text-rose-400'}`} />
+              <span className={isInstagram ? 'text-pink-300' : isFacebook ? 'text-blue-300' : 'text-rose-300'}>
+                {isInstagram ? 'Instagram Profile Detected' : isFacebook ? 'Facebook Page / Profile Detected' : 'YouTube Channel Detected'}: {data.uploader || data.title}
+              </span>
             </div>
+            
             <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-              You entered a YouTube Channel link. You can download the channel artwork below, or click any of their recent uploads to extract full 1080p MP4 or 320kbps MP3 audio immediately:
+              {isInstagram 
+                ? 'Public Instagram profile found. You can download the original full-resolution profile picture (DP) below, or inspect follower stats:'
+                : isFacebook 
+                  ? 'Public Facebook page or profile found. Download official page artwork, avatar pictures, or related posts below:'
+                  : 'Official YouTube Channel found. Download channel artwork below or choose any recent upload to extract Video (1080p MP4) or Audio (320kbps MP3):'
+              }
             </p>
 
+            {/* Instagram Profile Quick Action Card */}
+            {isInstagram && data.thumbnail && (
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                <div className="flex items-center gap-3">
+                  <img src={data.thumbnail} alt={data.title} className="w-14 h-14 rounded-full object-cover border-2 border-pink-500/50 shadow-md" />
+                  <div>
+                    <h4 className="text-xs font-bold text-white">{data.title}</h4>
+                    <p className="text-[11px] text-slate-400">{data.views}</p>
+                  </div>
+                </div>
+                {data.thumbnails && data.thumbnails[0] && (
+                  <a
+                    href={`${BACKEND_BASE}${data.thumbnails[0].stream_url}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-md shadow-pink-600/20"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Full-Size DP (HD)</span>
+                  </a>
+                )}
+              </div>
+            )}
+
+            {/* YouTube Recent Videos with Instant Video & MP3 options */}
             {data.recent_videos && data.recent_videos.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                 {data.recent_videos.map((vid) => (
                   <div
                     key={vid.id}
-                    className="p-3 rounded-xl bg-slate-950/90 border border-slate-800 hover:border-slate-700 flex gap-3 items-center group transition"
+                    className="p-3 rounded-xl bg-slate-950/90 border border-slate-800 hover:border-slate-700 flex flex-col justify-between group transition"
                   >
-                    <img src={vid.thumbnail} alt={vid.title} className="w-20 h-14 object-cover rounded-lg shrink-0 border border-slate-800" />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-bold text-white line-clamp-1 mb-1.5" title={vid.title}>
-                        {vid.title}
-                      </h4>
+                    <div className="flex gap-3 items-center mb-2.5">
+                      <img src={vid.thumbnail} alt={vid.title} className="w-20 h-14 object-cover rounded-lg shrink-0 border border-slate-800" />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs font-bold text-white line-clamp-2 leading-tight" title={vid.title}>
+                          {vid.title}
+                        </h4>
+                      </div>
+                    </div>
+                    {/* Action buttons: Video (MP4) and Audio (MP3) */}
+                    <div className="flex items-center gap-1.5 pt-2 border-t border-slate-800/80">
                       <button
                         type="button"
-                        onClick={() => onSelectVideo && onSelectVideo(vid.url)}
-                        className="text-[11px] font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer transition"
+                        onClick={() => onSelectVideo && onSelectVideo(vid.url, 'video')}
+                        className="flex-1 py-1 px-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer border border-rose-500/20"
+                        title="Download Video (1080p MP4)"
                       >
-                        <Download className="w-3 h-3" />
-                        <span>Download This Video</span> &rarr;
+                        <Video className="w-3 h-3 text-rose-400" />
+                        <span>Video MP4</span>
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => onSelectVideo && onSelectVideo(vid.url, 'audio')}
+                        className="flex-1 py-1 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer border border-amber-500/20"
+                        title="Extract Audio (320kbps MP3)"
+                      >
+                        <Music className="w-3 h-3 text-amber-400" />
+                        <span>Audio MP3</span>
+                      </button>
+                      <a
+                        href={vid.thumbnail}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 px-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white text-[10px] font-medium flex items-center justify-center transition border border-slate-800"
+                        title="View Thumbnail"
+                      >
+                        <ImageIcon className="w-3 h-3" />
+                      </a>
                     </div>
                   </div>
                 ))}

@@ -272,6 +272,126 @@ def extract_youtube_fallback(url: str, video_id: str):
 
 
 
+
+def extract_instagram_fallback(url: str):
+    """Extract Instagram photos, carousel albums, stories, posts, and profiles via OpenGraph."""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+    
+    clean_url = url.split('?')[0].rstrip('/')
+    post_id = clean_url.split('/')[-1]
+    is_profile = not any(x in clean_url for x in ["/p/", "/reel/", "/tv/", "/stories/"])
+    
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = resp.read().decode('utf-8', errors='ignore')
+            
+            og_images = re.findall(r'property="og:image" content="(.*?)"', raw)
+            og_videos = re.findall(r'property="og:video(?::secure_url)?" content="(.*?)"', raw)
+            og_titles = re.findall(r'property="og:title" content="(.*?)"', raw)
+            titles = re.findall(r'<title>(.*?)</title>', raw)
+            descs = re.findall(r'property="og:description" content="(.*?)"', raw)
+            
+            desc_text = html.unescape(descs[0]) if descs else ""
+            
+            # Extract author / uploader
+            uploader = ""
+            author_match = re.search(r'-\s*([a-zA-Z0-9._]+)\s+on\s+[A-Za-z]+', desc_text)
+            if author_match:
+                uploader = author_match.group(1)
+            elif "from " in desc_text:
+                m2 = re.search(r'from\s+([a-zA-Z0-9._]+)\s*\(@([a-zA-Z0-9._]+)\)', desc_text)
+                if m2:
+                    uploader = m2.group(2)
+            if not uploader and is_profile:
+                uploader = post_id
+                
+            # Extract title / caption
+            title = ""
+            if '"' in desc_text:
+                quote_match = re.search(r'"([^"]+)"', desc_text)
+                if quote_match:
+                    title = quote_match.group(1).strip()
+            if not title and og_titles:
+                title = html.unescape(og_titles[0]).strip()
+            if not title and titles:
+                t0 = html.unescape(titles[0]).strip()
+                if t0 != 'Instagram':
+                    title = re.sub(r'\s*[•\-|]\s*Instagram.*$', '', t0).strip()
+            if not title:
+                title = f"Instagram Post by @{uploader}" if uploader else f"Instagram Media {post_id}"
+                
+            image_url = html.unescape(og_images[0]) if og_images else ""
+            video_url = html.unescape(og_videos[0]) if og_videos else ""
+            
+            video_formats = []
+            thumbnails_list = []
+            
+            if video_url:
+                v_filename = f"{uploader or 'instagram'}_{post_id}.mp4"
+                video_formats.append({
+                    "format_id": "instagram_video_hd",
+                    "quality": "1080p Full HD Video",
+                    "resolution": "1080p MP4",
+                    "ext": "mp4",
+                    "url": video_url,
+                    "stream_url": f"/api/stream?url={urllib.parse.quote(video_url)}&filename={urllib.parse.quote(v_filename)}",
+                    "filesize": None,
+                    "has_video": True,
+                    "has_audio": True,
+                    "is_best": True
+                })
+                
+            if image_url:
+                p_filename = f"{uploader or 'instagram'}_{post_id}_photo.jpg"
+                p_stream = f"/api/stream?url={urllib.parse.quote(image_url)}&filename={urllib.parse.quote(p_filename)}"
+                thumbnails_list.append({
+                    "quality": "Original Full Resolution",
+                    "resolution": "Original HD",
+                    "label": "Original Photo / Avatar",
+                    "url": image_url,
+                    "stream_url": p_stream
+                })
+                
+                # If no video was detected (it's a photo or carousel), provide prominent image download format
+                if not video_formats:
+                    video_formats.append({
+                        "format_id": "instagram_photo_full_hd",
+                        "quality": "Original HD Resolution",
+                        "resolution": "Full Size Photo",
+                        "ext": "jpg",
+                        "url": image_url,
+                        "stream_url": p_stream,
+                        "filesize": None,
+                        "has_video": True,
+                        "has_audio": False,
+                        "is_best": True
+                    })
+                    
+            return {
+                "platform": "instagram",
+                "id": post_id,
+                "title": title,
+                "thumbnail": image_url or "https://www.instagram.com/static/images/ico/favicon.ico/dfa400762ccd.ico",
+                "duration": None,
+                "uploader": f"@{uploader}" if uploader else "@instagram",
+                "views": desc_text or "Instagram Public Media",
+                "video_formats": video_formats,
+                "audio_formats": [],
+                "thumbnails": thumbnails_list,
+                "subtitles": [],
+                "transcript": [],
+                "original_url": url,
+                "is_channel": is_profile,
+                "message": f"Instagram {'Profile' if is_profile else 'Photo / Post'} extracted successfully in original resolution."
+            }
+    except Exception as exc:
+        raise ValueError(f"Could not extract Instagram media: {str(exc)}")
+
 def extract_instagram_profile(url: str):
     """Extract Instagram profile info, follower metrics, and original full-res avatar (DP)."""
     headers = {
@@ -559,9 +679,7 @@ def extract_media(url: str):
         if platform == "facebook":
             return extract_facebook_fallback(url)
         elif platform == "instagram":
-            clean_path = url.split('?')[0].rstrip('/')
-            if not any(x in clean_path for x in ["/p/", "/reel/", "/tv/", "/stories/"]):
-                return extract_instagram_profile(url)
+            return extract_instagram_fallback(url)
         elif platform == "youtube" or video_id:
             return extract_youtube_fallback(url, video_id)
         raise e
@@ -570,9 +688,7 @@ def extract_media(url: str):
         if platform == "facebook":
             return extract_facebook_fallback(url)
         elif platform == "instagram":
-            clean_path = url.split('?')[0].rstrip('/')
-            if not any(x in clean_path for x in ["/p/", "/reel/", "/tv/", "/stories/"]):
-                return extract_instagram_profile(url)
+            return extract_instagram_fallback(url)
         elif platform == "youtube" or video_id:
             return extract_youtube_fallback(url, video_id)
         raise ValueError("Could not extract media info from URL")

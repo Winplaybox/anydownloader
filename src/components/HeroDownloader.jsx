@@ -385,7 +385,7 @@ export default function HeroDownloader({
 
               <button
                 type="button"
-                onClick={onFetch}
+                onClick={() => onFetch()}
                 disabled={loading || !safeUrl || !safeUrl.trim()}
                 className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
                   activeCategory === 'facebook'

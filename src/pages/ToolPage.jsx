@@ -33,16 +33,18 @@ export default function ToolPage({ config = {} }) {
     }
   }
 
-  async function fetchMedia(overrideUrl) {
-    const targetUrl = (typeof overrideUrl === 'string' && overrideUrl.trim()) 
-      ? overrideUrl.trim() 
-      : (typeof url === 'string' ? url.trim() : '');
+  const [activeResultTab, setActiveResultTab] = useState(null);
+
+  async function fetchMedia(overrideUrl, preferredTab = null) {
+    const validUrl = typeof overrideUrl === 'string' && overrideUrl.trim() ? overrideUrl.trim() : null;
+    const targetUrl = validUrl || (typeof url === 'string' ? url.trim() : '');
     if (!targetUrl) {
       setError('Please enter a valid URL.');
       return;
     }
 
-    if (overrideUrl) setUrl(overrideUrl);
+    if (validUrl) setUrl(validUrl);
+    if (preferredTab) setActiveResultTab(preferredTab);
     setLoading(true);
     setError('');
     setMediaData(null);
