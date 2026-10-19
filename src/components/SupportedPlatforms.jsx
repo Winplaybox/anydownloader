@@ -1,4 +1,6 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react';
 import { 
   YoutubeIcon, 
   InstagramIcon, 
@@ -13,37 +15,49 @@ const PLATFORMS = [
     name: 'YouTube',
     desc: 'Videos, Shorts, Playlists, 1080p, 4K & MP3 Audio',
     icon: YoutubeIcon,
-    color: 'from-red-600 to-rose-600'
+    color: 'from-red-600 to-rose-600',
+    link: '/youtube/youtube-video-downloader',
+    badge: '1080p / 4K'
   },
   {
     name: 'Instagram',
     desc: 'Reels, Stories, Posts & IGTV video in Full HD',
     icon: InstagramIcon,
-    color: 'from-pink-600 to-purple-600'
+    color: 'from-pink-600 to-purple-600',
+    link: '/instagram/instagram-reels-downloader',
+    badge: 'Reels & Photos'
   },
   {
     name: 'TikTok',
     desc: 'Watermark-free HD videos & audio sound tracks',
     icon: TiktokIcon,
-    color: 'from-cyan-500 to-blue-600'
+    color: 'from-cyan-500 to-blue-600',
+    link: '/tiktok/tiktok-downloader',
+    badge: 'No Watermark'
   },
   {
     name: 'Facebook',
     desc: 'Public Reels, Watch clips & high-res videos',
     icon: FacebookIcon,
-    color: 'from-blue-600 to-indigo-600'
+    color: 'from-blue-600 to-indigo-600',
+    link: '/facebook/facebook-reels',
+    badge: 'Reels & Watch'
   },
   {
     name: 'X (Twitter)',
-    desc: 'Tweets with MP4 video streams & GIFs',
+    desc: 'Tweets with MP4 video streams, 320kbps MP3 audio & GIFs',
     icon: TwitterXIcon,
-    color: 'from-slate-700 to-slate-900'
+    color: 'from-sky-600 to-slate-900',
+    link: '/twitter/twitter-video-downloader',
+    badge: 'MP4, MP3 & DP'
   },
   {
     name: 'Pinterest',
     desc: 'Idea pins, video pins & animation clips',
     icon: PinterestIcon,
-    color: 'from-rose-600 to-red-700'
+    color: 'from-rose-600 to-red-700',
+    link: '/pinterest/pinterest-video-downloader',
+    badge: 'Video & Board'
   }
 ];
 
@@ -55,7 +69,7 @@ export default function SupportedPlatforms() {
           Supported Platforms & Websites
         </h2>
         <p className="text-slate-400 text-sm max-w-xl mx-auto">
-          AnyDownloader works seamlessly across over 1,700 sites. No software installation needed.
+          Fast, universal media downloader for all major social networks. 100% free, no registration required.
         </p>
       </div>
 
@@ -63,25 +77,37 @@ export default function SupportedPlatforms() {
         {PLATFORMS.map(p => {
           const Icon = p.icon;
           return (
-            <div
+            <Link
               key={p.name}
-              className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition hover:shadow-xl group"
+              to={p.link}
+              className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 hover:bg-slate-900 transition hover:shadow-xl group flex flex-col justify-between"
             >
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${p.color} flex items-center justify-center text-white shadow-md`}>
-                  <Icon className="w-5 h-5" />
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${p.color} flex items-center justify-center text-white shadow-md`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white text-base group-hover:text-rose-400 transition">
+                        {p.name}
+                      </h3>
+                      <span className="text-[10px] uppercase font-bold text-emerald-400">Supported</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700/50">
+                    {p.badge}
+                  </span>
                 </div>
-                <div>
-                  <h3 className="font-bold text-white text-base group-hover:text-rose-400 transition">
-                    {p.name}
-                  </h3>
-                  <span className="text-[10px] uppercase font-bold text-emerald-400">Supported</span>
-                </div>
+                <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                  {p.desc}
+                </p>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                {p.desc}
-              </p>
-            </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-400 group-hover:text-rose-300 transition">
+                <span>Explore {p.name} Tools</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition transform" />
+              </div>
+            </Link>
           );
         })}
       </div>

@@ -25,6 +25,7 @@ import YouTubePills from './YouTubePills.jsx';
 import FacebookPills from './FacebookPills.jsx';
 import InstagramPills from './InstagramPills.jsx';
 import PinterestPills from './PinterestPills.jsx';
+import TwitterPills from './TwitterPills.jsx';
 
 export default function HeroDownloader({ 
   url = '', 
@@ -370,56 +371,7 @@ export default function HeroDownloader({
       if (activeSubfeature === 'viewer') return 'Enter Instagram username or profile URL (e.g. https://www.instagram.com/cristiano/)...';
       return 'Paste Instagram video, reel, or photo link (e.g. https://www.instagram.com/p/...)...';
     }
-            if (activeCategory === 'twitter') {
-      if (activeSubfeature === 'video') {
-        return {
-          badge: 'X (Twitter) 1080p Video Downloader With Audio',
-          title: 'X (Twitter) Video Downloader',
-          gradient: '1080p Full HD Progressive MP4 & Audio',
-          desc: 'Download Twitter/X video clips in 1080p, 720p, 480p, or 360p progressive MP4 format with audio merged and in-browser player preview.'
-        };
-      }
-      if (activeSubfeature === 'audio' || activeSubfeature === 'mp3') {
-        return {
-          badge: 'X (Twitter) to MP3 Audio Downloader',
-          title: 'X (Twitter) MP3 Downloader',
-          gradient: 'Extract 320kbps High Fidelity Audio',
-          desc: 'Extract clean 320kbps MP3 audio tracks directly from Twitter video clips and voice posts for music and speech archives.'
-        };
-      }
-      if (activeSubfeature === 'image' || activeSubfeature === 'photo') {
-        return {
-          badge: 'X (Twitter) High-Resolution Photo Downloader',
-          title: 'X (Twitter) Photo & Image Downloader',
-          gradient: 'Master Original Uncompressed Images (name=orig)',
-          desc: 'Download original master resolution photos and multi-image tweet sets (up to 4 images) directly from Twitter CDN in pristine quality.'
-        };
-      }
-      if (activeSubfeature === 'gif') {
-        return {
-          badge: 'X (Twitter) Animated GIF Downloader',
-          title: 'X (Twitter) GIF Downloader',
-          gradient: 'Save Reaction GIFs & Looping MP4 Videos',
-          desc: 'Download animated GIFs and looping video animations from Twitter directly to your phone or computer.'
-        };
-      }
-      if (activeSubfeature === 'profile') {
-        return {
-          badge: 'X (Twitter) Profile & Full HD DP Downloader',
-          title: 'X (Twitter) Profile & DP Downloader',
-          gradient: '400x400 HD Avatar, Master DP & 1500x500 Banner',
-          desc: 'Enter any X/Twitter username or handle (@handle) to download full-resolution avatars, header cover banners, and inspect follower counts.'
-        };
-      }
-      return {
-        badge: 'X (Twitter) Complete Media & Video Downloader',
-        title: 'X (Twitter) Downloader',
-        gradient: '1080p MP4 Videos, MP3 Audio, HD Photos & GIFs',
-        desc: 'Save videos, audio tracks, multi-image posts, GIFs, and profile pictures from X (Twitter) directly in original quality.'
-      };
-    }
-
-        if (activeCategory === 'twitter') {
+    if (activeCategory === 'twitter') {
       if (activeSubfeature === 'video') return 'Paste X (Twitter) video link (e.g. https://x.com/.../status/... or twitter.com/...)...';
       if (activeSubfeature === 'audio' || activeSubfeature === 'mp3') return 'Paste X (Twitter) post link to extract MP3 audio track...';
       if (activeSubfeature === 'image' || activeSubfeature === 'photo') return 'Paste X (Twitter) photo tweet link to download original uncompressed images...';
@@ -551,7 +503,34 @@ if (activeCategory === 'pinterest') {
               <span className="shrink-0">
                 {activeCategory === 'youtube' ? (
                   <YoutubeIcon className="w-5 h-5 text-red-500" />
-                ) : activeCategory === 'facebook' ? (
+                ) : activeCategory === 'twitter' ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setUrl('https://x.com/NASA/status/1880315758837330278')}
+                className="px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 transition cursor-pointer font-medium"
+                title="NASA X (Twitter) Video Sample"
+              >
+                🚀 NASA Tweet (Video)
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrl('https://x.com/SpaceX/status/1880000000000000000')}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+                title="SpaceX Tweet"
+              >
+                🛰️ SpaceX (Clip)
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrl('@NASA')}
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+                title="NASA Profile Handle"
+              >
+                👤 @NASA (Profile DP)
+              </button>
+            </>
+          ) : activeCategory === 'facebook' ? (
                   <FacebookIcon className="w-5 h-5 text-blue-500" />
                 ) : activeCategory === 'instagram' ? (
                   <InstagramIcon className="w-5 h-5 text-pink-500" />
@@ -596,6 +575,8 @@ if (activeCategory === 'pinterest') {
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-600/30'
                     : activeCategory === 'instagram'
                     ? 'bg-gradient-to-r from-fuchsia-600 to-rose-600 hover:opacity-90 shadow-pink-600/30'
+                    : activeCategory === 'twitter'
+                    ? 'bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:opacity-90 shadow-sky-600/30'
                     : activeCategory === 'pinterest'
                     ? 'bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 hover:opacity-90 shadow-red-600/30'
                     : activeCategory === 'tiktok'

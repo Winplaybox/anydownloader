@@ -79,6 +79,9 @@ export default function Header() {
       if (pinMenuRef.current && !pinMenuRef.current.contains(e.target)) {
         setOpenPinterestMenu(false);
       }
+      if (twMenuRef.current && !twMenuRef.current.contains(e.target)) {
+        setOpenTwitterMenu(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -246,7 +249,30 @@ export default function Header() {
             </button>
           </div>
 
-                    {/* 4. Pinterest Dropdown Toggle */}
+          {/* 4. X (Twitter) Dropdown Toggle */}
+          <div className="relative" ref={twMenuRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setOpenTwitterMenu(!openTwitterMenu);
+                setOpenYoutubeMenu(false);
+                setOpenFacebookMenu(false);
+                setOpenInstagramMenu(false);
+                setOpenPinterestMenu(false);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition cursor-pointer ${
+                openTwitterMenu || location.pathname.startsWith('/twitter') || location.pathname.startsWith('/x')
+                  ? 'bg-slate-900 text-white border border-slate-800'
+                  : 'hover:bg-slate-900 hover:text-white'
+              }`}
+            >
+              <TwitterXIcon className="w-3.5 h-3.5 text-sky-400" />
+              <span>X (Twitter)</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition transform ${openTwitterMenu ? 'rotate-180 text-sky-400' : 'text-slate-500'}`} />
+            </button>
+          </div>
+
+          {/* 5. Pinterest Dropdown Toggle */}
           <div className="relative" ref={pinMenuRef}>
             <button
               type="button"
@@ -792,7 +818,42 @@ export default function Header() {
                 </div>
               </div>
 
-              {/* 4. Other Platforms */}
+              {/* 4. X (Twitter) Complete Suite */}
+              <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-sky-400 uppercase tracking-wider">
+                    <TwitterXIcon className="w-3.5 h-3.5 text-sky-400" />
+                    <span>X (Twitter) Suite</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-semibold">5 Tools</span>
+                </div>
+
+                <div className="space-y-1 pl-1">
+                  {twitterTools.map((t, idx) => {
+                    const Icon = t.icon;
+                    return (
+                      <Link
+                        key={idx}
+                        to={t.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center justify-between p-2 rounded-xl text-xs transition ${
+                          location.pathname === t.path
+                            ? 'bg-sky-500/15 text-sky-300 font-semibold border border-sky-500/30'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon className="w-3.5 h-3.5 text-sky-400" />
+                          <span>{t.title}</span>
+                        </div>
+                        <ChevronDown className="w-3 h-3 text-slate-600 -rotate-90" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 5. Other Platforms */}
               <div className="space-y-2 pt-2 border-t border-slate-800/80">
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
                   Other Platforms

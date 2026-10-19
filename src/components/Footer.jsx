@@ -66,6 +66,13 @@ export default function Footer() {
               <li><Link to="/facebook/facebook-posts" className="hover:text-blue-400 transition">Facebook Posts & Photos</Link></li>
               <li><Link to="/facebook/facebook-transcript" className="hover:text-blue-400 transition">Facebook Video Transcripts</Link></li>
               <li><Link to="/instagram/instagram-downloader" className="hover:text-pink-400 transition">Instagram Reels Downloader</Link></li>
+              <li><Link to="/twitter/twitter-video-downloader" className="hover:text-sky-400 text-sky-400/90 font-medium transition">X (Twitter) Video Downloader</Link></li>
+              <li><Link to="/twitter/twitter-mp3-downloader" className="hover:text-sky-400 transition">X (Twitter) to MP3 Audio</Link></li>
+              <li><Link to="/twitter/twitter-image-downloader" className="hover:text-sky-400 transition">X (Twitter) Photos & Images</Link></li>
+              <li><Link to="/twitter/twitter-gif-downloader" className="hover:text-sky-400 transition">X (Twitter) GIF Downloader</Link></li>
+              <li><Link to="/twitter/twitter-profile-downloader" className="hover:text-sky-400 transition">X (Twitter) Profile & DP</Link></li>
+              <li><Link to="/pinterest/pinterest-video-downloader" className="hover:text-rose-400 transition">Pinterest Video Downloader</Link></li>
+              <li><Link to="/pinterest/pinterest-photo-downloader" className="hover:text-rose-400 transition">Pinterest Photo Downloader</Link></li>
               <li><Link to="/tiktok/tiktok-downloader" className="hover:text-cyan-400 transition">TikTok (No Watermark)</Link></li>
               <li><Link to="/blogs" className="hover:text-amber-400 transition">Social Media Updates Blog</Link></li>
               <li><Link to="/updates" className="hover:text-rose-400 transition">Product Releases & Changelog</Link></li>
