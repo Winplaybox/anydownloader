@@ -676,7 +676,7 @@ def extract_media_base(url: str, forced_platform: Optional[str] = None):
         "extract_flat": False,
         "skip_download": True,
         "noplaylist": True,
-        "socket_timeout": 20,
+        "socket_timeout": 8,
         "http_headers": {
             "User-Agent": USER_AGENT,
             "Accept-Language": "en-US,en;q=0.9",
