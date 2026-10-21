@@ -1,0 +1,87 @@
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, asdict
+from typing import List, Optional, Dict, Any, Literal
+from backend.utils.security import sign_download_token
+
+MediaKind = Literal['video', 'image']
+
+@dataclass
+class MediaVariant:
+    id: str
+    kind: MediaKind
+    ext: str  # 'mp4' | 'webm' | 'jpg' | 'png' | 'webp' | 'gif'
+    url: str  # Upstream CDN URL
+    quality: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    sizeBytes: Optional[int] = None
+    hasAudio: Optional[bool] = None
+    downloadUrl: Optional[str] = None
+
+    def finalize(self, filename_base: str):
+        ext_clean = self.ext.lstrip('.')
+        filename = f'{filename_base}_{self.quality or self.id}.{ext_clean}'
+        filename = ''.join(c for c in filename if c.isalnum() or c in '._-')[:100]
+        token = sign_download_token(self.url, filename)
+        self.downloadUrl = f'/api/download?token={token}'
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d.pop('url', None)
+        return {k: v for k, v in d.items() if v is not None}
+
+@dataclass
+class MediaItem:
+    index: int
+    kind: MediaKind
+    variants: List[MediaVariant]
+    thumbnail: Optional[str] = None
+    durationSec: Optional[float] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'index': self.index,
+            'kind': self.kind,
+            'thumbnail': self.thumbnail,
+            'durationSec': self.durationSec,
+            'variants': [v.to_dict() for v in self.variants],
+        }
+
+@dataclass
+class AuthorInfo:
+    name: Optional[str] = None
+    handle: Optional[str] = None
+    avatar: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {k: v for k, v in asdict(self).items() if v is not None}
+
+@dataclass
+class ResolveResult:
+    platform: str
+    sourceUrl: str
+    items: List[MediaItem]
+    title: Optional[str] = None
+    author: Optional[AuthorInfo] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        res = {
+            'platform': self.platform,
+            'sourceUrl': self.sourceUrl,
+            'title': self.title,
+            'items': [item.to_dict() for item in self.items],
+        }
+        if self.author:
+            res['author'] = self.author.to_dict()
+        return res
+
+class BaseExtractor(ABC):
+    platform: str
+
+    @abstractmethod
+    def matches(self, url: str) -> bool:
+        pass
+
+    @abstractmethod
+    async def resolve(self, url: str) -> ResolveResult:
+        pass

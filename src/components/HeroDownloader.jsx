@@ -1,31 +1,23 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Download, 
   Clipboard, 
-  Sparkles, 
+  X, 
   Loader2, 
   AlertCircle,
-  Video,
-  Music,
-  FileText,
-  Subtitles,
-  Image as ImageIcon,
-  Trophy
+  RefreshCw,
+  CheckCircle2,
+  Sparkles
 } from 'lucide-react';
 import { 
+  TwitterXIcon,
   YoutubeIcon, 
-  InstagramIcon, 
-  TiktokIcon, 
   FacebookIcon,
-  PinterestIcon,
-  TwitterXIcon
+  InstagramIcon, 
+  TiktokIcon 
 } from './BrandIcons.jsx';
-import YouTubePills from './YouTubePills.jsx';
-import FacebookPills from './FacebookPills.jsx';
-import InstagramPills from './InstagramPills.jsx';
-import PinterestPills from './PinterestPills.jsx';
-import TwitterPills from './TwitterPills.jsx';
+import { normalizeUrl } from '../utils/normalizeUrl.js';
+import { getErrorMessage, ErrorCode } from '../utils/errors.js';
 
 export default function HeroDownloader({ 
   url = '', 
@@ -33,709 +25,225 @@ export default function HeroDownloader({
   onFetch = () => {}, 
   loading = false, 
   error = '',
-  onPaste = () => {},
-  activeCategory = 'youtube',
-  activeSubfeature = 'all'
+  errorCode = null,
+  onClear = () => {},
+  activeCategory = 'all',
+  setActiveCategory = () => {},
+  pageH1 = null,
+  pageDesc = null
 }) {
-  const safeUrl = typeof url === 'string' ? url : (url ? String(url) : '');
-  const location = useLocation();
+  const inputRef = useRef(null);
+  const [pasteNotice, setPasteNotice] = useState('');
+  const [detectedPlatform, setDetectedPlatform] = useState(null);
+
+  // Desktop autofocus only
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 768 && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
+
+  // Detect platform on input change
+  useEffect(() => {
+    if (url && typeof url === 'string' && url.trim().length > 4) {
+      const norm = normalizeUrl(url);
+      if (norm.ok && norm.platform) {
+        setDetectedPlatform(norm.platform);
+        if (norm.multipleFound) {
+          setPasteNotice('Multiple links found. Using the first URL.');
+        } else {
+          setPasteNotice('');
+        }
+      } else {
+        setDetectedPlatform(null);
+      }
+    } else {
+      setDetectedPlatform(null);
+      setPasteNotice('');
+    }
+  }, [url]);
+
+  async function handlePaste() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        const clean = text.trim();
+        setUrl(clean);
+        // Automatically validate & attempt resolve if valid
+        const norm = normalizeUrl(clean);
+        if (norm.ok) {
+          setDetectedPlatform(norm.platform);
+        }
+      }
+    } catch (e) {
+      // Graceful fallback for permission refusal
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }
+  }
 
   function handleKeyDown(e) {
     if (e.key === 'Enter') {
+      e.preventDefault();
       onFetch();
     }
   }
 
-  
+  const platforms = [
+    { id: 'all', label: 'Auto-Detect', icon: null },
+    { id: 'twitter', label: 'X (Twitter)', icon: TwitterXIcon },
+    { id: 'youtube', label: 'YouTube', icon: YoutubeIcon },
+    { id: 'facebook', label: 'Facebook', icon: FacebookIcon },
+    { id: 'instagram', label: 'Instagram', icon: InstagramIcon },
+    { id: 'tiktok', label: 'TikTok', icon: TiktokIcon },
+  ];
 
-  function getTitleAndDesc() {
-    if (activeCategory === 'youtube') {
-      if (activeSubfeature === 'mp4') {
-        return {
-          badge: 'YouTube MP4 Video Downloader',
-          title: 'YouTube MP4 Downloader',
-          gradient: 'Download 1080p, 720p & 4K MP4 Videos',
-          desc: 'Save YouTube videos directly in universal MP4 format with audio included at the highest available visual quality.'
-        };
-      }
-      if (activeSubfeature === 'shorts') {
-        return {
-          badge: 'YouTube Shorts Downloader',
-          title: 'YouTube Shorts Downloader',
-          gradient: 'Vertical Video Clips with Original Sound',
-          desc: 'Download YouTube Shorts in 9:16 vertical format directly to your phone or PC with zero watermarks.'
-        };
-      }
-      if (activeSubfeature === 'mp3') {
-        return {
-          badge: 'YouTube to MP3 Audio Converter',
-          title: 'YouTube MP3 Downloader',
-          gradient: 'High Fidelity 320kbps & 192kbps MP3',
-          desc: 'Convert YouTube videos to high-bitrate MP3 audio. Ideal for music tracks, podcasts, speeches, and study audio.'
-        };
-      }
-      if (activeSubfeature === 'transcript') {
-        return {
-          badge: 'YouTube Transcript & Caption Extractor',
-          title: 'YouTube Transcript Generator',
-          gradient: 'Searchable Timestamped Cues & Text Export',
-          desc: 'Generate interactive text transcripts from YouTube videos with clickable timestamps, keyword search, and .TXT export.'
-        };
-      }
-      if (activeSubfeature === 'subtitles') {
-        return {
-          badge: 'YouTube Subtitles Downloader',
-          title: 'YouTube Subtitles Downloader',
-          gradient: 'Multi-Language SRT & VTT Subtitle Files',
-          desc: 'Extract multi-language subtitle tracks (.srt & .vtt) from YouTube videos for VLC, video editing, or language translation.'
-        };
-      }
-      if (activeSubfeature === 'thumbnails') {
-        return {
-          badge: 'YouTube Thumbnail Images Downloader',
-          title: 'YouTube Thumbnails Downloader',
-          gradient: 'Full HD 1080p, 720p, 480p & SD Images',
-          desc: 'Download full-resolution YouTube cover images in Maxres 1080p, 720p HQ, 480p SD, and 360p MQ qualities.'
-        };
-      }
-      return {
-        badge: 'YouTube All-in-One Pro Downloader & Explorer',
-        title: 'YouTube Video Downloader',
-        gradient: 'YouTube MP4, Shorts, MP3 & Transcripts',
-        desc: 'Extract full HD 1080p & 4K videos, separate 320kbps MP3 tracks, interactive transcripts, multi-language subtitles, and full-resolution thumbnail images for any YouTube video.'
-      };
-    }
-    if (activeCategory === 'facebook') {
-      if (activeSubfeature === 'reels') {
-        return {
-          badge: 'Facebook Reels Downloader Without Watermark',
-          title: 'Facebook Reels Downloader',
-          gradient: 'Download HD 1080p Reels with Sound',
-          desc: 'Save viral Facebook Reels in vertical 9:16 format with original synchronized audio directly to your device.'
-        };
-      }
-      if (activeSubfeature === 'watch') {
-        return {
-          badge: 'Facebook Watch & Shows Saver',
-          title: 'Facebook Watch Downloader',
-          gradient: 'Full Episodes & Recorded Broadcasts',
-          desc: 'Download episodic Facebook Watch shows, sports recaps, and recorded broadcasts in pristine 1080p MP4.'
-        };
-      }
-      if (activeSubfeature === 'stories') {
-        return {
-          badge: 'Facebook Story & Status Saver',
-          title: 'Facebook Story Downloader',
-          gradient: 'Save Public Video Stories in HD',
-          desc: 'Archive public Facebook stories and video clips before they expire in high-definition MP4 format.'
-        };
-      }
-      if (activeSubfeature === 'mp3') {
-        return {
-          badge: 'Facebook to MP3 Audio Converter',
-          title: 'Facebook MP3 Downloader',
-          gradient: 'High Fidelity 320kbps & 192kbps MP3',
-          desc: 'Extract clean MP3 audio tracks from Facebook speeches, podcast clips, and live streams.'
-        };
-      }
-      if (activeSubfeature === 'posts') {
-        return {
-          badge: 'Facebook Post & Photos Downloader',
-          title: 'Facebook Posts Downloader',
-          gradient: 'Download Photos, Carousels & Post Media',
-          desc: 'Download high-resolution photos, single or multi-image albums, and media attachments from public Facebook posts.'
-        };
-      }
-      if (activeSubfeature === 'transcript') {
-        return {
-          badge: 'Facebook Video Transcript & Captions',
-          title: 'Facebook Transcript Downloader',
-          gradient: 'Extract Speech Text & Captions',
-          desc: 'Extract closed captions, speech text transcripts, and timestamped lines from Facebook videos and reels.'
-        };
-      }
-      if (activeSubfeature === 'thumbnails') {
-        return {
-          badge: 'Facebook Video Cover & Artwork Downloader',
-          title: 'Facebook Thumbnails Downloader',
-          gradient: 'Full Resolution HD Artwork & Covers',
-          desc: 'Save full-resolution video thumbnail frames and cover artwork from any public Facebook video.'
-        };
-      }
-      return {
-        badge: 'Facebook Watch, Reels & Video Downloader',
-        title: 'Facebook Video Downloader',
-        gradient: 'Full HD 1080p & High Quality MP4',
-        desc: 'Download Facebook public videos, reels, stories, and watch clips directly in ultra high quality MP4 format.'
-      };
-    }
-    if (activeCategory === 'instagram') {
-      if (activeSubfeature === 'photo') {
-        return {
-          badge: 'High-Res Uncompressed Photo Downloader',
-          title: 'Instagram Photo Downloader',
-          gradient: 'Save Original HD Photos & Wallpapers',
-          desc: 'Download original high-resolution Instagram photos, portrait shots, and full-size pictures in uncompressed clarity.'
-        };
-      }
-      if (activeSubfeature === 'reels') {
-        return {
-          badge: 'Instagram Reels Downloader 1080p Full HD',
-          title: 'Instagram Reels Downloader',
-          gradient: 'Viral 9:16 Reels With Clean Audio',
-          desc: 'Download trending viral Instagram Reels in 1080p Full HD MP4 with synchronized original audio and zero watermark.'
-        };
-      }
-      if (activeSubfeature === 'story') {
-        return {
-          badge: 'Archive Stories & Highlights Privately',
-          title: 'Instagram Story Downloader',
-          gradient: 'Save Stories Before 24h Expiration',
-          desc: 'Archive and download public Instagram stories, clips, and profile highlights before the 24-hour expiration window closes.'
-        };
-      }
-      if (activeSubfeature === 'igtv') {
-        return {
-          badge: 'Long-Form Video Episodes & Shows in HD',
-          title: 'Instagram IGTV Downloader',
-          gradient: 'Full-Length 1080p MP4 Broadcasts',
-          desc: 'Download extended Instagram IGTV broadcasts, series episodes, podcasts, and masterclass videos in 1080p MP4.'
-        };
-      }
-      if (activeSubfeature === 'carousel') {
-        return {
-          badge: 'Multi-Slide Album & Carousel Downloader',
-          title: 'Instagram Carousel Downloader',
-          gradient: 'Download All Photos & Videos in Batch',
-          desc: 'Download multi-slide Instagram carousel albums with all high-resolution photos and videos in full original quality.'
-        };
-      }
-      if (activeSubfeature === 'viewer') {
-        return {
-          badge: 'Anonymous Profile Viewer & DP Downloader',
-          title: 'Instagram Viewer & DP Downloader',
-          gradient: 'Full-Size Profile Pictures & Metadata',
-          desc: 'View public Instagram profiles anonymously and download original full-resolution profile pictures (DP) in full HD.'
-        };
-      }
-      return {
-        badge: 'Instagram 1080p Video, Reel & Photo Downloader',
-        title: 'Instagram Downloader',
-        gradient: 'Videos, Reels, Stories & Photos in HD',
-        desc: 'Save high-definition Instagram feed videos, viral reels, stories, and carousel albums directly to your device.'
-      };
-    }
-            if (activeCategory === 'twitter') {
-      if (activeSubfeature === 'video') {
-        return {
-          badge: 'X (Twitter) 1080p Video Downloader With Audio',
-          title: 'X (Twitter) Video Downloader',
-          gradient: '1080p Full HD Progressive MP4 & Audio',
-          desc: 'Download Twitter/X video clips in 1080p, 720p, 480p, or 360p progressive MP4 format with audio merged and in-browser player preview.'
-        };
-      }
-      if (activeSubfeature === 'audio' || activeSubfeature === 'mp3') {
-        return {
-          badge: 'X (Twitter) to MP3 Audio Downloader',
-          title: 'X (Twitter) MP3 Downloader',
-          gradient: 'Extract 320kbps High Fidelity Audio',
-          desc: 'Extract clean 320kbps MP3 audio tracks directly from Twitter video clips and voice posts for music and speech archives.'
-        };
-      }
-      if (activeSubfeature === 'image' || activeSubfeature === 'photo') {
-        return {
-          badge: 'X (Twitter) High-Resolution Photo Downloader',
-          title: 'X (Twitter) Photo & Image Downloader',
-          gradient: 'Master Original Uncompressed Images (name=orig)',
-          desc: 'Download original master resolution photos and multi-image tweet sets (up to 4 images) directly from Twitter CDN in pristine quality.'
-        };
-      }
-      if (activeSubfeature === 'gif') {
-        return {
-          badge: 'X (Twitter) Animated GIF Downloader',
-          title: 'X (Twitter) GIF Downloader',
-          gradient: 'Save Reaction GIFs & Looping MP4 Videos',
-          desc: 'Download animated GIFs and looping video animations from Twitter directly to your phone or computer.'
-        };
-      }
-      if (activeSubfeature === 'profile') {
-        return {
-          badge: 'X (Twitter) Profile & Full HD DP Downloader',
-          title: 'X (Twitter) Profile & DP Downloader',
-          gradient: '400x400 HD Avatar, Master DP & 1500x500 Banner',
-          desc: 'Enter any X/Twitter username or handle (@handle) to download full-resolution avatars, header cover banners, and inspect follower counts.'
-        };
-      }
-      return {
-        badge: 'X (Twitter) Complete Media & Video Downloader',
-        title: 'X (Twitter) Downloader',
-        gradient: '1080p MP4 Videos, MP3 Audio, HD Photos & GIFs',
-        desc: 'Save videos, audio tracks, multi-image posts, GIFs, and profile pictures from X (Twitter) directly in original quality.'
-      };
-    }
-
-    if (activeCategory === 'pinterest') {
-      if (activeSubfeature === 'video') {
-        return {
-          badge: 'Pinterest 1080p Video Downloader With Audio',
-          title: 'Pinterest Video Downloader',
-          gradient: '1080p Full HD MP4 Video & MP3 Audio',
-          desc: 'Download Pinterest videos and clips in crisp 1080p or 720p Full HD MP4 with synchronized original audio and zero watermark.'
-        };
-      }
-      if (activeSubfeature === 'photo') {
-        return {
-          badge: 'Pinterest Original High-Resolution Photo Downloader',
-          title: 'Pinterest Photo Downloader',
-          gradient: 'Download Original Master Quality HD Photos',
-          desc: 'Extract and download original uncompressed Pinterest photos, digital artworks, and aesthetic wallpapers directly from Pinterest CDN.'
-        };
-      }
-      if (activeSubfeature === 'gif') {
-        return {
-          badge: 'Pinterest Animated GIF Downloader',
-          title: 'Pinterest GIF Downloader',
-          gradient: 'High Quality Animated GIFs & Video Loops',
-          desc: 'Download animated Pinterest GIFs and looping animations directly in original .gif and .mp4 formats with instant preview.'
-        };
-      }
-      if (activeSubfeature === 'story') {
-        return {
-          badge: 'Pinterest Idea Pin & Story Downloader',
-          title: 'Pinterest Idea Pin Downloader',
-          gradient: 'Sequential Multi-Page Story Slides',
-          desc: 'Download full multi-slide Pinterest Idea Pins and story cards with all embedded videos and high-resolution slides.'
-        };
-      }
-      if (activeSubfeature === 'board') {
-        return {
-          badge: 'Pinterest Board Bulk Downloader',
-          title: 'Pinterest Board Downloader',
-          gradient: 'Download All Pins From Public Pinterest Boards',
-          desc: 'Enter any public Pinterest board URL to extract and download all pinned images, artworks, and video pins in bulk with one click.'
-        };
-      }
-      if (activeSubfeature === 'profile') {
-        return {
-          badge: 'Pinterest Profile Viewer & Full HD Avatar Downloader',
-          title: 'Pinterest Profile & DP Downloader',
-          gradient: 'Full-Resolution Avatar Picture & Creator Stats',
-          desc: 'View public Pinterest profiles anonymously, download high-definition avatar profile pictures (DP), and inspect follower metrics.'
-        };
-      }
-      return {
-        badge: 'Pinterest Video, Photo, GIF & Board Downloader',
-        title: 'Pinterest Downloader',
-        gradient: 'Videos, 4K Photos, GIFs, Idea Pins & Boards',
-        desc: 'Save Pinterest videos in 1080p MP4 with sound, original master photos, animated GIFs, full boards, and user profile pictures in seconds.'
-      };
-    }
-    if (activeCategory === 'tiktok') {
-      return {
-        badge: 'TikTok Video Downloader Without Watermark',
-        title: 'TikTok Video Downloader',
-        gradient: 'Original Audio & HD No-Watermark MP4',
-        desc: 'Download clean TikTok videos with no watermark, background sounds in MP3, and instant HD playback.'
-      };
-    }
-    return {
-      badge: 'Universal Fast Online Downloader',
-      title: 'Download Any Media',
-      gradient: 'In Seconds',
-      desc: 'Free fast media downloader for YouTube, Facebook, Instagram, TikTok, Twitter and more.'
-    };
-  }
-
-  function getPlaceholder() {
-    if (activeCategory === 'youtube') {
-      if (activeSubfeature === 'shorts') return 'Paste YouTube Shorts link (e.g. https://www.youtube.com/shorts/...)...';
-      if (activeSubfeature === 'mp3') return 'Paste YouTube URL to convert & download high-bitrate MP3...';
-      if (activeSubfeature === 'transcript') return 'Paste YouTube URL to extract interactive timestamped transcript...';
-      if (activeSubfeature === 'subtitles') return 'Paste YouTube URL to extract multi-language SRT/VTT subtitles...';
-      if (activeSubfeature === 'thumbnails') return 'Paste YouTube URL to view & download all thumbnail resolutions...';
-      return 'Paste YouTube video or Shorts link here (e.g. https://www.youtube.com/watch?v=...)...';
-    }
-    if (activeCategory === 'facebook') {
-      if (activeSubfeature === 'posts') return 'Paste Facebook post or photo link (e.g. https://www.facebook.com/.../posts/...)...';
-      if (activeSubfeature === 'transcript') return 'Paste Facebook video or reel link to extract speech transcript...';
-      if (activeSubfeature === 'reels') return 'Paste Facebook Reel link (e.g. https://www.facebook.com/share/r/...)...';
-      if (activeSubfeature === 'mp3') return 'Paste Facebook video link to extract high-bitrate MP3...';
-      return 'Paste Facebook video, reel, post, or story link...';
-    }
-    if (activeCategory === 'instagram') {
-      if (activeSubfeature === 'photo') return 'Paste Instagram photo post link (e.g. https://www.instagram.com/p/...)...';
-      if (activeSubfeature === 'reels') return 'Paste Instagram Reel link (e.g. https://www.instagram.com/reel/...)...';
-      if (activeSubfeature === 'story') return 'Paste Instagram Story or profile link (e.g. https://www.instagram.com/stories/...)...';
-      if (activeSubfeature === 'igtv') return 'Paste Instagram IGTV video link (e.g. https://www.instagram.com/tv/...)...';
-      if (activeSubfeature === 'carousel') return 'Paste Instagram multi-photo carousel link (e.g. https://www.instagram.com/p/...)...';
-      if (activeSubfeature === 'viewer') return 'Enter Instagram username or profile URL (e.g. https://www.instagram.com/cristiano/)...';
-      return 'Paste Instagram video, reel, or photo link (e.g. https://www.instagram.com/p/...)...';
-    }
-    if (activeCategory === 'twitter') {
-      if (activeSubfeature === 'video') return 'Paste X (Twitter) video link (e.g. https://x.com/.../status/... or twitter.com/...)...';
-      if (activeSubfeature === 'audio' || activeSubfeature === 'mp3') return 'Paste X (Twitter) post link to extract MP3 audio track...';
-      if (activeSubfeature === 'image' || activeSubfeature === 'photo') return 'Paste X (Twitter) photo tweet link to download original uncompressed images...';
-      if (activeSubfeature === 'gif') return 'Paste X (Twitter) GIF tweet link to download looping animation...';
-      if (activeSubfeature === 'profile') return 'Enter X (Twitter) handle (e.g. @NASA or https://x.com/elonmusk)...';
-      return 'Paste X (Twitter) post or profile link (e.g. https://x.com/... or @handle)...';
-    }
-if (activeCategory === 'pinterest') {
-      if (activeSubfeature === 'video') return 'Paste Pinterest video pin link (e.g. https://www.pinterest.com/pin/... or pin.it/...)...';
-      if (activeSubfeature === 'photo') return 'Paste Pinterest photo pin link (e.g. https://www.pinterest.com/pin/...)...';
-      if (activeSubfeature === 'gif') return 'Paste Pinterest GIF pin link (e.g. https://www.pinterest.com/pin/...)...';
-      if (activeSubfeature === 'story') return 'Paste Pinterest Idea Pin / Story link (e.g. https://www.pinterest.com/pin/...)...';
-      if (activeSubfeature === 'board') return 'Paste Pinterest board link (e.g. https://www.pinterest.com/username/board-name/)...';
-      if (activeSubfeature === 'profile') return 'Enter Pinterest username or profile URL (e.g. https://www.pinterest.com/natgeo/)...';
-      return 'Paste Pinterest Pin, Board, or Profile link (e.g. https://pin.it/... or pinterest.com/pin/...)...';
-    }
-    if (activeCategory === 'tiktok') return 'Paste TikTok video link (e.g. https://www.tiktok.com/@...)...';
-    return 'Paste video, reel, or audio link here...';
-  }
-
-  const info = getTitleAndDesc();
+  const currentActivePlatform = detectedPlatform || activeCategory || 'all';
 
   return (
-    <section id="downloader-input" className="relative pt-6 pb-12 overflow-hidden">
-      {/* Background Glow Orbs */}
-      <div className={`absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[320px] blur-[130px] pointer-events-none rounded-full transition-colors duration-500 ${
-        activeCategory === 'facebook'
-          ? 'bg-gradient-to-r from-blue-600/20 via-indigo-600/20 to-sky-500/20'
-          : activeCategory === 'instagram'
-          ? 'bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-amber-500/20'
-          : activeCategory === 'twitter'
-          ? 'bg-gradient-to-r from-sky-600/20 via-blue-600/20 to-indigo-600/20'
-          : activeCategory === 'pinterest'
-          ? 'bg-gradient-to-r from-red-600/20 via-rose-600/20 to-pink-600/20'
-          : activeCategory === 'tiktok'
-          ? 'bg-gradient-to-r from-cyan-600/20 via-sky-600/20 to-pink-500/20'
-          : 'bg-gradient-to-r from-rose-600/20 via-purple-600/20 to-amber-500/20'
-      }`} />
+    <section className="w-full max-w-4xl mx-auto px-4 pt-8 pb-12 sm:pt-12 sm:pb-16 text-center">
+      
+      {/* Platform Chips / Segmented Control */}
+      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mb-8">
+        {platforms.map(p => {
+          const Icon = p.icon;
+          const isSelected = currentActivePlatform === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => {
+                setActiveCategory(p.id);
+              }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 border ${
+                isSelected
+                  ? 'bg-[var(--primary)] text-[var(--on-primary)] border-[var(--border-strong)] shadow-sm'
+                  : 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--text)] hover:text-[var(--text)]'
+              }`}
+            >
+              {Icon && <Icon className="w-3.5 h-3.5" />}
+              <span>{p.label}</span>
+            </button>
+          );
+        })}
+      </div>
 
-      <div className="max-w-4xl mx-auto px-4 text-center relative z-10">
-
-        {/* Platform-Themed Badge */}
-        <div className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-semibold mb-5 shadow-inner transition ${
-          activeCategory === 'facebook'
-            ? 'bg-blue-500/10 border-blue-500/25 text-blue-400'
-            : activeCategory === 'instagram'
-            ? 'bg-pink-500/10 border-pink-500/25 text-pink-400'
-            : activeCategory === 'twitter'
-            ? 'bg-sky-500/10 border-sky-500/25 text-sky-400'
-            : activeCategory === 'pinterest'
-            ? 'bg-red-500/10 border-red-500/25 text-red-400'
-            : activeCategory === 'tiktok'
-            ? 'bg-cyan-500/10 border-cyan-500/25 text-cyan-400'
-            : 'bg-rose-500/10 border-rose-500/25 text-rose-400'
-        }`}>
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>{info.badge}</span>
-        </div>
-
-        {/* Main Title */}
-        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-[1.1] mb-3">
-          {info.title}
+      {/* Main Headline (H1) & Description */}
+      <div className="space-y-3 mb-8">
+        <h1 className="base-display text-[var(--text)] text-3xl sm:text-4xl lg:text-5xl tracking-tight">
+          {pageH1 || 'Social Video & Image Downloader'}
         </h1>
-
-        {/* Dynamic Gradient Subtitle */}
-        <p className={`text-base sm:text-xl font-bold bg-clip-text text-transparent mb-3 ${
-          activeCategory === 'facebook'
-            ? 'bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-300'
-            : activeCategory === 'instagram'
-            ? 'bg-gradient-to-r from-pink-400 via-rose-300 to-amber-300'
-            : activeCategory === 'twitter'
-            ? 'bg-gradient-to-r from-sky-400 via-blue-300 to-indigo-300'
-            : activeCategory === 'pinterest'
-            ? 'bg-gradient-to-r from-red-400 via-rose-300 to-pink-300'
-            : activeCategory === 'tiktok'
-            ? 'bg-gradient-to-r from-cyan-400 via-teal-300 to-pink-400'
-            : 'bg-gradient-to-r from-rose-400 via-pink-400 to-amber-300'
-        }`}>
-          {info.gradient}
+        <p className="base-paragraph text-[var(--text-muted)] max-w-2xl mx-auto text-sm sm:text-base">
+          {pageDesc || 'Download videos and original-resolution photos from Twitter/X, YouTube, Facebook, Instagram, and TikTok in seconds. 100% free with no sign-up.'}
         </p>
+      </div>
 
-        {/* Description */}
-        <p className="text-slate-400 text-xs sm:text-sm max-w-2xl mx-auto mb-7 leading-relaxed">
-          {info.desc}
-        </p>
+      {/* URL Input Form Group */}
+      <div className="w-full max-w-3xl mx-auto">
+        <div className="relative flex flex-col sm:flex-row items-stretch gap-2 p-1.5 sm:p-2 bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-xl sm:rounded-2xl shadow-[var(--shadow-2)] transition-all focus-within:ring-2 focus-within:ring-[var(--accent)]">
+          
+          {/* Main Input */}
+          <div className="relative flex-1 flex items-center min-w-0">
+            <input
+              ref={inputRef}
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Paste X/Twitter, YouTube, Facebook, Instagram, or TikTok link..."
+              className="w-full bg-transparent text-[var(--text)] text-sm sm:text-base font-medium px-4 py-3 placeholder-[var(--text-muted)] outline-none border-none"
+              aria-label="Social media post or media link"
+              autoComplete="off"
+              spellCheck="false"
+            />
 
-        {/* YouTube Tool Suite Pills */}
-        {activeCategory === 'youtube' && (
-          <YouTubePills activeSubfeature={activeSubfeature} />
-        )}
+            {/* Clear Button (shown when text present) */}
+            {url && (
+              <button
+                type="button"
+                onClick={() => {
+                  setUrl('');
+                  if (onClear) onClear();
+                  if (inputRef.current) inputRef.current.focus();
+                }}
+                className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text)] rounded-full hover:bg-[var(--bg-alt)] transition-colors mr-1"
+                aria-label="Clear input"
+                title="Clear"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
 
-        {/* Facebook Tool Suite Pills */}
-        {activeCategory === 'facebook' && (
-          <FacebookPills activeSubfeature={activeSubfeature} />
-        )}
-
-        {/* Instagram Tool Suite Pills */}
-        {activeCategory === 'instagram' && (
-          <InstagramPills activeSubfeature={activeSubfeature} />
-        )}
-
-        {/* Twitter / X Tool Suite Pills */}
-        {activeCategory === 'twitter' && (
-          <TwitterPills activeSubfeature={activeSubfeature} />
-        )}
-
-        {/* Pinterest Tool Suite Pills */}
-        {activeCategory === 'pinterest' && (
-          <PinterestPills activeSubfeature={activeSubfeature} />
-        )}
-
-        {/* Big Input Bar */}
-        <div className={`max-w-3xl mx-auto bg-slate-900/90 border border-slate-700/80 p-2 sm:p-2.5 rounded-2xl sm:rounded-3xl shadow-2xl backdrop-blur-md transition duration-300 ${
-          activeCategory === 'facebook'
-            ? 'focus-within:border-blue-500/80 focus-within:ring-4 focus-within:ring-blue-500/10'
-            : activeCategory === 'instagram'
-            ? 'focus-within:border-pink-500/80 focus-within:ring-4 focus-within:ring-pink-500/10'
-            : activeCategory === 'twitter'
-            ? 'focus-within:border-sky-500/80 focus-within:ring-4 focus-within:ring-sky-500/10'
-            : activeCategory === 'pinterest'
-            ? 'focus-within:border-red-500/80 focus-within:ring-4 focus-within:ring-red-500/10'
-            : activeCategory === 'tiktok'
-            ? 'focus-within:border-cyan-500/80 focus-within:ring-4 focus-within:ring-cyan-500/10'
-            : 'focus-within:border-rose-500/80 focus-within:ring-4 focus-within:ring-rose-500/10'
-        }`}>
-          <div className="flex flex-col sm:flex-row items-center gap-2">
-            {/* Input with icon */}
-            <div className="flex items-center gap-3 px-3 py-2 flex-1 w-full">
-              <span className="shrink-0">
-                {activeCategory === 'youtube' ? (
-                  <YoutubeIcon className="w-5 h-5 text-red-500" />
-                ) : activeCategory === 'twitter' ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setUrl('https://x.com/NASA/status/1880315758837330278')}
-                className="px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 transition cursor-pointer font-medium"
-                title="NASA X (Twitter) Video Sample"
-              >
-                🚀 NASA Tweet (Video)
-              </button>
-              <button
-                type="button"
-                onClick={() => setUrl('https://x.com/SpaceX/status/1880000000000000000')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-                title="SpaceX Tweet"
-              >
-                🛰️ SpaceX (Clip)
-              </button>
-              <button
-                type="button"
-                onClick={() => setUrl('@NASA')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-                title="NASA Profile Handle"
-              >
-                👤 @NASA (Profile DP)
-              </button>
-            </>
-          ) : activeCategory === 'facebook' ? (
-                  <FacebookIcon className="w-5 h-5 text-blue-500" />
-                ) : activeCategory === 'instagram' ? (
-                  <InstagramIcon className="w-5 h-5 text-pink-500" />
-                ) : activeCategory === 'twitter' ? (
-                  <TwitterXIcon className="w-5 h-5 text-sky-400" />
-                ) : activeCategory === 'pinterest' ? (
-                  <PinterestIcon className="w-5 h-5 text-red-500" />
-                ) : activeCategory === 'tiktok' ? (
-                  <TiktokIcon className="w-5 h-5 text-cyan-400" />
-                ) : (
-                  <Download className="w-5 h-5 text-slate-400" />
-                )}
-              </span>
-              <input
-                type="text"
-                value={safeUrl}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={getPlaceholder()}
-                className="w-full bg-transparent text-white placeholder-slate-500 text-xs sm:text-sm focus:outline-none"
-              />
-            </div>
-
-            {/* Buttons */}
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-              <button
-                type="button"
-                onClick={onPaste}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition cursor-pointer"
-                title="Paste from clipboard"
-              >
-                <Clipboard className="w-3.5 h-3.5" />
-                <span>Paste</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onFetch()}
-                disabled={loading || !safeUrl || !safeUrl.trim()}
-                className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
-                  activeCategory === 'facebook'
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-600/30'
-                    : activeCategory === 'instagram'
-                    ? 'bg-gradient-to-r from-fuchsia-600 to-rose-600 hover:opacity-90 shadow-pink-600/30'
-                    : activeCategory === 'twitter'
-                    ? 'bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:opacity-90 shadow-sky-600/30'
-                    : activeCategory === 'pinterest'
-                    ? 'bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 hover:opacity-90 shadow-red-600/30'
-                    : activeCategory === 'tiktok'
-                    ? 'bg-gradient-to-r from-cyan-600 to-pink-600 hover:opacity-90 shadow-cyan-600/30'
-                    : 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 shadow-rose-600/30'
-                }`}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Extracting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    <span>Fetch Media</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Error notification */}
-        {error && (
-          <div className="mt-4 max-w-xl mx-auto flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-left animate-in fade-in duration-200">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Quick Example Chips */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-6 text-xs text-slate-400">
-          <span className="text-slate-500 font-medium">Quick samples:</span>
-          {activeCategory === 'youtube' ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setUrl('https://www.youtube.com/watch?v=lcM52t9Jr2s')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-                title="Dhrusa Vlogs Ganpati Idol Video"
-              >
-                ▶️ Dhrusa Vlogs (Video)
-              </button>
-              <button
-                type="button"
-                onClick={() => setUrl('https://www.youtube.com/shorts/h8o1zI7hU1A')}
-                className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 transition cursor-pointer font-medium"
-                title="Dhrusa Vlogs Saptashrungi Mata Shorts"
-              >
-                ⚡ Saptashrungi Shorts
-              </button>
-              <button
-                type="button"
-                onClick={() => setUrl('https://www.youtube.com/watch?v=uI3NLu5bXDg')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-                title="Epic Bharat Tandava Video"
-              >
-                ▶️ Epic Bharat (Video)
-              </button>
-              <button
-                type="button"
-                onClick={() => setUrl('https://www.youtube.com/shorts/HzUZotoLhGM')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-                title="Digital Immortals Nav Durga Shorts"
-              >
-                ⚡ Digital Immortals
-              </button>
-              <button
-                type="button"
-                onClick={() => setUrl('https://www.youtube.com/watch?v=P1l5Br04fTM')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-                title="Indian Horror Tapes Video"
-              >
-                ▶️ Indian Horror Tapes
-              </button>
-              <Link
-                to="/youtube/top-100-youtube-channels"
-                className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition font-semibold"
-              >
-                View Top 100 Channels &rarr;
-              </Link>
-            </>
-          ) : activeCategory === 'facebook' ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setUrl('https://www.facebook.com/share/r/1Cq6zJtM5y/')}
-                className="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 transition cursor-pointer font-medium"
-                title="Jai Saptashrungi Mata Facebook Reel"
-              >
-                🎬 Saptashrungi Reel
-              </button>
-              <button
-                type="button"
-                onClick={() => setUrl('https://www.facebook.com/profile.php?id=61591856780218')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-                title="Dhrusa Vlogs Facebook Page"
-              >
-                👤 Dhrusa Vlogs (Profile)
-              </button>
-              <button
-                type="button"
-                onClick={() => setUrl('https://www.facebook.com/watch/?v=1646670223674007')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-                title="Facebook Watch Video"
-              >
-                📹 Facebook Video
-              </button>
-              <Link
-                to="/facebook/top-100-facebook-pages"
-                className="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 transition font-semibold"
-              >
-                Top 100 Pages &rarr;
-              </Link>
-            </>
-          ) : activeCategory === 'instagram' ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setUrl('https://www.instagram.com/cristiano/')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-                title="Cristiano Ronaldo Profile / Avatar"
-              >
-                📸 Cristiano (Profile)
-              </button>
-              <button
-                type="button"
-                onClick={() => setUrl('https://www.instagram.com/reel/C8qXbO_I7Zq/')}
-                className="px-2.5 py-1 rounded-lg bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 border border-pink-500/30 transition cursor-pointer font-medium"
-                title="Viral Instagram Reel"
-              >
-                ⚡ Viral Reel
-              </button>
-              <button
-                type="button"
-                onClick={() => setUrl('https://www.instagram.com/p/C9wXbO_I123/')}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
-                title="Photo / Carousel Post"
-              >
-                🖼️ Photo Post
-              </button>
-              <Link
-                to="/instagram/top-100-instagram-accounts"
-                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 text-pink-300 border border-pink-500/30 transition font-semibold"
-              >
-                Top 100 Accounts &rarr;
-              </Link>
-            </>
-          ) : (
+            {/* Paste Button */}
             <button
               type="button"
-              onClick={() => setUrl('https://www.tiktok.com/@tiktok/video/7106594312292453678')}
-              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+              onClick={handlePaste}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[var(--text)] bg-[var(--bg-alt)] border border-[var(--border)] rounded-lg hover:border-[var(--border-strong)] transition-all mr-1"
+              title="Paste from clipboard"
             >
-              TikTok Video Sample
+              <Clipboard className="w-3.5 h-3.5" />
+              <span>Paste</span>
             </button>
-          )}
+          </div>
+
+          {/* Primary Action Button */}
+          <button
+            type="button"
+            onClick={() => onFetch()}
+            disabled={loading}
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg sm:rounded-xl font-bold text-sm sm:text-base bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Resolving...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                <span>Fetch Media</span>
+              </>
+            )}
+          </button>
         </div>
+
+        {/* Notice for multiple URLs extracted */}
+        {pasteNotice && (
+          <div className="mt-2 text-xs font-medium text-[var(--text-muted)] text-left px-2">
+            💡 {pasteNotice}
+          </div>
+        )}
+
+        {/* Inline Error Notification Banner */}
+        {error && (
+          <div 
+            role="alert"
+            className="mt-4 p-4 rounded-xl border border-[var(--negative)] bg-[var(--negative-bg)] text-left flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-150"
+          >
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-[var(--negative)] shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-[var(--text)]">
+                  {errorCode ? getErrorMessage(errorCode, error) : error}
+                </p>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Check that the post is public, contains media, and the link was copied correctly.
+                </p>
+              </div>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => onFetch()}
+              className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors shrink-0"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Retry</span>
+            </button>
+          </div>
+        )}
+
       </div>
     </section>
   );
