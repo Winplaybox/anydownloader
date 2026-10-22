@@ -6,7 +6,9 @@
     "dev": "vite dev.html",
     "build": "vite build && node scripts/copy-build.js",
     "preview": "vite preview",
-    "backend": "python backend/main.py"
+    "backend": "python backend/main.py",
+    "check:extractors": "python scripts/check_extractors.py",
+    "test": "python -m unittest discover tests"
   },
   "dependencies": {
     "clsx": "^2.1.1",

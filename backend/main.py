@@ -1,3 +1,7 @@
+from backend.utils.errors import AppError, ErrorCode, error_response
+from backend.utils.url_normalizer import normalize_url
+from backend.utils.security import verify_download_token
+from backend.extractors.registry import registry
 import html
 import os
 import re
@@ -29,7 +33,7 @@ from starlette.middleware.cors import CORSMiddleware
 ALLOWED_ORIGINS = [
     o.strip() for o in os.environ.get(
         "ALLOWED_ORIGINS",
-        "https://ovd.winplaybox.in,https://winplaybox.in,http://localhost:5173,http://localhost:3000"
+        "https://ovd.winplaybox.in,https://winplaybox.in,http://localhost:5173,http://localhost:3000,http://testserver"
     ).split(",") if o.strip()
 ]
 EXTENSION_SECRET_KEY = os.environ.get("EXTENSION_SECRET_KEY", "wpb_ext_9f83e2a74c1048b9ad51f63cb7e90812")
@@ -2254,7 +2258,7 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
-        if request.url.path in ("/", "/health", "/api/health", "/api/stream", "/api/download_video", "/api/download_audio"):
+        if request.url.path in ("/", "/health", "/api/health", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio"):
             return await call_next(request)
 
         # 3. Verify origin, referer, or extension secret key
@@ -2285,7 +2289,100 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             status_code=403
         )
 
+
+async def resolve_handler(request):
+    try:
+        body = await request.json()
+    except Exception:
+        return error_response(ErrorCode.URL_MISSING, "Paste a link to get started.")
+
+    raw_url = body.get("url") or body.get("link") or body.get("input")
+    if not raw_url:
+        return error_response(ErrorCode.URL_MISSING, "Paste a link to get started.")
+
+    try:
+        norm = normalize_url(raw_url)
+    except AppError as e:
+        return e.to_response()
+    except Exception:
+        return error_response(ErrorCode.URL_INVALID, "That doesn't look like a valid link.")
+
+    extractor = registry.get(norm["platform"]) or registry.find_for_url(norm["url"])
+    if not extractor:
+        return error_response(
+            ErrorCode.PLATFORM_UNSUPPORTED,
+            "This site isn't supported yet. Supported: X, YouTube, Facebook, Instagram, TikTok."
+        )
+
+    try:
+        result = await extractor.resolve(norm["url"])
+        return JSONResponse({"ok": True, "data": result.to_dict()})
+    except AppError as e:
+        return e.to_response()
+    except Exception as e:
+        return error_response(ErrorCode.INTERNAL, "Something went wrong on our side.", retryable=True)
+
+async def download_proxy_handler(request):
+    token = request.query_params.get("token")
+    if not token:
+        return error_response(ErrorCode.URL_INVALID, "Download token is required.")
+
+    payload = verify_download_token(token)
+    if not payload:
+        return error_response(ErrorCode.PRIVATE_OR_RESTRICTED, "Download token is invalid or expired.")
+
+    target_url = payload["variant_url"]
+    filename = payload.get("filename") or "download.mp4"
+    safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")[:100]
+
+    req_headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "*/*",
+    }
+    if "range" in request.headers:
+        req_headers["range"] = request.headers["range"]
+
+    client = httpx.AsyncClient(headers=req_headers, follow_redirects=True, timeout=90.0)
+
+    try:
+        upstream_req = client.build_request("GET", target_url)
+        upstream_resp = await client.send(upstream_req, stream=True)
+    except Exception:
+        await client.aclose()
+        return error_response(ErrorCode.UPSTREAM_FAILED, "The platform didn't respond. Try again.")
+
+    async def stream_generator():
+        try:
+            async for chunk in upstream_resp.aiter_bytes(chunk_size=65536):
+                yield chunk
+        except Exception:
+            pass
+        finally:
+            await upstream_resp.aclose()
+            await client.aclose()
+
+    resp_headers = {
+        "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8\'\'{urllib.parse.quote(safe_filename)}',
+        "Cache-Control": "private, max-age=300",
+    }
+    if "content-type" in upstream_resp.headers:
+        resp_headers["Content-Type"] = upstream_resp.headers["Content-Type"]
+    if "content-length" in upstream_resp.headers:
+        resp_headers["Content-Length"] = upstream_resp.headers["Content-Length"]
+    if "content-range" in upstream_resp.headers:
+        resp_headers["Content-Range"] = upstream_resp.headers["Content-Range"]
+    if "accept-ranges" in upstream_resp.headers:
+        resp_headers["Accept-Ranges"] = upstream_resp.headers["Accept-Ranges"]
+
+    return StreamingResponse(
+        stream_generator(),
+        status_code=upstream_resp.status_code,
+        headers=resp_headers
+    )
+
 routes = [
+    Route('/api/resolve', resolve_handler, methods=['POST']),
+    Route('/api/download', download_proxy_handler, methods=['GET']),
     Route("/", health_handler, methods=["GET"]),
     Route("/health", health_handler, methods=["GET"]),
     Route("/api/health", health_handler, methods=["GET"]),

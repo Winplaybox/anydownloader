@@ -1,51 +1,68 @@
-import React from 'react';
-
-const FAQS = [
-  {
-    q: 'Is AnyDownloader completely free to use?',
-    a: 'Yes, AnyDownloader is 100% free with no hidden charges, no software installation, and no subscription required.'
-  },
-  {
-    q: 'Does it support downloading TikTok videos without watermark?',
-    a: 'Yes! When you paste a TikTok URL, our Python backend extracts the clean HD MP4 stream without the TikTok watermark.'
-  },
-  {
-    q: 'Can I download audio as MP3?',
-    a: 'Absolutely. Every video supports extraction to MP3 audio up to 320 kbps high-fidelity quality.'
-  },
-  {
-    q: 'Where are the downloaded files saved?',
-    a: 'Files are saved directly to your device\'s default "Downloads" folder (on Android, iPhone/iPad, Mac, and Windows PC).'
-  },
-  {
-    q: 'Do I need to install any app or extension?',
-    a: 'No, AnyDownloader works directly in any modern browser including Chrome, Safari, Edge, Firefox, and Brave on all devices.'
-  }
-];
+import React, { useState } from 'react';
+import { ChevronDown, HelpCircle } from 'lucide-react';
 
 export default function Faq() {
+  const [openIdx, setOpenIdx] = useState(0);
+
+  const faqs = [
+    {
+      q: 'Which platforms are supported in OVD Phase 1?',
+      a: 'OVD supports public videos and images from Twitter/X, YouTube, Facebook, Instagram, and TikTok. Other sites like Pinterest and Reddit will be added in upcoming phases.'
+    },
+    {
+      q: 'Is there any download limit or subscription fee?',
+      a: 'No. OVD is 100% free with unlimited downloads for all users. No registration, account creation, or payment is required.'
+    },
+    {
+      q: 'Can I download Twitter multi-image posts and Instagram carousels?',
+      a: 'Yes. OVD parses 4-image tweets and Instagram photo/video carousels so you can download individual photos in original resolution or download all items with one click.'
+    },
+    {
+      q: 'Can I download private, age-restricted, or DRM-protected content?',
+      a: 'No. OVD strictly respects privacy and copyright protections. Only public posts that do not require private logins or DRM decryption can be resolved.'
+    },
+    {
+      q: 'Are the downloads safe and direct?',
+      a: 'Yes. All downloads are proxied through cryptographically signed HMAC tokens with strict SSRF protection and direct streaming.'
+    }
+  ];
+
   return (
-    <section id="faq" className="py-16 max-w-4xl mx-auto px-4">
-      <div className="text-center mb-10">
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
+    <section className="w-full max-w-4xl mx-auto px-4 py-16 border-t border-[var(--border)]">
+      <div className="text-center space-y-2 mb-10">
+        <h2 className="base-heading text-2xl sm:text-3xl font-extrabold text-[var(--text)]">
           Frequently Asked Questions
         </h2>
-        <p className="text-slate-400 text-sm">
-          Everything you need to know about using AnyDownloader.
+        <p className="base-paragraph text-sm sm:text-base text-[var(--text-muted)]">
+          Everything you need to know about downloading videos and images with OVD.
         </p>
       </div>
 
-      <div className="space-y-4">
-        {FAQS.map((f, idx) => (
-          <div key={idx} className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-            <h3 className="font-bold text-white text-sm sm:text-base mb-2">
-              {f.q}
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-              {f.a}
-            </p>
-          </div>
-        ))}
+      <div className="space-y-3">
+        {faqs.map((faq, idx) => {
+          const isOpen = openIdx === idx;
+          return (
+            <div 
+              key={idx}
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden transition-colors"
+            >
+              <button
+                type="button"
+                onClick={() => setOpenIdx(isOpen ? null : idx)}
+                className="w-full flex items-center justify-between p-4 sm:p-5 text-left font-bold text-base text-[var(--text)] hover:bg-[var(--bg-alt)] transition-colors"
+              >
+                <span>{faq.q}</span>
+                <ChevronDown className={`w-5 h-5 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isOpen && (
+                <div className="px-5 pb-5 pt-1 text-sm text-[var(--text-muted)] leading-relaxed border-t border-[var(--border)]/50 animate-in fade-in duration-150">
+                  {faq.a}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
