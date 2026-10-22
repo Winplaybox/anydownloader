@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { 
   Download, 
   Clipboard, 
@@ -141,7 +141,7 @@ export default function HeroDownloader({
 
       {/* URL Input Form Group */}
       <div className="w-full max-w-3xl mx-auto">
-        <div className="relative flex flex-col sm:flex-row items-stretch gap-2 p-1.5 sm:p-2 bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-xl sm:rounded-2xl shadow-[var(--shadow-2)] transition-all focus-within:ring-2 focus-within:ring-[var(--accent)]">
+        <div className="relative flex flex-col sm:flex-row items-stretch gap-2 p-1.5 sm:p-2 bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-xl sm:rounded-2xl shadow-[var(--shadow-2)] transition-all ovd-input-wrapper">
           
           {/* Main Input */}
           <div className="relative flex-1 flex items-center min-w-0">
@@ -151,7 +151,7 @@ export default function HeroDownloader({
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Paste X/Twitter, YouTube, Facebook, Instagram, or TikTok link..."
+              placeholder="Paste any social media or video link to download..."
               className="w-full bg-transparent text-[var(--text)] text-sm sm:text-base font-medium px-4 py-3 placeholder-[var(--text-muted)] outline-none border-none"
               aria-label="Social media post or media link"
               autoComplete="off"
@@ -211,7 +211,7 @@ export default function HeroDownloader({
         {/* Notice for multiple URLs extracted */}
         {pasteNotice && (
           <div className="mt-2 text-xs font-medium text-[var(--text-muted)] text-left px-2">
-            💡 {pasteNotice}
+            ðŸ’¡ {pasteNotice}
           </div>
         )}
 
@@ -248,3 +248,4 @@ export default function HeroDownloader({
     </section>
   );
 }
+

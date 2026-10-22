@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 :root {
   --bg: #FFFFFF;
@@ -102,15 +102,26 @@ html[data-theme='light'] {
     padding: 0;
     font-family: var(--font);
   }
+  /* Remove browser default focus ring — custom rings applied per-component */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+  }
+  /* Keyboard-only focus indicator (not shown on mouse/touch click) */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  /* Never show browser outline on inputs inside our custom wrapper */
+  .ovd-input-wrapper input:focus-visible,
+  .ovd-input-wrapper input:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
 }
 
-/* Base Web Focus Ring Token */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* Typography styles matching Base Web */
+/* Typography */
 .base-display {
   font-size: 40px;
   line-height: 48px;
@@ -147,12 +158,11 @@ html[data-theme='light'] {
   line-height: 16px;
 }
 
-/* Base Web Input & Button transitions */
 button, input, select {
   font-family: inherit;
 }
 
-/* Custom Base Scrollbar */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -166,4 +176,13 @@ button, input, select {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
+}
+
+/* Input wrapper active state — single clean border glow */
+.ovd-input-wrapper {
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ovd-input-wrapper:focus-within {
+  border-color: var(--border-strong) !important;
+  box-shadow: 0 0 0 3px rgba(39,110,241,0.12);
 }
