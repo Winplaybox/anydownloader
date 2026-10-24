@@ -6,7 +6,9 @@ const SHORT_DOMAINS = new Set([
   'fb.watch',
   'vm.tiktok.com',
   'vt.tiktok.com',
-  'instagr.am'
+  'instagr.am',
+  'pin.it',
+  'redd.it'
 ]);
 
 const STRIP_PARAMS = new Set([
@@ -20,7 +22,7 @@ export function extractFirstUrl(text) {
   return match ? match[0].replace(/[.,;!?:)]+$/, '') : null;
 }
 
-export function normalizeUrl(rawInput) {
+export function normalizeUrl(rawInput, allowGeneric = true) {
   if (!rawInput || !rawInput.trim()) {
     return { ok: false, code: ErrorCode.URL_MISSING, error: 'Paste a link to get started.' };
   }
@@ -53,7 +55,7 @@ export function normalizeUrl(rawInput) {
     return { ok: false, code: ErrorCode.URL_INVALID, error: "That doesn't look like a valid link." };
   }
 
-  let platform = null;
+  let platform = 'generic';
 
   // Twitter / X
   if (['twitter.com', 'mobile.twitter.com', 'www.twitter.com', 'fxtwitter.com', 'vxtwitter.com', 'fixupx.com', 'x.com'].includes(host)) {
@@ -89,11 +91,27 @@ export function normalizeUrl(rawInput) {
     platform = 'tiktok';
     host = 'www.tiktok.com';
   }
-  else {
+  // Pinterest
+  else if (['pinterest.com', 'www.pinterest.com', 'pin.it'].some(d => host.includes(d))) {
+    platform = 'pinterest';
+  }
+  // Reddit
+  else if (['reddit.com', 'www.reddit.com', 'redd.it'].some(d => host.includes(d))) {
+    platform = 'reddit';
+  }
+  // Threads
+  else if (['threads.net', 'www.threads.net'].some(d => host.includes(d))) {
+    platform = 'threads';
+  }
+  // Vimeo
+  else if (['vimeo.com', 'www.vimeo.com'].some(d => host.includes(d))) {
+    platform = 'vimeo';
+  }
+  else if (!allowGeneric) {
     return {
       ok: false,
       code: ErrorCode.PLATFORM_UNSUPPORTED,
-      error: "This site isn't supported yet. Supported: X, YouTube, Facebook, Instagram, TikTok."
+      error: "This site isn't supported yet. Supported: X, YouTube, Facebook, Instagram, TikTok, Pinterest, Reddit, Vimeo."
     };
   }
 

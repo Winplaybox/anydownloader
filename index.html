@@ -2,7 +2,9 @@
 <html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
     <!-- Primary Meta Tags -->
@@ -41,6 +43,23 @@
     {
       "@context": "https://schema.org",
       "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://ovd.winplaybox.in/#organization",
+          "name": "OVD Downloader",
+          "url": "https://ovd.winplaybox.in/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://ovd.winplaybox.in/logo.png",
+            "width": 512,
+            "height": 512
+          },
+          "image": "https://ovd.winplaybox.in/logo.png",
+          "sameAs": [
+            "https://twitter.com/winplaybox",
+            "https://github.com/Winplaybox/anydownloader"
+          ]
+        },
         {
           "@type": "WebApplication",
           "@id": "https://ovd.winplaybox.in/#app",
@@ -109,8 +128,8 @@
       ]
     }
     </script>
-    <script type="module" crossorigin src="/assets/app-B67JoiPN.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/style-CHtgfKbe.css">
+    <script type="module" crossorigin src="/assets/app-C_i9A0Ce.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/style-C0Bga10q.css">
   </head>
   <body class="bg-[var(--bg)] text-[var(--text)] antialiased transition-colors duration-150">
     <!-- Prerendered shell for search engine crawlers and instant perceived performance -->

@@ -4,7 +4,10 @@ import asyncio
 from typing import Dict, Any, List, Optional
 import yt_dlp
 
-from backend.utils.errors import AppError, ErrorCode
+try:
+    from backend.utils.errors import AppError, ErrorCode
+except ModuleNotFoundError:
+    from utils.errors import AppError, ErrorCode
 from backend.extractors.base import (
     BaseExtractor,
     ResolveResult,

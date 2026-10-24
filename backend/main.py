@@ -1,7 +1,22 @@
-from backend.utils.errors import AppError, ErrorCode, error_response
-from backend.utils.url_normalizer import normalize_url
-from backend.utils.security import verify_download_token
-from backend.extractors.registry import registry
+import os
+import sys
+
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_parent_dir = os.path.dirname(_current_dir)
+for _p in (_current_dir, _parent_dir):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+try:
+    from backend.utils.errors import AppError, ErrorCode, error_response
+    from backend.utils.url_normalizer import normalize_url
+    from backend.utils.security import verify_download_token
+    from backend.extractors.registry import registry
+except ModuleNotFoundError:
+    from utils.errors import AppError, ErrorCode, error_response
+    from utils.url_normalizer import normalize_url
+    from utils.security import verify_download_token
+    from extractors.registry import registry
 import html
 import os
 import re

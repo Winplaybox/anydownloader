@@ -11,6 +11,8 @@ SHORT_DOMAINS = {
     "vm.tiktok.com",
     "vt.tiktok.com",
     "instagr.am",
+    "pin.it",
+    "redd.it",
 }
 
 STRIP_PARAMS = {
@@ -22,22 +24,23 @@ def extract_first_url(text: str) -> Optional[str]:
     """Finds and extracts the first URL from a string with possible surrounding text."""
     if not text:
         return None
-    pattern = r"(https?://[^\s<>\"\']+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:/[^\s<>\"\']*)?)"
+    pattern = r"(https?://[^\s<>\"']+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:/[^\s<>\"']*)?)"
     url_m = re.search(pattern, text)
     if url_m:
         return url_m.group(0).rstrip(".,;!?:)")
     return None
 
-def normalize_url(raw_input: str, resolve_redirects: bool = True) -> Dict[str, Any]:
+def normalize_url(raw_input: str, resolve_redirects: bool = True, allow_generic: bool = False) -> Dict[str, Any]:
     """
-    Normalizes a social media URL across Twitter/X, YouTube, Facebook, Instagram, TikTok.
+    Normalizes a social media URL across Twitter/X, YouTube, Facebook, Instagram, TikTok,
+    Pinterest, Reddit, Threads, Vimeo, and optionally generic websites.
     """
     if not raw_input or not raw_input.strip():
         raise AppError(ErrorCode.URL_MISSING, "Paste a link to get started.")
 
     cleaned_text = raw_input.strip()
 
-    all_urls = re.findall(r"https?://[^\s<>\"\']+", cleaned_text)
+    all_urls = re.findall(r"https?://[^\s<>\"']+", cleaned_text)
     multiple_found = len(all_urls) > 1
 
     extracted = extract_first_url(cleaned_text)
@@ -104,10 +107,25 @@ def normalize_url(raw_input: str, resolve_redirects: bool = True) -> Dict[str, A
         platform = "tiktok"
         host = "www.tiktok.com"
 
+    elif "pinterest.com" in host or host == "pin.it":
+        platform = "pinterest"
+
+    elif "reddit.com" in host or host == "redd.it":
+        platform = "reddit"
+
+    elif "threads.net" in host:
+        platform = "threads"
+
+    elif "vimeo.com" in host or "dailymotion.com" in host or "soundcloud.com" in host:
+        platform = "generic"
+
+    elif allow_generic:
+        platform = "generic"
+
     else:
         raise AppError(
             ErrorCode.PLATFORM_UNSUPPORTED,
-            "This site isn't supported yet. Supported: X, YouTube, Facebook, Instagram, TikTok."
+            "This site isn't supported yet. Supported: X, YouTube, Facebook, Instagram, TikTok, Pinterest, Reddit."
         )
 
     qs = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)

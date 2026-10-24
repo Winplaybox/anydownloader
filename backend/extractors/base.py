@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Any, Literal
-from backend.utils.security import sign_download_token
+try:
+    from backend.utils.security import sign_download_token
+except ModuleNotFoundError:
+    from utils.security import sign_download_token
 
 MediaKind = Literal['video', 'image']
 

@@ -1,16 +1,21 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Sun, Moon, Newspaper, Sparkles } from 'lucide-react';
+import { Menu, X, Sun, Moon, Newspaper, ChevronDown } from 'lucide-react';
 import {
   TwitterXIcon,
   YoutubeIcon,
   FacebookIcon,
   InstagramIcon,
-  TiktokIcon
+  TiktokIcon,
+  PinterestIcon,
+  RedditIcon,
+  ThreadsIcon,
+  GlobeIcon
 } from './BrandIcons.jsx';
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
   const [theme, setTheme] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('ovd_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
@@ -32,13 +37,14 @@ export default function Header() {
 
   useEffect(() => {
     setMobileMenuOpen(false);
+    setMoreDropdownOpen(false);
   }, [location.pathname]);
 
   function toggleTheme() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   }
 
-  const navLinks = [
+  const primaryNavLinks = [
     { label: 'X (Twitter)', path: '/twitter-video-downloader', icon: TwitterXIcon },
     { label: 'YouTube', path: '/youtube-video-downloader', icon: YoutubeIcon },
     { label: 'Facebook', path: '/facebook-video-downloader', icon: FacebookIcon },
@@ -46,28 +52,33 @@ export default function Header() {
     { label: 'TikTok', path: '/tiktok-video-downloader', icon: TiktokIcon },
   ];
 
+  const secondaryNavLinks = [
+    { label: 'Pinterest', path: '/pinterest-video-downloader', icon: PinterestIcon },
+    { label: 'Reddit', path: '/reddit-video-downloader', icon: RedditIcon },
+    { label: 'Threads', path: '/threads-video-downloader', icon: ThreadsIcon },
+    { label: 'Any Website', path: '/any-website-downloader', icon: GlobeIcon },
+  ];
+
+  const isSecondaryActive = secondaryNavLinks.some(item => location.pathname === item.path);
+
   return (
     <header className="sticky top-0 z-50 bg-[var(--bg)]/95 backdrop-blur-md border-b border-[var(--border)] transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
 
-        {/* Brand Logo */}
-        <Link to="/" className="flex items-center gap-2.5 group rounded-lg p-1 focus:outline-none">
-          <div className="w-8 h-8 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] flex items-center justify-center font-black text-sm tracking-wider">
+        {/* Brand Logo - PURE TEXT OVD in White/Black Theme */}
+        <Link 
+          to="/" 
+          className="flex items-center gap-2 group p-1 focus:outline-none select-none"
+          title="OVD Downloader"
+        >
+          <span className="font-black text-2xl tracking-tighter text-[var(--text)] group-hover:opacity-80 transition-opacity">
             OVD
-          </div>
-          <div className="flex flex-col">
-            <span className="font-extrabold text-base tracking-tight text-[var(--text)]">
-              OVD Downloader
-            </span>
-            <span className="text-[10px] uppercase font-semibold tracking-wider text-[var(--text-muted)] -mt-1">
-              Social Media Downloader
-            </span>
-          </div>
+          </span>
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1 lg:gap-2">
-          {navLinks.map((item) => {
+        <nav className="hidden lg:flex items-center gap-1">
+          {primaryNavLinks.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             return (
@@ -85,7 +96,48 @@ export default function Header() {
               </Link>
             );
           })}
-          {/* Blog & Updates */}
+
+          {/* More Platforms Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMoreDropdownOpen(!moreDropdownOpen)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                isSecondaryActive
+                  ? 'bg-[var(--primary)] text-[var(--on-primary)] shadow-sm'
+                  : 'text-[var(--text)] hover:bg-[var(--bg-alt)] border border-transparent hover:border-[var(--border)]'
+              }`}
+            >
+              <span>More</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+
+            {moreDropdownOpen && (
+              <div className="absolute top-full right-0 mt-1.5 w-48 rounded-xl bg-[var(--surface)] border border-[var(--border)] shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                {secondaryNavLinks.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setMoreDropdownOpen(false)}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                          : 'text-[var(--text)] hover:bg-[var(--bg-alt)]'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-[var(--on-primary)]' : 'text-[var(--text-muted)]'}`} />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Blog */}
           <Link
             to="/blog"
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-150 ${
@@ -104,7 +156,7 @@ export default function Header() {
           <button
             onClick={toggleTheme}
             aria-label="Toggle color theme"
-            className="p-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--bg-alt)] transition-colors"
+            className="p-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--bg-alt)] transition-colors cursor-pointer"
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {theme === 'dark' ? (
@@ -118,7 +170,7 @@ export default function Header() {
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle mobile menu"
-            className="md:hidden p-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--bg-alt)] transition-colors"
+            className="lg:hidden p-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--bg-alt)] transition-colors cursor-pointer"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -127,39 +179,40 @@ export default function Header() {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-[var(--border)] bg-[var(--bg)] px-4 pt-2 pb-6 space-y-1">
+        <div className="lg:hidden border-b border-[var(--border)] bg-[var(--bg)] px-4 pt-2 pb-6 space-y-1">
           <div className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] px-3 py-2">
-            Platforms
+            Social Media Downloaders
           </div>
-          {navLinks.map((item) => {
+          {[...primaryNavLinks, ...secondaryNavLinks].map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             return (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
                   isActive
                     ? 'bg-[var(--primary)] text-[var(--on-primary)]'
                     : 'text-[var(--text)] hover:bg-[var(--bg-alt)]'
                 }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <Icon className="w-4 h-4" />
-                  <span>{item.label}</span>
-                </div>
-                <span className="text-xs opacity-60">Video & Photos</span>
+                <Icon className={`w-4 h-4 ${isActive ? 'text-[var(--on-primary)]' : 'text-[var(--text-muted)]'}`} />
+                <span>{item.label}</span>
               </Link>
             );
           })}
-          <div className="pt-2 border-t border-[var(--border)] mt-2 space-y-1">
-            <Link to="/blog" className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-[var(--text)] hover:bg-[var(--bg-alt)] transition-colors">
-              <Newspaper className="w-4 h-4" />
-              <span>Blog & Guides</span>
-            </Link>
-            <Link to="/updates" className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-[var(--text)] hover:bg-[var(--bg-alt)] transition-colors">
-              <Sparkles className="w-4 h-4" />
-              <span>Updates & Changelog</span>
+          
+          <div className="border-t border-[var(--border)] my-2 pt-2">
+            <Link
+              to="/blog"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                location.pathname === '/blog'
+                  ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                  : 'text-[var(--text)] hover:bg-[var(--bg-alt)]'
+              }`}
+            >
+              <Newspaper className="w-4 h-4 text-[var(--text-muted)]" />
+              <span>Blog & Articles</span>
             </Link>
           </div>
         </div>

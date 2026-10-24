@@ -1,4 +1,4 @@
-﻿import React, { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
@@ -11,6 +11,7 @@ import SecurityPage from './pages/SecurityPage.jsx';
 import BlogsPage from './pages/BlogsPage.jsx';
 import UpdatesPage from './pages/UpdatesPage.jsx';
 import { pagesConfig } from './data/pagesConfig.js';
+import { initAttribution } from './utils/attribution.js';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -22,8 +23,8 @@ function SEOHead() {
   const { pathname } = useLocation();
   useEffect(() => {
     const cleanPath = pathname.replace(/^\/+|\/+$/g, '');
-    let title = 'OVD - Free Social Video & Image Downloader (Twitter, YouTube, Facebook, Instagram, TikTok)';
-    let desc = 'Download public videos and images from any social media — Twitter/X, YouTube, Facebook, Instagram, TikTok, Pinterest and more. Fast, free, no login required.';
+    let title = 'OVD - Fast Social Video & Image Downloader (Twitter, YouTube, Facebook, Instagram, TikTok, Pinterest, Reddit)';
+    let desc = 'Download public videos and images from Twitter/X, YouTube, Facebook, Instagram, TikTok, Pinterest, Reddit and any website. 100% free with no sign-up.';
 
     if (cleanPath.includes('twitter') || cleanPath.includes('x-')) {
       title = 'Twitter/X Video & Photo Downloader - OVD';
@@ -40,6 +41,15 @@ function SEOHead() {
     } else if (cleanPath.includes('tiktok')) {
       title = 'TikTok Video Downloader Without Watermark - OVD';
       desc = 'Download high quality TikTok videos without watermark and save photo slideshows quickly.';
+    } else if (cleanPath.includes('pinterest')) {
+      title = 'Pinterest Video & Image Downloader - OVD';
+      desc = 'Download full resolution Pinterest videos, uncompressed original images, and GIFs for free.';
+    } else if (cleanPath.includes('reddit')) {
+      title = 'Reddit Video & Media Downloader - OVD';
+      desc = 'Download Reddit videos with clean synchronized audio and save full-resolution photo posts.';
+    } else if (cleanPath.includes('any-website') || cleanPath.includes('website')) {
+      title = 'Any Website Video & Image Downloader - OVD';
+      desc = 'Download videos, direct streams, and high-resolution photos from any public webpage across the web.';
     } else if (cleanPath.includes('blog')) {
       title = 'Blog - Tips & Guides for Downloading Videos - OVD';
       desc = 'Read the latest guides, tips, and how-tos on downloading videos and images from social media.';
@@ -60,6 +70,11 @@ function SEOHead() {
 }
 
 export default function App() {
+  // Initialize traffic origin & referrer attribution tracking
+  useEffect(() => {
+    initAttribution();
+  }, []);
+
   return (
     <BrowserRouter>
       <ScrollToTop />
@@ -115,6 +130,23 @@ export default function App() {
             <Route path="/tiktok-photo-downloader" element={<ToolPage config={pagesConfig['tiktok/tiktok-downloader']} />} />
             <Route path="/tiktok" element={<Navigate to="/tiktok-video-downloader" replace />} />
             <Route path="/tiktok/tiktok-downloader" element={<Navigate to="/tiktok-video-downloader" replace />} />
+
+            {/* Pinterest */}
+            <Route path="/pinterest-video-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-video-downloader']} />} />
+            <Route path="/pinterest-photo-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-photo-downloader']} />} />
+            <Route path="/pinterest" element={<Navigate to="/pinterest-video-downloader" replace />} />
+
+            {/* Threads */}
+            <Route path="/threads-video-downloader" element={<ToolPage config={pagesConfig['threads-video-downloader']} />} />
+            <Route path="/threads" element={<Navigate to="/threads-video-downloader" replace />} />
+
+            {/* Reddit */}
+            <Route path="/reddit-video-downloader" element={<ToolPage config={pagesConfig['reddit-video-downloader']} />} />
+            <Route path="/reddit" element={<Navigate to="/reddit-video-downloader" replace />} />
+
+            {/* Any Website */}
+            <Route path="/any-website-downloader" element={<ToolPage config={pagesConfig['any-website-downloader']} />} />
+            <Route path="/website-downloader" element={<Navigate to="/any-website-downloader" replace />} />
 
             {/* Legal & Static */}
             <Route path="/privacy" element={<PrivacyPolicyPage />} />

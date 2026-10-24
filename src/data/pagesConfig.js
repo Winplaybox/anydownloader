@@ -1026,4 +1026,105 @@ pagesConfig['x-profile-downloader'] = pagesConfig['twitter/twitter-profile-downl
 pagesConfig['x-dp-downloader'] = pagesConfig['twitter/twitter-profile-downloader'];
 pagesConfig['x'] = pagesConfig['twitter/twitter-downloader'];
 
+
+// --- REDDIT & ANY WEBSITE DOWNLAODER CONFIGS ---
+pagesConfig['reddit-video-downloader'] = {
+  title: 'Reddit Video Downloader with Audio (1080p MP4)',
+  h1: 'Reddit Video & Image Downloader',
+  description: 'Download Reddit videos with clean synchronized sound in 1080p/720p HD MP4 and save high-resolution photo galleries.',
+  badge: 'Download Reddit Videos with Sound in HD',
+  category: 'reddit',
+  subfeature: 'video',
+  guideTitle: 'Download Reddit Videos with Sound in 1080p HD',
+  guideIntro: 'Save videos from Reddit with audio tracks combined into a ready-to-share MP4 file.',
+  steps: [
+    {
+      step: 1,
+      title: 'Copy Reddit Post URL',
+      desc: 'Tap the Share icon on any Reddit post or comment thread and click Copy Link.'
+    },
+    {
+      step: 2,
+      title: 'Paste into OVD',
+      desc: 'Paste the reddit.com or redd.it link into the input bar above and click Fetch Media.'
+    },
+    {
+      step: 3,
+      title: 'Save HD MP4 with Audio',
+      desc: 'Choose your desired video quality and save the complete MP4 with full sound.'
+    }
+  ],
+  faqs: [
+    {
+      q: 'Does OVD download Reddit videos with sound?',
+      a: 'Yes! Reddit separates video and audio streams, but OVD automatically merges the audio track into the MP4 file.'
+    },
+    {
+      q: 'Can I download Reddit photo albums and galleries?',
+      a: 'Yes, multi-image Reddit galleries can be downloaded individually or saved in full resolution.'
+    }
+  ]
+};
+pagesConfig['reddit'] = pagesConfig['reddit-video-downloader'];
+
+pagesConfig['any-website-downloader'] = {
+  title: 'Universal Website Video & Image Downloader',
+  h1: 'Any Website Video & Image Downloader',
+  description: 'Download videos, direct streams, and original-resolution photos from any public webpage across the web. 100% free with no software installation.',
+  badge: 'Universal Web Media Extractor',
+  category: 'generic',
+  subfeature: 'web',
+  guideTitle: 'Download Videos and Images from Any Website',
+  guideIntro: 'Extract media from news websites, video blogs, portfolio sites, Vimeo, Dailymotion, and over 1,000 supported platforms.',
+  steps: [
+    {
+      step: 1,
+      title: 'Copy Webpage URL',
+      desc: 'Copy the URL of the webpage containing the video or images from your browser address bar.'
+    },
+    {
+      step: 2,
+      title: 'Paste into OVD',
+      desc: 'Paste the link into the search box above and click Fetch Media.'
+    },
+    {
+      step: 3,
+      title: 'Select & Download',
+      desc: 'Select from detected video resolutions or high-resolution images and download instantly.'
+    }
+  ],
+  faqs: [
+    {
+      q: 'Which websites are supported?',
+      a: 'OVD works with over 1,000 video websites (including Vimeo, Dailymotion, Loom, Streamable) and any webpage containing standard HTML5 videos or OpenGraph media.'
+    },
+    {
+      q: 'Is it completely free with no limits?',
+      a: 'Yes, OVD provides unlimited downloads with zero subscriptions or signups required.'
+    }
+  ]
+};
+pagesConfig['website-downloader'] = pagesConfig['any-website-downloader'];
+
+
+pagesConfig['threads-video-downloader'] = {
+  title: 'Threads Video & Image Downloader (HD MP4)',
+  h1: 'Threads Video & Photo Downloader',
+  description: 'Download Threads videos and high-resolution photos in original quality without watermarks. Fast, free, no login needed.',
+  badge: 'Download Threads Media in HD',
+  category: 'threads',
+  subfeature: 'video',
+  guideTitle: 'How to Download Threads Videos & Photos',
+  guideIntro: 'Save public videos, carousels, and original images from Instagram Threads directly to your device.',
+  steps: [
+    { step: 1, title: 'Copy Threads Link', desc: 'Tap the share or paper airplane icon on any Threads post and select Copy Link.' },
+    { step: 2, title: 'Paste into OVD', desc: 'Paste the threads.net URL into the box above and click Fetch Media.' },
+    { step: 3, title: 'Download Media', desc: 'Select video resolution or high-res photo and save instantly.' }
+  ],
+  faqs: [
+    { q: 'Is it free to download from Threads?', a: 'Yes, OVD provides 100% free unlimited downloads from Threads with zero signup.' }
+  ]
+};
+pagesConfig['threads'] = pagesConfig['threads-video-downloader'];
+
 export default pagesConfig;
