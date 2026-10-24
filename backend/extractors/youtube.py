@@ -18,6 +18,7 @@ try:
         MediaItem,
         MediaVariant,
         AuthorInfo,
+        MetricsInfo,
     )
 except (ModuleNotFoundError, ImportError):
     try:
@@ -27,6 +28,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
     except (ModuleNotFoundError, ImportError):
         from .base import (
@@ -35,6 +37,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
 
 class YouTubeExtractor(BaseExtractor):
@@ -86,11 +89,18 @@ class YouTubeExtractor(BaseExtractor):
             raise AppError(ErrorCode.UPSTREAM_FAILED, "The platform didn't respond. Try again.")
 
         title = info.get("title") or f"YouTube Video {video_id}"
+        caption = info.get("description") or title
         uploader = info.get("uploader") or info.get("channel")
+        handle = info.get("uploader_id") or info.get("channel_id") or uploader
         author_info = AuthorInfo(
             name=uploader,
-            handle=uploader,
+            handle=handle,
             avatar=info.get("thumbnail"),
+        )
+        metrics_info = MetricsInfo(
+            likes=info.get("like_count"),
+            comments=info.get("comment_count"),
+            views=info.get("view_count"),
         )
 
         items: List[MediaItem] = []
@@ -175,6 +185,8 @@ class YouTubeExtractor(BaseExtractor):
             platform=self.platform,
             sourceUrl=canonical_source,
             title=title,
+            caption=caption or title,
             author=author_info,
+            metrics=metrics_info,
             items=items
         )

@@ -2386,10 +2386,16 @@ async def resolve_handler(request):
                         "platform": norm["platform"],
                         "sourceUrl": norm["url"],
                         "title": legacy_data.get("title") or "Extracted Media",
+                        "caption": legacy_data.get("description") or legacy_data.get("title"),
                         "author": {
                             "name": legacy_data.get("uploader") or "Social Creator",
                             "handle": legacy_data.get("uploader") or "Social Creator",
                             "avatar": legacy_data.get("thumbnail")
+                        },
+                        "metrics": {
+                            "likes": legacy_data.get("like_count"),
+                            "comments": legacy_data.get("comment_count"),
+                            "views": legacy_data.get("views") or legacy_data.get("view_count")
                         },
                         "items": fallback_items
                     }

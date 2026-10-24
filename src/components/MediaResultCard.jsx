@@ -10,7 +10,14 @@ import {
   Layers, 
   Maximize2, 
   X,
-  Play
+  Play,
+  Heart,
+  MessageSquare,
+  Share2,
+  Eye,
+  BadgeCheck,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { 
   TwitterXIcon,
@@ -28,10 +35,23 @@ const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname =
   ? 'http://localhost:8000'
   : 'https://anydownloader-backend-vvbj.onrender.com';
 
+function formatMetricCount(val) {
+  if (val === undefined || val === null || val === '') return null;
+  if (typeof val === 'string' && (val.includes('K') || val.includes('M') || val.includes('B') || val.includes(','))) {
+    return val;
+  }
+  const num = Number(val);
+  if (isNaN(num) || num <= 0) return null;
+  if (num >= 1_000_000_000) return (num / 1_000_000_000).toFixed(1).replace(/\.0$/, '') + 'B';
+  if (num >= 1_000_000) return (num / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (num >= 1_000) return (num / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return num.toLocaleString();
+}
+
 export default function MediaResultCard({ data, onReset }) {
   if (!data) return null;
 
-  const { platform, title, author, items = [], sourceUrl } = data;
+  const { platform, title, caption, author, metrics, items = [], sourceUrl } = data;
   const isMultiItem = items.length > 1;
 
   // Selected quality per single video item
@@ -41,6 +61,15 @@ export default function MediaResultCard({ data, onReset }) {
   const [previewMedia, setPreviewMedia] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [isCaptionExpanded, setIsCaptionExpanded] = useState(false);
+
+  const formattedLikes = formatMetricCount(metrics?.likes);
+  const formattedComments = formatMetricCount(metrics?.comments);
+  const formattedShares = formatMetricCount(metrics?.shares);
+  const formattedViews = formatMetricCount(metrics?.views);
+  const hasAnyMetrics = Boolean(formattedLikes || formattedComments || formattedShares || formattedViews);
+  const displayCaption = caption || title || '';
+  const isCaptionLong = displayCaption.length > 180;
 
   function showToast(msg) {
     setToastMessage(msg);
@@ -129,10 +158,13 @@ export default function MediaResultCard({ data, onReset }) {
               </div>
             )}
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-base text-[var(--text)]">
                   {author?.name || (platform ? platform.toUpperCase() : 'Creator')}
                 </span>
+                {author?.verified && (
+                  <BadgeCheck className="w-4 h-4 text-sky-500 fill-sky-500/20" title="Verified" />
+                )}
                 {author?.handle && (
                   <span className="text-xs text-[var(--text-muted)] font-medium">
                     @{author.handle.replace(/^@/, '')}
@@ -177,12 +209,56 @@ export default function MediaResultCard({ data, onReset }) {
           </div>
         </div>
 
-        {/* Post Title / Caption */}
-        {title && (
-          <div className="px-4 sm:px-6 pt-4 pb-2">
-            <p className="text-sm sm:text-base font-semibold text-[var(--text)] line-clamp-2">
-              {title}
+        {/* Engagement Stats Strip */}
+        {hasAnyMetrics && (
+          <div className="px-4 sm:px-6 py-2.5 bg-[var(--bg-alt)]/60 border-b border-[var(--border)] flex flex-wrap items-center gap-2 sm:gap-3">
+            {formattedLikes && (
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text)] bg-[var(--surface)] px-2.5 py-1 rounded-lg border border-[var(--border)] shadow-xs">
+                <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500/20" />
+                <span>{formattedLikes} <span className="text-[var(--text-muted)] font-normal">Likes</span></span>
+              </div>
+            )}
+            {formattedComments && (
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text)] bg-[var(--surface)] px-2.5 py-1 rounded-lg border border-[var(--border)] shadow-xs">
+                <MessageSquare className="w-3.5 h-3.5 text-blue-500 fill-blue-500/20" />
+                <span>{formattedComments} <span className="text-[var(--text-muted)] font-normal">Comments</span></span>
+              </div>
+            )}
+            {formattedShares && (
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text)] bg-[var(--surface)] px-2.5 py-1 rounded-lg border border-[var(--border)] shadow-xs">
+                <Share2 className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{formattedShares} <span className="text-[var(--text-muted)] font-normal">Shares</span></span>
+              </div>
+            )}
+            {formattedViews && (
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text)] bg-[var(--surface)] px-2.5 py-1 rounded-lg border border-[var(--border)] shadow-xs">
+                <Eye className="w-3.5 h-3.5 text-amber-500" />
+                <span>{formattedViews} <span className="text-[var(--text-muted)] font-normal">Views</span></span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Post Caption / Description */}
+        {displayCaption && (
+          <div className="px-4 sm:px-6 pt-3.5 pb-3 border-b border-[var(--border)] bg-[var(--bg)]/30">
+            <p className={`text-xs sm:text-sm text-[var(--text)] leading-relaxed whitespace-pre-line ${!isCaptionExpanded && isCaptionLong ? 'line-clamp-2' : ''}`}>
+              {displayCaption}
             </p>
+            {isCaptionLong && (
+              <button
+                type="button"
+                onClick={() => setIsCaptionExpanded(!isCaptionExpanded)}
+                className="mt-1.5 text-xs font-semibold text-[var(--accent)] hover:opacity-80 inline-flex items-center gap-1 cursor-pointer transition-opacity"
+              >
+                <span>{isCaptionExpanded ? 'Show less' : 'Show more'}</span>
+                {isCaptionExpanded ? (
+                  <ChevronUp className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
           </div>
         )}
 

@@ -19,6 +19,7 @@ try:
         MediaItem,
         MediaVariant,
         AuthorInfo,
+        MetricsInfo,
     )
 except (ModuleNotFoundError, ImportError):
     try:
@@ -28,6 +29,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
     except (ModuleNotFoundError, ImportError):
         from .base import (
@@ -36,6 +38,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
 
 class TwitterExtractor(BaseExtractor):
@@ -133,6 +136,8 @@ class TwitterExtractor(BaseExtractor):
         # Build Media from FxTwitter or yt-dlp
         author_info = None
         title = ""
+        caption = ""
+        metrics_info = None
         items: List[MediaItem] = []
 
         if tweet:
@@ -143,6 +148,13 @@ class TwitterExtractor(BaseExtractor):
                 avatar=author_data.get("avatar_url"),
             )
             title = tweet.get("text") or f"X (Twitter) Post {tweet_id}"
+            caption = tweet.get("text") or title
+            metrics_info = MetricsInfo(
+                likes=tweet.get("likes"),
+                comments=tweet.get("replies"),
+                shares=tweet.get("retweets"),
+                views=tweet.get("views"),
+            )
 
             media = tweet.get("media") or {}
             videos = media.get("videos") or []
@@ -313,6 +325,8 @@ class TwitterExtractor(BaseExtractor):
             platform=self.platform,
             sourceUrl=canonical_source,
             title=title,
+            caption=caption or title,
             author=author_info,
+            metrics=metrics_info,
             items=items,
         )

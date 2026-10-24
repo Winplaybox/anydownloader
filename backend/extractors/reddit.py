@@ -19,6 +19,7 @@ try:
         MediaItem,
         MediaVariant,
         AuthorInfo,
+        MetricsInfo,
     )
 except (ModuleNotFoundError, ImportError):
     try:
@@ -28,6 +29,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
     except (ModuleNotFoundError, ImportError):
         from .base import (
@@ -36,6 +38,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
 
 class RedditExtractor(BaseExtractor):
@@ -106,11 +109,17 @@ class RedditExtractor(BaseExtractor):
                     thumbnail=thumb,
                     durationSec=info.get("duration")
                 )
+                metrics_info = MetricsInfo(
+                    likes=info.get("like_count"),
+                    comments=info.get("comment_count"),
+                )
                 return ResolveResult(
                     platform="reddit",
                     sourceUrl=canonical_source,
                     title=title,
+                    caption=info.get("description") or title,
                     author=AuthorInfo(name=uploader, handle=uploader),
+                    metrics=metrics_info,
                     items=[item]
                 )
 

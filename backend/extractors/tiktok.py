@@ -19,6 +19,7 @@ try:
         MediaItem,
         MediaVariant,
         AuthorInfo,
+        MetricsInfo,
     )
 except (ModuleNotFoundError, ImportError):
     try:
@@ -28,6 +29,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
     except (ModuleNotFoundError, ImportError):
         from .base import (
@@ -36,6 +38,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
 
 class TikTokExtractor(BaseExtractor):
@@ -76,14 +79,23 @@ class TikTokExtractor(BaseExtractor):
         items: List[MediaItem] = []
         author_info = None
         title = ""
+        caption = ""
+        metrics_info = None
 
         if data:
             title = data.get("title") or "TikTok Post"
+            caption = data.get("title") or title
             author_data = data.get("author") or {}
             author_info = AuthorInfo(
                 name=author_data.get("nickname"),
                 handle=author_data.get("unique_id"),
                 avatar=author_data.get("avatar"),
+            )
+            metrics_info = MetricsInfo(
+                likes=data.get("digg_count"),
+                comments=data.get("comment_count"),
+                shares=data.get("share_count"),
+                views=data.get("play_count"),
             )
 
             # Check if Photo Mode
@@ -218,6 +230,8 @@ class TikTokExtractor(BaseExtractor):
             platform=self.platform,
             sourceUrl=canonical_source,
             title=title,
+            caption=caption or title,
             author=author_info,
+            metrics=metrics_info,
             items=items
         )

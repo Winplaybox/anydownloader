@@ -19,6 +19,7 @@ try:
         MediaItem,
         MediaVariant,
         AuthorInfo,
+        MetricsInfo,
     )
 except (ModuleNotFoundError, ImportError):
     try:
@@ -28,6 +29,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
     except (ModuleNotFoundError, ImportError):
         from .base import (
@@ -36,6 +38,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
 
 class GenericExtractor(BaseExtractor):

@@ -55,6 +55,17 @@ class AuthorInfo:
     name: Optional[str] = None
     handle: Optional[str] = None
     avatar: Optional[str] = None
+    verified: Optional[bool] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {k: v for k, v in asdict(self).items() if v is not None}
+
+@dataclass
+class MetricsInfo:
+    likes: Optional[Any] = None
+    comments: Optional[Any] = None
+    shares: Optional[Any] = None
+    views: Optional[Any] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if v is not None}
@@ -65,7 +76,9 @@ class ResolveResult:
     sourceUrl: str
     items: List[MediaItem]
     title: Optional[str] = None
+    caption: Optional[str] = None
     author: Optional[AuthorInfo] = None
+    metrics: Optional[MetricsInfo] = None
 
     def to_dict(self) -> Dict[str, Any]:
         res = {
@@ -74,8 +87,12 @@ class ResolveResult:
             'title': self.title,
             'items': [item.to_dict() for item in self.items],
         }
+        if self.caption:
+            res['caption'] = self.caption
         if self.author:
             res['author'] = self.author.to_dict()
+        if self.metrics:
+            res['metrics'] = self.metrics.to_dict()
         return res
 
 class BaseExtractor(ABC):

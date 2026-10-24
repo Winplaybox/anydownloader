@@ -21,6 +21,7 @@ try:
         MediaItem,
         MediaVariant,
         AuthorInfo,
+        MetricsInfo,
     )
 except (ModuleNotFoundError, ImportError):
     try:
@@ -30,6 +31,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
     except (ModuleNotFoundError, ImportError):
         from .base import (
@@ -38,6 +40,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
 
 class InstagramExtractor(BaseExtractor):
@@ -100,20 +103,36 @@ class InstagramExtractor(BaseExtractor):
         items: List[MediaItem] = []
         author_info = None
         title = ""
+        caption = ""
+        likes_count = None
+        comments_count = None
 
         if webpage:
             og_descs = re.findall(r'property="og:description" content="(.*?)"', webpage)
             desc_text = html.unescape(og_descs[0]) if og_descs else ""
 
+            likes_m = re.search(r'([\d,.]+[KkMmBb]?)\s+likes', desc_text, re.IGNORECASE)
+            if likes_m:
+                likes_count = likes_m.group(1)
+
+            comments_m = re.search(r'([\d,.]+[KkMmBb]?)\s+comments', desc_text, re.IGNORECASE)
+            if comments_m:
+                comments_count = comments_m.group(1)
+
             uploader = ""
             author_match = re.search(r'-\s*([a-zA-Z0-9._]+)\s+on\s+[A-Za-z]+', desc_text)
             if author_match:
                 uploader = author_match.group(1)
+            elif "from " in desc_text:
+                m2 = re.search(r'from\s+([a-zA-Z0-9._]+)\s*\(@([a-zA-Z0-9._]+)\)', desc_text)
+                if m2:
+                    uploader = m2.group(2)
 
             if '"' in desc_text:
                 q_m = re.search(r'"([^"]+)"', desc_text)
                 if q_m:
-                    title = q_m.group(1).strip()
+                    caption = q_m.group(1).strip()
+                    title = caption
             if not title:
                 title = f"Instagram Post by @{uploader}" if uploader else f"Instagram Post {shortcode}"
 
@@ -229,7 +248,10 @@ class InstagramExtractor(BaseExtractor):
 
             if ytdlp_info:
                 title = ytdlp_info.get("title") or f"Instagram Post {shortcode}"
+                caption = ytdlp_info.get("description") or caption or title
                 uploader = ytdlp_info.get("uploader") or ytdlp_info.get("channel")
+                likes_count = ytdlp_info.get("like_count") or likes_count
+                comments_count = ytdlp_info.get("comment_count") or comments_count
                 author_info = AuthorInfo(
                     name=uploader,
                     handle=uploader,
@@ -289,10 +311,17 @@ class InstagramExtractor(BaseExtractor):
         if not items:
             raise AppError(ErrorCode.NO_MEDIA, "This post has no video or image to download.")
 
+        metrics_info = MetricsInfo(
+            likes=likes_count,
+            comments=comments_count
+        ) if (likes_count or comments_count) else None
+
         return ResolveResult(
             platform=self.platform,
             sourceUrl=canonical_source,
             title=title,
+            caption=caption or title,
             author=author_info,
+            metrics=metrics_info,
             items=items
         )

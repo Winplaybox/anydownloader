@@ -19,6 +19,7 @@ try:
         MediaItem,
         MediaVariant,
         AuthorInfo,
+        MetricsInfo,
     )
 except (ModuleNotFoundError, ImportError):
     try:
@@ -28,6 +29,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
     except (ModuleNotFoundError, ImportError):
         from .base import (
@@ -36,6 +38,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
 
 class FacebookExtractor(BaseExtractor):
@@ -158,10 +161,17 @@ class FacebookExtractor(BaseExtractor):
         if not items:
             raise AppError(ErrorCode.NO_MEDIA, "This post has no video or image to download.")
 
+        metrics_info = MetricsInfo(
+            likes=ytdlp_info.get("like_count"),
+            comments=ytdlp_info.get("comment_count"),
+            views=ytdlp_info.get("view_count"),
+        )
         return ResolveResult(
             platform=self.platform,
             sourceUrl=canonical_source,
             title=title,
+            caption=ytdlp_info.get("description") or title,
             author=author_info,
+            metrics=metrics_info,
             items=items
         )

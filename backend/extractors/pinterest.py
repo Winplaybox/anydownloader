@@ -19,6 +19,7 @@ try:
         MediaItem,
         MediaVariant,
         AuthorInfo,
+        MetricsInfo,
     )
 except (ModuleNotFoundError, ImportError):
     try:
@@ -28,6 +29,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
     except (ModuleNotFoundError, ImportError):
         from .base import (
@@ -36,6 +38,7 @@ except (ModuleNotFoundError, ImportError):
             MediaItem,
             MediaVariant,
             AuthorInfo,
+        MetricsInfo,
         )
 
 class PinterestExtractor(BaseExtractor):
@@ -123,11 +126,17 @@ class PinterestExtractor(BaseExtractor):
                     thumbnail=thumb,
                     durationSec=ytdlp_info.get("duration")
                 )
+                metrics_info = MetricsInfo(
+                    likes=ytdlp_info.get("like_count") or ytdlp_info.get("repost_count"),
+                    comments=ytdlp_info.get("comment_count"),
+                )
                 return ResolveResult(
                     platform="pinterest",
                     sourceUrl=canonical_source,
                     title=title,
+                    caption=ytdlp_info.get("description") or title,
                     author=AuthorInfo(name=uploader, handle=uploader),
+                    metrics=metrics_info,
                     items=[item]
                 )
 

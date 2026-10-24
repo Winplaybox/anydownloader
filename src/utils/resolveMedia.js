@@ -11,8 +11,16 @@ export const BACKEND_BASE = typeof window !== 'undefined' && window.location.hos
  */
 function normalizeLegacyExtract(raw, sourceUrl, platform) {
   const title = raw.title || 'Extracted Media';
+  const caption = raw.caption || raw.description || title;
   const authorName = raw.uploader || raw.author || 'Social Creator';
+  const authorHandle = raw.uploader_id || raw.handle || raw.username || authorName;
   const thumb = raw.thumbnail;
+  const metrics = raw.metrics || {
+    likes: raw.likes || raw.like_count,
+    comments: raw.comments || raw.comment_count,
+    shares: raw.shares || raw.share_count || raw.reposts,
+    views: raw.views || raw.view_count || raw.plays
+  };
 
   const variants = [];
 
@@ -76,7 +84,9 @@ function normalizeLegacyExtract(raw, sourceUrl, platform) {
       platform: platform || raw.platform || 'social',
       sourceUrl,
       title,
-      author: { name: authorName, handle: authorName, avatar: thumb },
+      caption,
+      author: { name: authorName, handle: authorHandle, avatar: thumb },
+      metrics,
       items
     };
   }
@@ -95,7 +105,9 @@ function normalizeLegacyExtract(raw, sourceUrl, platform) {
     platform: platform || raw.platform || 'social',
     sourceUrl,
     title,
-    author: { name: authorName, handle: authorName, avatar: thumb },
+    caption,
+    author: { name: authorName, handle: authorHandle, avatar: thumb },
+    metrics,
     items: [item]
   };
 }
