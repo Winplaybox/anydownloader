@@ -1127,4 +1127,10 @@ pagesConfig['threads-video-downloader'] = {
 };
 pagesConfig['threads'] = pagesConfig['threads-video-downloader'];
 
+
+pagesConfig['youtube-shorts-downloader'] = pagesConfig['youtube/youtube-shorts'];
+pagesConfig['instagram-reels-downloader'] = pagesConfig['instagram/instagram-reels-downloader'] || pagesConfig['instagram/instagram-video-downloader'];
+pagesConfig['tiktok-slideshow-downloader'] = pagesConfig['tiktok/tiktok-downloader'];
+pagesConfig['pinterest-image-downloader'] = pagesConfig['pinterest/pinterest-photo-downloader'];
+
 export default pagesConfig;

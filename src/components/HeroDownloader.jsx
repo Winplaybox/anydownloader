@@ -7,7 +7,9 @@ import {
   Loader2, 
   AlertCircle,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  AlertTriangle,
+  Check
 } from 'lucide-react';
 import { 
   TwitterXIcon,
@@ -22,17 +24,37 @@ import {
 } from './BrandIcons.jsx';
 import { normalizeUrl } from '../utils/normalizeUrl.js';
 
-const PLATFORM_ROUTES = {
-  all: '/',
-  twitter: '/twitter-video-downloader',
-  youtube: '/youtube-video-downloader',
-  facebook: '/facebook-video-downloader',
-  instagram: '/instagram-video-downloader',
-  tiktok: '/tiktok-video-downloader',
-  pinterest: '/pinterest-video-downloader',
-  reddit: '/reddit-video-downloader',
-  generic: '/any-website-downloader'
-};
+const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : 'https://anydownloader-backend-vvbj.onrender.com';
+
+// Built-in initial platforms registry cache (ensures instant rendering before /api/platforms loads)
+const DEFAULT_PLATFORMS = [
+  { id: 'all', name: 'Auto-Detect', icon: null, status: 'ok', tier: 'A', seo: { slug: '' } },
+  { id: 'twitter', name: 'X (Twitter)', icon: TwitterXIcon, status: 'ok', tier: 'A', seo: { slug: 'twitter-video-downloader' } },
+  { id: 'youtube', name: 'YouTube', icon: YoutubeIcon, status: 'ok', tier: 'A', seo: { slug: 'youtube-video-downloader' } },
+  { id: 'facebook', name: 'Facebook', icon: FacebookIcon, status: 'ok', tier: 'A', seo: { slug: 'facebook-video-downloader' } },
+  { id: 'instagram', name: 'Instagram', icon: InstagramIcon, status: 'ok', tier: 'A', seo: { slug: 'instagram-video-downloader' } },
+  { id: 'tiktok', name: 'TikTok', icon: TiktokIcon, status: 'ok', tier: 'A', seo: { slug: 'tiktok-video-downloader' } },
+  { id: 'pinterest', name: 'Pinterest', icon: PinterestIcon, status: 'ok', tier: 'A', seo: { slug: 'pinterest-video-downloader' } },
+  { id: 'reddit', name: 'Reddit', icon: RedditIcon, status: 'ok', tier: 'A', seo: { slug: 'reddit-video-downloader' } },
+  { id: 'threads', name: 'Threads', icon: ThreadsIcon, status: 'ok', tier: 'A', seo: { slug: 'threads-video-downloader' } },
+  { id: 'generic', name: 'Any Website', icon: GlobeIcon, status: 'beta', tier: 'B', seo: { slug: 'any-website-downloader' } }
+];
+
+function getIconForPlatform(id) {
+  const p = (id || '').toLowerCase();
+  if (p === 'twitter' || p === 'x') return TwitterXIcon;
+  if (p === 'youtube') return YoutubeIcon;
+  if (p === 'facebook') return FacebookIcon;
+  if (p === 'instagram') return InstagramIcon;
+  if (p === 'tiktok') return TiktokIcon;
+  if (p === 'pinterest') return PinterestIcon;
+  if (p === 'reddit') return RedditIcon;
+  if (p === 'threads') return ThreadsIcon;
+  if (p === 'generic') return GlobeIcon;
+  return GlobeIcon;
+}
 
 export default function HeroDownloader({ 
   url = '', 
@@ -51,23 +73,56 @@ export default function HeroDownloader({
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [platformList, setPlatformList] = useState(DEFAULT_PLATFORMS);
   const [pasteNotice, setPasteNotice] = useState('');
   const [detectedPlatform, setDetectedPlatform] = useState(null);
   const [wakeNotice, setWakeNotice] = useState('');
+  const [clipboardPasted, setClipboardPasted] = useState(false);
 
-  // Desktop autofocus only
+  // Desktop autofocus
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth >= 768 && inputRef.current) {
       inputRef.current.focus();
     }
   }, []);
 
-  // Display helpful engine spin-up notification during cold starts
+  // Fetch dynamic registry & health from /api/platforms
+  useEffect(() => {
+    let isMounted = true;
+    async function loadPlatforms() {
+      try {
+        const resp = await fetch(`${BACKEND_BASE}/api/platforms`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && Array.isArray(data.platforms) && isMounted) {
+            const dynamicList = [
+              { id: 'all', name: 'Auto-Detect', icon: null, status: 'ok', tier: 'A' },
+              ...data.platforms.map(p => ({
+                id: p.id,
+                name: p.name || p.id,
+                tier: p.tier || 'A',
+                status: p.status || (p.tier === 'B' ? 'beta' : 'ok'),
+                icon: getIconForPlatform(p.id),
+                seo: p.seo || { slug: `${p.id}-video-downloader` }
+              }))
+            ];
+            setPlatformList(dynamicList);
+          }
+        }
+      } catch (e) {
+        // Fallback to default platforms
+      }
+    }
+    loadPlatforms();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Helpful status message during server cold starts
   useEffect(() => {
     let timer;
     if (loading) {
       timer = setTimeout(() => {
-        setWakeNotice('Extractor engine is waking up (Render initial cold-start)... Resolving media stream...');
+        setWakeNotice('Extractor engine is resolving streams and metadata...');
       }, 2500);
     } else {
       setWakeNotice('');
@@ -75,7 +130,7 @@ export default function HeroDownloader({
     return () => clearTimeout(timer);
   }, [loading]);
 
-  // Detect platform on input change
+  // Auto-Detect platform & URL change handling
   useEffect(() => {
     if (url && typeof url === 'string' && url.trim().length > 4) {
       const norm = normalizeUrl(url);
@@ -86,6 +141,13 @@ export default function HeroDownloader({
         } else {
           setPasteNotice('');
         }
+
+        // Automatic platform switch if user picked a chip and URL belongs to a different platform
+        if (activeCategory && activeCategory !== 'all' && norm.platform !== 'generic' && norm.platform !== activeCategory) {
+          if (typeof setActiveCategory === 'function') {
+            setActiveCategory(norm.platform);
+          }
+        }
       } else {
         setDetectedPlatform(null);
       }
@@ -93,17 +155,31 @@ export default function HeroDownloader({
       setDetectedPlatform(null);
       setPasteNotice('');
     }
-  }, [url]);
+  }, [url, activeCategory, setActiveCategory]);
 
+  // Paste & Auto-Extract
   async function handlePaste() {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
         const clean = text.trim();
         setUrl(clean);
+        setClipboardPasted(true);
+        setTimeout(() => setClipboardPasted(false), 2000);
+
         const norm = normalizeUrl(clean);
         if (norm.ok) {
           setDetectedPlatform(norm.platform);
+          if (activeCategory && activeCategory !== 'all' && norm.platform !== 'generic' && norm.platform !== activeCategory) {
+            if (typeof setActiveCategory === 'function') {
+              setActiveCategory(norm.platform);
+            }
+          }
+        }
+
+        // Auto-extract immediately on paste as per Section 5 spec
+        if (typeof onFetch === 'function') {
+          onFetch(clean);
         }
       }
     } catch (e) {
@@ -120,20 +196,28 @@ export default function HeroDownloader({
     }
   }
 
-  const platforms = [
-    { id: 'all', label: 'Auto-Detect', icon: null },
-    { id: 'twitter', label: 'X (Twitter)', icon: TwitterXIcon },
-    { id: 'youtube', label: 'YouTube', icon: YoutubeIcon },
-    { id: 'facebook', label: 'Facebook', icon: FacebookIcon },
-    { id: 'instagram', label: 'Instagram', icon: InstagramIcon },
-    { id: 'tiktok', label: 'TikTok', icon: TiktokIcon },
-    { id: 'pinterest', label: 'Pinterest', icon: PinterestIcon },
-    { id: 'reddit', label: 'Reddit', icon: RedditIcon },
-    { id: 'threads', label: 'Threads', icon: ThreadsIcon },
-    { id: 'generic', label: 'Any Website', icon: GlobeIcon },
-  ];
+  // Handle platform chip navigation or selection
+  function handleChipClick(platformItem) {
+    const pId = platformItem.id;
+    if (typeof setActiveCategory === 'function') {
+      setActiveCategory(pId);
+    }
 
-  // Resolve current active tab based on route or detected platform
+    if (location.pathname === '/') {
+      return;
+    }
+
+    // On tool pages, navigate to corresponding route
+    if (pId === 'all') {
+      navigate('/');
+    } else if (platformItem.seo?.slug) {
+      navigate(`/${platformItem.seo.slug}`);
+    } else {
+      navigate(`/${pId}-video-downloader`);
+    }
+  }
+
+  // Active platform indicator
   const path = location.pathname.toLowerCase();
   let routePlatform = 'all';
   if (path.includes('twitter') || path.includes('/x')) routePlatform = 'twitter';
@@ -146,163 +230,165 @@ export default function HeroDownloader({
   else if (path.includes('threads')) routePlatform = 'threads';
   else if (path.includes('any-website') || path.includes('website')) routePlatform = 'generic';
 
-  const currentActivePlatform = detectedPlatform || routePlatform || activeCategory || 'all';
+  const currentActivePlatform = detectedPlatform || (activeCategory !== 'all' ? activeCategory : routePlatform) || 'all';
 
-  function handlePlatformClick(platformId) {
-    setActiveCategory(platformId);
-    const targetRoute = PLATFORM_ROUTES[platformId] || '/';
-    if (location.pathname !== targetRoute) {
-      navigate(targetRoute);
-    }
-  }
+  // Check if active platform is degraded
+  const activePlatformData = platformList.find(p => p.id === currentActivePlatform);
+  const isPlatformDegraded = activePlatformData?.status === 'degraded';
 
   return (
-    <section className="w-full max-w-4xl mx-auto px-4 pt-8 pb-12 sm:pt-12 sm:pb-16 text-center">
+    <div className="w-full max-w-4xl mx-auto px-4 pt-10 pb-6">
       
-      {/* Platform Chips / Segmented Control with Real Navigation */}
-      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mb-8" role="tablist">
-        {platforms.map(p => {
+      {/* Title & Tagline */}
+      <div className="text-center mb-8">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
+          {pageH1 || 'Download Social Videos & Photos'}
+        </h1>
+        <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+          {pageDesc || 'Fast, 100% free extractor for Twitter, YouTube, Instagram, TikTok, Facebook, Reddit, Pinterest, and any website.'}
+        </p>
+      </div>
+
+      {/* Main Input Box */}
+      <div className="relative bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 focus-within:border-blue-600 dark:focus-within:border-blue-500 rounded-3xl shadow-xl transition-all duration-300">
+        <div className="flex items-center p-2 sm:p-2.5">
+          <input
+            ref={inputRef}
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Paste media link here (YouTube, Twitter, TikTok, Instagram...)"
+            className="w-full px-4 py-3 bg-transparent text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm sm:text-base outline-none"
+            aria-label="Social media post or video URL"
+          />
+
+          {/* Action buttons (Clear / Paste) */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {url ? (
+              <button
+                type="button"
+                onClick={onClear}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition-colors"
+                aria-label="Clear input"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handlePaste}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 rounded-xl transition-all hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                {clipboardPasted ? <Check className="w-4 h-4 text-emerald-500" /> : <Clipboard className="w-4 h-4" />}
+                <span className="hidden sm:inline">{clipboardPasted ? 'Pasted!' : 'Paste'}</span>
+              </button>
+            )}
+
+            {/* Fetch / Download Button */}
+            <button
+              type="button"
+              onClick={() => onFetch()}
+              disabled={loading}
+              className="flex items-center gap-2 px-5 sm:px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-500/25 transition-all transform active:scale-95 disabled:opacity-75 disabled:pointer-events-none"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="hidden sm:inline">Extracting...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-5 h-5" />
+                  <span>Download</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Notices & Multiple Links Warning */}
+        {pasteNotice && (
+          <div className="px-5 py-2 text-xs text-amber-600 dark:text-amber-400 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>{pasteNotice}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Engine Wake Notice (during Render cold starts) */}
+      {wakeNotice && (
+        <div className="mt-3 px-4 py-2 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/40 flex items-center justify-center gap-2 animate-pulse">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          <span>{wakeNotice}</span>
+        </div>
+      )}
+
+      {/* Error Message Box */}
+      {error && (
+        <div className="mt-4 p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 flex items-start gap-3 animate-shake">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-rose-500" />
+          <div className="text-sm">
+            <p className="font-semibold">{error}</p>
+            {errorCode && (
+              <p className="text-xs opacity-75 mt-0.5 font-mono">Error Code: {errorCode}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Platform Degraded Warning Banner */}
+      {isPlatformDegraded && (
+        <div className="mt-4 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300 text-xs flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+          <span>
+            <strong>{activePlatformData.name}</strong> is currently experiencing elevated upstream delays. Our fallback engines are engaged.
+          </span>
+        </div>
+      )}
+
+      {/* Dynamic Platform Chips (Fetched from /api/platforms with status badges) */}
+      <div className="mt-6 flex items-center justify-start sm:justify-center gap-2 overflow-x-auto no-scrollbar py-2">
+        {platformList.map((p) => {
+          const isActive = currentActivePlatform === p.id;
           const Icon = p.icon;
-          const isSelected = currentActivePlatform === p.id;
+          const isBeta = p.status === 'beta' || p.tier === 'B';
+          const isDegraded = p.status === 'degraded';
+
           return (
             <button
               key={p.id}
               type="button"
-              role="tab"
-              aria-selected={isSelected}
-              onClick={() => handlePlatformClick(p.id)}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 border cursor-pointer ${
-                isSelected
-                  ? 'bg-[var(--primary)] text-[var(--on-primary)] border-[var(--border-strong)] shadow-sm'
-                  : 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:border-[var(--text)] hover:text-[var(--text)]'
+              onClick={() => handleChipClick(p)}
+              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'
               }`}
             >
-              {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
-              <span>{p.label}</span>
+              {Icon && <Icon className="w-3.5 h-3.5" />}
+              <span>{p.name}</span>
+
+              {/* Status Badges */}
+              {isBeta && (
+                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                }`}>
+                  BETA
+                </span>
+              )}
+              {isDegraded && (
+                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                  isActive ? 'bg-amber-400 text-black' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                }`}>
+                  DEGRADED
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* Main Headline (H1) & Description */}
-      <div className="space-y-3 mb-8">
-        <h1 className="base-display text-[var(--text)] text-3xl sm:text-4xl lg:text-5xl tracking-tight font-extrabold">
-          {pageH1 || 'Social Video & Image Downloader'}
-        </h1>
-        <p className="base-paragraph text-[var(--text-muted)] max-w-2xl mx-auto text-sm sm:text-base">
-          {pageDesc || 'Download videos and original-resolution photos from Twitter/X, YouTube, Facebook, Instagram, TikTok, Pinterest, Reddit, and any website. 100% free with no sign-up.'}
-        </p>
-      </div>
-
-      {/* URL Input Form Group */}
-      <div className="w-full max-w-3xl mx-auto">
-        <div className="relative flex flex-col sm:flex-row items-stretch gap-2 p-1.5 sm:p-2 bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-xl sm:rounded-2xl shadow-[var(--shadow-2)] transition-all ovd-input-wrapper">
-          
-          {/* Main Input */}
-          <div className="relative flex-1 flex items-center min-w-0">
-            <input
-              ref={inputRef}
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Paste any social media, video, or website link to download..."
-              className="w-full bg-transparent text-[var(--text)] text-sm sm:text-base font-medium px-4 py-3 placeholder-[var(--text-muted)] outline-none border-none"
-              aria-label="Social media post or media link"
-              autoComplete="off"
-              spellCheck="false"
-            />
-
-            {/* Clear Button (shown when text present) */}
-            {url && (
-              <button
-                type="button"
-                onClick={() => {
-                  setUrl('');
-                  if (onClear) onClear();
-                  if (inputRef.current) inputRef.current.focus();
-                }}
-                className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text)] rounded-full hover:bg-[var(--bg-alt)] transition-colors mr-1 cursor-pointer"
-                aria-label="Clear input"
-                title="Clear"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Paste Button */}
-            <button
-              type="button"
-              onClick={handlePaste}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-[var(--text)] bg-[var(--bg-alt)] hover:bg-[var(--border)] transition-colors mr-1 cursor-pointer"
-              title="Paste from clipboard"
-            >
-              <Clipboard className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Paste</span>
-            </button>
-          </div>
-
-          {/* Fetch Media Button */}
-          <button
-            type="button"
-            onClick={() => onFetch()}
-            disabled={loading}
-            className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg sm:rounded-xl font-bold text-sm sm:text-base bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0 cursor-pointer"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                <span>Processing...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>Fetch Media</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Cold-Start / Waking Notice */}
-        {wakeNotice && loading && (
-          <div className="mt-3 flex items-center justify-center gap-2 text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg p-2.5">
-            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-            <span>{wakeNotice}</span>
-          </div>
-        )}
-
-        {/* Paste notice (multiple links, etc.) */}
-        {pasteNotice && !error && (
-          <p className="mt-2 text-xs text-[var(--text-muted)] text-left px-2">
-            {pasteNotice}
-          </p>
-        )}
-
-        {/* Error Announcement */}
-        {error && (
-          <div 
-            role="alert" 
-            className="mt-4 p-3.5 rounded-xl border border-[var(--negative)] bg-[var(--negative-bg)] text-[var(--negative)] flex items-start justify-between gap-3 text-left transition-all"
-          >
-            <div className="flex items-start gap-2.5 min-w-0">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <div className="text-sm font-medium leading-relaxed">
-                {error}
-              </div>
-            </div>
-
-            {/* Retry button if retryable */}
-            <button
-              type="button"
-              onClick={() => onFetch()}
-              className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors shrink-0 cursor-pointer"
-            >
-              <RefreshCw className="w-3 h-3" />
-              <span>Retry</span>
-            </button>
-          </div>
-        )}
-      </div>
-    </section>
+    </div>
   );
 }

@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # Primary API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ovd-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - PORT=8000
+      - ALLOW_GENERIC_URLS=true
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-ovd_admin_secret_key_change_me}
+      - TOKEN_HMAC_SECRET=${TOKEN_HMAC_SECRET:-ovd_hmac_secret_key_change_me}
+      - COOKIE_POOL_PATH=/app/cookies
+      - WORKER_URL=${WORKER_URL:-}
+      - WORKER_SECRET=${WORKER_SECRET:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+    volumes:
+      - ./cookies:/app/cookies:ro
+      - ovd_temp:/tmp/ovd_jobs
+    depends_on:
+      - redis
+
+  # Optional Cache & Job Broker
+  redis:
+    image: redis:7-alpine
+    container_name: ovd-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # Optional Residential IP Worker (for bypassing Cloudflare / YouTube datacenter bot blocks)
+  # worker:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: ovd-worker
+  #   restart: unless-stopped
+  #   environment:
+  #     - WORKER_SECRET=${WORKER_SECRET:-ovd_worker_secret_key}
+  #     - COOKIE_POOL_PATH=/app/cookies
+  #   command: ["uvicorn", "backend.worker_node:app", "--host", "0.0.0.0", "--port", "8001"]
+
+volumes:
+  ovd_temp:
+  redis_data:

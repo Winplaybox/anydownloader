@@ -101,6 +101,11 @@ export default function App() {
             <Route path="/twitter/twitter-downloader" element={<Navigate to="/twitter-video-downloader" replace />} />
 
             {/* YouTube */}
+                        {/* Additional Spec Slugs */}
+            <Route path="/youtube-shorts-downloader" element={<ToolPage config={pagesConfig['youtube/youtube-shorts'] || pagesConfig['youtube/youtube-video-downloader']} />} />
+            <Route path="/instagram-reels-downloader" element={<ToolPage config={pagesConfig['instagram/instagram-reels-downloader'] || pagesConfig['instagram/instagram-video-downloader']} />} />
+            <Route path="/tiktok-slideshow-downloader" element={<ToolPage config={pagesConfig['tiktok/tiktok-downloader']} />} />
+            <Route path="/pinterest-image-downloader" element={<ToolPage config={pagesConfig['pinterest/pinterest-photo-downloader']} />} />
             <Route path="/youtube-video-downloader" element={<ToolPage config={pagesConfig['youtube/youtube-video-downloader']} />} />
             <Route path="/youtube-thumbnail-downloader" element={<ToolPage config={pagesConfig['youtube/youtube-thumbnails']} />} />
             <Route path="/youtube" element={<Navigate to="/youtube-video-downloader" replace />} />

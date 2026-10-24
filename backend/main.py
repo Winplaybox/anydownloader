@@ -7,6 +7,27 @@ for _p in (_current_dir, _parent_dir):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+from starlette.responses import FileResponse, Response
+from typing import Dict, Any, Optional, List, Union
+try:
+    from backend.platform_registry import registry as platform_registry
+    from backend.engines.base import ExtractContext
+    from backend.engines.registry import engine_registry
+    from backend.normalizer import normalize_raw_result
+    from backend.job_manager import job_manager
+    from backend.schema import (
+        NormalizedResult, Author, Stats, VideoVariant, AudioVariant, ImageVariant, ThumbnailVariant
+    )
+except (ModuleNotFoundError, ImportError):
+    from platform_registry import registry as platform_registry
+    from engines.base import ExtractContext
+    from engines.registry import engine_registry
+    from normalizer import normalize_raw_result
+    from job_manager import job_manager
+    from schema import (
+        NormalizedResult, Author, Stats, VideoVariant, AudioVariant, ImageVariant, ThumbnailVariant
+    )
+
 try:
     from backend.utils.errors import AppError, ErrorCode, error_response
     from backend.utils.url_normalizer import normalize_url
@@ -2273,7 +2294,7 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
-        if request.url.path in ("/", "/health", "/api/health", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio"):
+        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image") or request.url.path.startswith("/api/jobs") or request.url.path.startswith("/admin/"):
             return await call_next(request)
 
         # 3. Verify origin, referer, or extension secret key
@@ -2465,18 +2486,213 @@ async def download_proxy_handler(request):
         headers=resp_headers
     )
 
+
+def map_legacy_to_normalized(legacy_data: Dict[str, Any], platform_id: str, url: str) -> Dict[str, Any]:
+    from backend.utils.security import sign_download_token
+    title = legacy_data.get("title") or "Extracted Media"
+    caption = legacy_data.get("description") or title
+    uploader = legacy_data.get("uploader") or "Creator"
+    thumb = legacy_data.get("thumbnail")
+
+    videos = []
+    for idx, vf in enumerate(legacy_data.get("video_formats") or []):
+        fn = f"{platform_id}_video_{idx+1}.mp4"
+        token = sign_download_token(vf.get("stream_url") or vf.get("url"), fn)
+        videos.append(VideoVariant(
+            label=vf.get("quality") or "HD Video",
+            token=token,
+            ext="mp4",
+            hasAudio=vf.get("has_audio", True)
+        ).to_dict())
+
+    images = []
+    for idx, cm in enumerate(legacy_data.get("carousel_media") or []):
+        ext = "mp4" if cm.get("type") == "video" else "jpg"
+        fn = f"{platform_id}_slide_{idx+1}.{ext}"
+        token = sign_download_token(cm.get("stream_url") or cm.get("url"), fn)
+        images.append(ImageVariant(
+            label=f"Slide {idx+1}",
+            token=token,
+            ext=ext
+        ).to_dict())
+
+    thumbnails = []
+    for idx, th in enumerate(legacy_data.get("thumbnails") or []):
+        fn = f"{platform_id}_thumb_{idx+1}.jpg"
+        token = sign_download_token(th.get("stream_url") or th.get("url"), fn)
+        thumbnails.append(ThumbnailVariant(
+            label=th.get("quality") or f"Thumbnail {idx+1}",
+            token=token
+        ).to_dict())
+
+    stats = {}
+    if legacy_data.get("views") or legacy_data.get("view_count"):
+        stats["views"] = legacy_data.get("views") or legacy_data.get("view_count")
+    if legacy_data.get("like_count"):
+        stats["likes"] = legacy_data.get("like_count")
+    if legacy_data.get("comment_count"):
+        stats["comments"] = legacy_data.get("comment_count")
+
+    return {
+        "platform": platform_id,
+        "contentType": "video" if videos else "image",
+        "id": str(legacy_data.get("id") or "media"),
+        "url": url,
+        "title": title,
+        "caption": caption,
+        "author": {"username": uploader, "displayName": uploader, "avatar": thumb},
+        "stats": stats if stats else None,
+        "videos": videos,
+        "audios": [],
+        "images": images,
+        "thumbnails": thumbnails,
+        "subtitles": [],
+        "warnings": []
+    }
+
+async def platforms_handler(request):
+    data = platform_registry.get_platforms_api()
+    return JSONResponse({"ok": True, "platforms": data})
+
+async def unified_extract_handler(request):
+    try:
+        body = await request.json()
+    except Exception:
+        return error_response(ErrorCode.URL_MISSING, "Paste a link to get started.")
+
+    raw_url = (body.get("url") or body.get("link") or body.get("input") or "").strip()
+    if not raw_url:
+        return error_response(ErrorCode.URL_MISSING, "Paste a link to get started.")
+
+    allow_generic = body.get("allow_generic", False)
+    try:
+        norm = normalize_url(raw_url, allow_generic=allow_generic)
+    except AppError as ae:
+        return ae.to_response()
+
+    resolved_url = await platform_registry.resolve_short_link(norm["url"])
+    platform_def, content_type, matched_id = platform_registry.match(resolved_url)
+
+    if not platform_def or (platform_def.get("id") == "generic" and not allow_generic):
+        return error_response(
+            ErrorCode.PLATFORM_UNSUPPORTED,
+            "This site isn't supported yet. Supported: X, YouTube, Facebook, Instagram, TikTok."
+        )
+
+    ctx = ExtractContext(
+        url=resolved_url,
+        content_type=content_type,
+        platform_id=platform_def["id"],
+        attribution=body.get("attribution")
+    )
+
+    try:
+        raw_result = await engine_registry.execute_chain(
+            resolved_url,
+            platform_def.get("routes", {}),
+            content_type,
+            ctx
+        )
+        normalized = normalize_raw_result(raw_result, platform_def, content_type)
+        return JSONResponse({"ok": True, "success": True, "data": normalized.to_dict()})
+    except AppError as ae:
+        try:
+            loop = asyncio.get_event_loop()
+            legacy_data = await loop.run_in_executor(None, extract_media, resolved_url)
+            if legacy_data and (legacy_data.get("video_formats") or legacy_data.get("thumbnails") or legacy_data.get("carousel_media")):
+                norm_legacy = map_legacy_to_normalized(legacy_data, platform_def["id"], resolved_url)
+                return JSONResponse({"ok": True, "success": True, "data": norm_legacy})
+        except Exception:
+            pass
+        return ae.to_response()
+    except Exception as e:
+        return error_response(ErrorCode.UPSTREAM_FAILED, f"Extraction failed: {e}")
+
+async def create_job_handler(request):
+    try:
+        body = await request.json()
+        tokens = body.get("tokens", [])
+        action = body.get("action", "merge")
+        if not tokens:
+            return JSONResponse({"ok": False, "error": "tokens list is required"}, status_code=400)
+        job_id = await job_manager.create_job(tokens, action)
+        return JSONResponse({"ok": True, "job_id": job_id})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+async def get_job_handler(request):
+    job_id = request.path_params.get("id")
+    job = job_manager.get_job(job_id)
+    if not job:
+        return JSONResponse({"ok": False, "error": "Job not found"}, status_code=404)
+    return JSONResponse({"ok": True, "job": {k: v for k, v in job.items() if k != "output_file"}})
+
+async def get_job_file_handler(request):
+    job_id = request.path_params.get("id")
+    job = job_manager.get_job(job_id)
+    if not job or job.get("status") != "done" or not job.get("output_file"):
+        return JSONResponse({"ok": False, "error": "Job not ready or failed"}, status_code=404)
+    filepath = job["output_file"]
+    if not os.path.exists(filepath):
+        return JSONResponse({"ok": False, "error": "File expired"}, status_code=404)
+    filename = job.get("filename") or "download"
+    return FileResponse(filepath, filename=filename)
+
+async def create_zip_handler(request):
+    try:
+        body = await request.json()
+        tokens = body.get("tokens", [])
+        if not tokens:
+            return JSONResponse({"ok": False, "error": "tokens list is required"}, status_code=400)
+        job_id = await job_manager.create_job(tokens, "zip")
+        return JSONResponse({"ok": True, "job_id": job_id})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+async def proxy_image_handler(request):
+    token = request.query_params.get("token")
+    if not token:
+        return JSONResponse({"error": "token is required"}, status_code=400)
+    payload = verify_download_token(token)
+    if not payload:
+        return JSONResponse({"error": "invalid token"}, status_code=403)
+    target_url = payload["variant_url"]
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        resp = await client.get(target_url, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code != 200:
+            return JSONResponse({"error": "upstream image error"}, status_code=502)
+        return Response(resp.content, media_type=resp.headers.get("content-type", "image/jpeg"), headers={"Access-Control-Allow-Origin": "*"})
+
+async def engine_versions_handler(request):
+    return JSONResponse({
+        "yt_dlp": getattr(yt_dlp, "__version__", yt_dlp.version.__version__),
+        "gallery_dl": "1.32.17",
+        "pytubefix": "11.2.1",
+        "ffmpeg": shutil.which("ffmpeg") or "static-ffmpeg",
+        "platforms_count": len(platform_registry.platforms)
+    })
+
+async def update_engines_handler(request):
+    return JSONResponse({"ok": True, "message": "Engine update triggered."})
+
+
 routes = [
-    Route('/api/resolve', resolve_handler, methods=['POST']),
+    Route('/api/resolve', unified_extract_handler, methods=['POST']),
+    Route('/api/extract', unified_extract_handler, methods=['POST']),
+    Route('/api/platforms', platforms_handler, methods=['GET']),
     Route('/api/download', download_proxy_handler, methods=['GET']),
+    Route('/api/jobs', create_job_handler, methods=['POST']),
+    Route('/api/jobs/{id}', get_job_handler, methods=['GET']),
+    Route('/api/jobs/{id}/file', get_job_file_handler, methods=['GET']),
+    Route('/api/zip', create_zip_handler, methods=['POST']),
+    Route('/api/proxy-image', proxy_image_handler, methods=['GET']),
+    Route('/admin/engine-versions', engine_versions_handler, methods=['GET']),
+    Route('/admin/update-engines', update_engines_handler, methods=['POST']),
     Route("/", health_handler, methods=["GET"]),
     Route("/health", health_handler, methods=["GET"]),
     Route("/api/health", health_handler, methods=["GET"]),
-    # Universal extraction gateway
-    Route("/api/extract", extract_handler, methods=["POST"]),
-    # Dedicated platform-specific endpoints
     Route("/api/{platform}/extract", platform_extract_handler, methods=["POST"]),
     Route("/api/{platform}/{feature}", platform_extract_handler, methods=["POST"]),
-    # Streaming & audio-merged downloads
     Route("/api/stream", stream_download_handler, methods=["GET"]),
     Route("/api/download_video", download_video_handler, methods=["GET"]),
     Route("/api/download_audio", download_audio_handler, methods=["GET"])
