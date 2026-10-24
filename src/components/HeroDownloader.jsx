@@ -17,6 +17,7 @@ import {
   TiktokIcon,
   PinterestIcon,
   RedditIcon,
+  ThreadsIcon,
   GlobeIcon
 } from './BrandIcons.jsx';
 import { normalizeUrl } from '../utils/normalizeUrl.js';

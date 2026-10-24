@@ -17,7 +17,11 @@ import {
   YoutubeIcon, 
   FacebookIcon,
   InstagramIcon, 
-  TiktokIcon 
+  TiktokIcon,
+  PinterestIcon,
+  RedditIcon,
+  ThreadsIcon,
+  GlobeIcon
 } from './BrandIcons.jsx';
 
 const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
@@ -89,6 +93,10 @@ export default function MediaResultCard({ data, onReset }) {
     facebook: FacebookIcon,
     instagram: InstagramIcon,
     tiktok: TiktokIcon,
+    pinterest: PinterestIcon,
+    reddit: RedditIcon,
+    threads: ThreadsIcon,
+    generic: GlobeIcon,
   }[platform] || Video;
 
   return (

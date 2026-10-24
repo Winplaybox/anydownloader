@@ -46,6 +46,17 @@ function normalizeLegacyExtract(raw, sourceUrl, platform) {
     });
   }
 
+  // Fallback single thumbnail if no formats found
+  if (variants.length === 0 && thumb) {
+    variants.push({
+      id: 'thumb_main',
+      kind: 'image',
+      ext: 'jpg',
+      quality: 'High Resolution Photo',
+      downloadUrl: thumb
+    });
+  }
+
   // Carousel Slides
   if (Array.isArray(raw.carousel_media) && raw.carousel_media.length > 0) {
     const items = raw.carousel_media.map((cm, idx) => ({
@@ -229,8 +240,12 @@ export async function resolveMedia(rawInput) {
       if (json.ok && json.data) {
         return { ok: true, data: json.data };
       }
-      if (json.success && (json.video_formats || json.thumbnails || json.carousel_media)) {
-        return { ok: true, data: normalizeLegacyExtract(json, norm.url, norm.platform) };
+      const legacyPayload = json.data || json;
+      if ((json.success || json.ok) && legacyPayload) {
+        const normalized = normalizeLegacyExtract(legacyPayload, norm.url, norm.platform);
+        if (normalized && normalized.items && normalized.items.length > 0 && normalized.items[0].variants && normalized.items[0].variants.length > 0) {
+          return { ok: true, data: normalized };
+        }
       }
       if (json.error) {
         return { ok: false, code: ErrorCode.UPSTREAM_FAILED, error: json.error };

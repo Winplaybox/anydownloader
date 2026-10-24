@@ -7,15 +7,36 @@ import yt_dlp
 
 try:
     from backend.utils.errors import AppError, ErrorCode
-except ModuleNotFoundError:
-    from utils.errors import AppError, ErrorCode
-from backend.extractors.base import (
-    BaseExtractor,
-    ResolveResult,
-    MediaItem,
-    MediaVariant,
-    AuthorInfo,
-)
+except (ModuleNotFoundError, ImportError):
+    try:
+        from utils.errors import AppError, ErrorCode
+    except (ModuleNotFoundError, ImportError):
+        from ..utils.errors import AppError, ErrorCode
+try:
+    from backend.extractors.base import (
+        BaseExtractor,
+        ResolveResult,
+        MediaItem,
+        MediaVariant,
+        AuthorInfo,
+    )
+except (ModuleNotFoundError, ImportError):
+    try:
+        from extractors.base import (
+            BaseExtractor,
+            ResolveResult,
+            MediaItem,
+            MediaVariant,
+            AuthorInfo,
+        )
+    except (ModuleNotFoundError, ImportError):
+        from .base import (
+            BaseExtractor,
+            ResolveResult,
+            MediaItem,
+            MediaVariant,
+            AuthorInfo,
+        )
 
 class TwitterExtractor(BaseExtractor):
     platform: str = "twitter"

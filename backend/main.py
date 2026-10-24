@@ -2332,9 +2332,73 @@ async def resolve_handler(request):
     try:
         result = await extractor.resolve(norm["url"])
         return JSONResponse({"ok": True, "data": result.to_dict()})
-    except AppError as e:
-        return e.to_response()
     except Exception as e:
+        # Fallback to legacy extract_media before erroring
+        try:
+            loop = asyncio.get_event_loop()
+            legacy_data = await loop.run_in_executor(None, extract_media, norm["url"])
+            if legacy_data and (legacy_data.get("video_formats") or legacy_data.get("thumbnails") or legacy_data.get("carousel_media")):
+                fallback_items = []
+                for idx, vf in enumerate(legacy_data.get("video_formats") or []):
+                    fallback_items.append({
+                        "index": len(fallback_items) + 1,
+                        "kind": "video",
+                        "thumbnail": legacy_data.get("thumbnail"),
+                        "variants": [{
+                            "id": f"fb_v_{idx}",
+                            "kind": "video",
+                            "ext": vf.get("ext") or "mp4",
+                            "quality": vf.get("quality") or "HD",
+                            "downloadUrl": vf.get("stream_url") or vf.get("url"),
+                            "hasAudio": vf.get("has_audio", True)
+                        }]
+                    })
+                for idx, cm in enumerate(legacy_data.get("carousel_media") or []):
+                    k = "video" if cm.get("type") == "video" else "image"
+                    fallback_items.append({
+                        "index": len(fallback_items) + 1,
+                        "kind": k,
+                        "thumbnail": cm.get("url"),
+                        "variants": [{
+                            "id": f"fb_c_{idx}",
+                            "kind": k,
+                            "ext": "mp4" if k == "video" else "jpg",
+                            "quality": cm.get("quality") or f"Slide {idx + 1}",
+                            "downloadUrl": cm.get("stream_url") or cm.get("url")
+                        }]
+                    })
+                if not fallback_items:
+                    for idx, th in enumerate(legacy_data.get("thumbnails") or []):
+                        fallback_items.append({
+                            "index": len(fallback_items) + 1,
+                            "kind": "image",
+                            "thumbnail": th.get("url"),
+                            "variants": [{
+                                "id": f"fb_img_{idx}",
+                                "kind": "image",
+                                "ext": "jpg",
+                                "quality": th.get("quality") or "High Resolution",
+                                "downloadUrl": th.get("stream_url") or th.get("url")
+                            }]
+                        })
+                if fallback_items:
+                    res_dict = {
+                        "platform": norm["platform"],
+                        "sourceUrl": norm["url"],
+                        "title": legacy_data.get("title") or "Extracted Media",
+                        "author": {
+                            "name": legacy_data.get("uploader") or "Social Creator",
+                            "handle": legacy_data.get("uploader") or "Social Creator",
+                            "avatar": legacy_data.get("thumbnail")
+                        },
+                        "items": fallback_items
+                    }
+                    return JSONResponse({"ok": True, "data": res_dict})
+        except Exception:
+            pass
+
+        if isinstance(e, AppError):
+            return e.to_response()
         return error_response(ErrorCode.INTERNAL, "Something went wrong on our side.", retryable=True)
 
 async def download_proxy_handler(request):

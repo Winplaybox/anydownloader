@@ -8,21 +8,18 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
 
-          {/* Brand Col */}
+                    {/* Brand Col - Pure Text OVD */}
           <div className="space-y-3 md:col-span-2">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] flex items-center justify-center font-black text-xs">
+            <Link to="/" className="inline-block group select-none" title="OVD">
+              <span className="font-black text-2xl tracking-tighter text-[var(--text)] group-hover:opacity-80 transition-opacity">
                 OVD
-              </div>
-              <span className="font-extrabold text-base tracking-tight text-[var(--text)]">
-                OVD Downloader
               </span>
-            </div>
+            </Link>
             <p className="text-xs text-[var(--text-muted)] max-w-sm leading-relaxed">
-              Free, fast social media video and image downloader. Works with any public post from Twitter/X, YouTube, Facebook, Instagram, TikTok and more.
+              Free, fast social media video and image downloader. Works with any public post from Twitter/X, YouTube, Facebook, Instagram, TikTok, Pinterest, Reddit, Threads, and any open web URL.
             </p>
             <div className="text-xs text-[var(--text-muted)]">
-              Supported: X (Twitter) • YouTube • Facebook • Instagram • TikTok
+              Supported: X (Twitter) &bull; YouTube &bull; Facebook &bull; Instagram &bull; TikTok &bull; Pinterest &bull; Reddit &bull; Threads &bull; Any Website
             </div>
           </div>
 
@@ -37,6 +34,10 @@ export default function Footer() {
               <li><Link to="/facebook-video-downloader" className="hover:text-[var(--accent)] transition-colors">Facebook Videos & Reels</Link></li>
               <li><Link to="/instagram-video-downloader" className="hover:text-[var(--accent)] transition-colors">Instagram Reels & Carousels</Link></li>
               <li><Link to="/tiktok-video-downloader" className="hover:text-[var(--accent)] transition-colors">TikTok Videos (No Watermark)</Link></li>
+              <li><Link to="/pinterest-video-downloader" className="hover:text-[var(--accent)] transition-colors">Pinterest Video & Photos</Link></li>
+              <li><Link to="/reddit-video-downloader" className="hover:text-[var(--accent)] transition-colors">Reddit Video with Audio</Link></li>
+              <li><Link to="/threads-video-downloader" className="hover:text-[var(--accent)] transition-colors">Threads Video & Photos</Link></li>
+              <li><Link to="/any-website-downloader" className="hover:text-[var(--accent)] transition-colors">Any Website Downloader</Link></li>
             </ul>
           </div>
 
