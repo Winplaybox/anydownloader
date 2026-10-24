@@ -9,7 +9,9 @@ import {
   RefreshCw,
   Sparkles,
   AlertTriangle,
-  Check
+  Check,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { 
   TwitterXIcon,
@@ -68,6 +70,24 @@ export default function HeroDownloader({
   pageDesc = null
 }) {
   const inputRef = useRef(null);
+  const chipsScrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = () => {
+    const el = chipsScrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 4);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4);
+  };
+
+  const scrollChips = (direction) => {
+    if (chipsScrollRef.current) {
+      const offset = direction === 'left' ? -220 : 220;
+      chipsScrollRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -226,6 +246,23 @@ export default function HeroDownloader({
   else if (path.includes('any-website') || path.includes('website')) routePlatform = 'generic';
 
   const currentActivePlatform = detectedPlatform || (activeCategory !== 'all' ? activeCategory : routePlatform) || 'all';
+    useEffect(() => {
+    checkScroll();
+    const t1 = setTimeout(checkScroll, 100);
+    const t2 = setTimeout(checkScroll, 400);
+    const el = chipsScrollRef.current;
+    if (el) {
+      el.addEventListener('scroll', checkScroll, { passive: true });
+      window.addEventListener('resize', checkScroll);
+    }
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      if (el) el.removeEventListener('scroll', checkScroll);
+      window.removeEventListener('resize', checkScroll);
+    };
+  }, [platformList]);
+
   const activePlatformData = platformList.find(p => p.id === currentActivePlatform);
   const isPlatformDegraded = activePlatformData?.status === 'degraded';
 
@@ -340,43 +377,70 @@ export default function HeroDownloader({
         </div>
       )}
 
-      {/* Dynamic Platform Chips - Base Design System Chips Pattern */}
-      <div className="mt-6 flex items-center justify-start sm:justify-center gap-1.5 overflow-x-auto no-scrollbar py-2">
-        {platformList.map((p) => {
-          const isActive = currentActivePlatform === p.id;
-          const Icon = p.icon;
-          const isBeta = p.status === 'beta' || p.tier === 'B';
-          const isDegraded = p.status === 'degraded';
+      {/* Dynamic Platform Chips with Left / Right Scroll Controls */}
+      <div className="mt-6 relative flex items-center max-w-full">
+        {canScrollLeft && (
+          <button
+            type="button"
+            onClick={() => scrollChips('left')}
+            aria-label="Scroll platforms left"
+            className="absolute -left-2 sm:-left-3 z-20 w-7 h-7 rounded-full bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] border border-[var(--border)] shadow-md flex items-center justify-center transition-all hover:scale-105 hover:bg-[var(--bg-alt)]"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
 
-          return (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => handleChipClick(p)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                isActive
-                  ? 'bg-[var(--primary)] text-[var(--on-primary)] shadow-xs'
-                  : 'bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] border border-[var(--border)] hover:bg-[var(--bg-alt)]'
-              }`}
-            >
-              {Icon && <Icon className="w-3.5 h-3.5" />}
-              <span>{p.name}</span>
+        <div
+          ref={chipsScrollRef}
+          className="flex items-center justify-start sm:justify-center gap-1.5 overflow-x-auto no-scrollbar py-2 w-full px-1 scroll-smooth"
+        >
+          {platformList.map((p) => {
+            const isActive = currentActivePlatform === p.id;
+            const Icon = p.icon;
+            const isBeta = p.status === 'beta' || p.tier === 'B';
+            const isDegraded = p.status === 'degraded';
 
-              {isBeta && (
-                <span className={`text-[9px] font-mono font-bold px-1 py-0.2 rounded border ${
-                  isActive ? 'border-[var(--on-primary)]/40 text-[var(--on-primary)]' : 'border-[var(--border)] text-[var(--text-muted)] bg-[var(--bg-alt)]'
-                }`}>
-                  BETA
-                </span>
-              )}
-              {isDegraded && (
-                <span className="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                  DEGRADED
-                </span>
-              )}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handleChipClick(p)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0 ${
+                  isActive
+                    ? 'bg-[var(--primary)] text-[var(--on-primary)] shadow-xs'
+                    : 'bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] border border-[var(--border)] hover:bg-[var(--bg-alt)]'
+                }`}
+              >
+                {Icon && <Icon className="w-3.5 h-3.5" />}
+                <span>{p.name}</span>
+
+                {isBeta && (
+                  <span className={`text-[9px] font-mono font-bold px-1 py-0.2 rounded border ${
+                    isActive ? 'border-[var(--on-primary)]/40 text-[var(--on-primary)]' : 'border-[var(--border)] text-[var(--text-muted)] bg-[var(--bg-alt)]'
+                  }`}>
+                    BETA
+                  </span>
+                )}
+                {isDegraded && (
+                  <span className="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                    DEGRADED
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={() => scrollChips('right')}
+            aria-label="Scroll platforms right"
+            className="absolute -right-2 sm:-right-3 z-20 w-7 h-7 rounded-full bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] border border-[var(--border)] shadow-md flex items-center justify-center transition-all hover:scale-105 hover:bg-[var(--bg-alt)]"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
     </div>
