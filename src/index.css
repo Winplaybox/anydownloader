@@ -186,3 +186,14 @@ button, input, select {
   border-color: var(--border-strong) !important;
   box-shadow: 0 0 0 3px rgba(39,110,241,0.12);
 }
+
+/* No-scrollbar utility for clean horizontal chip navigation */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}

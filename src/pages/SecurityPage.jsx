@@ -129,14 +129,13 @@ export default function SecurityPage() {
               >
                 <span>Back to OVD Downloader</span>
               </Link>
-              <a
-                href="/ovd-extension.zip"
-                download="ovd-extension.zip"
+              <Link
+                to="/extension"
                 className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:bg-[var(--bg-alt)] font-semibold text-sm flex items-center justify-center gap-2 transition-colors"
               >
                 <Download className="w-4 h-4 text-[var(--text)]" />
-                <span>Download Extension (.ZIP for Chrome)</span>
-              </a>
+                <span>Official Browser Extension</span>
+              </Link>
             </div>
           </div>
 

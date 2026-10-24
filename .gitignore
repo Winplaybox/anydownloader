@@ -18,3 +18,7 @@ scratch/
 
 *.zip
 !public/ovd-extension.zip
+
+backend/data/*.json
+
+backend/data/*.json

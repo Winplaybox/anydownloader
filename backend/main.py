@@ -15,6 +15,7 @@ try:
     from backend.engines.registry import engine_registry
     from backend.normalizer import normalize_raw_result
     from backend.job_manager import job_manager
+    from backend.blog_scheduler import blog_scheduler
     from backend.schema import (
         NormalizedResult, Author, Stats, VideoVariant, AudioVariant, ImageVariant, ThumbnailVariant
     )
@@ -24,6 +25,7 @@ except (ModuleNotFoundError, ImportError):
     from engines.registry import engine_registry
     from normalizer import normalize_raw_result
     from job_manager import job_manager
+    from blog_scheduler import blog_scheduler
     from schema import (
         NormalizedResult, Author, Stats, VideoVariant, AudioVariant, ImageVariant, ThumbnailVariant
     )
@@ -2294,7 +2296,7 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
-        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image") or request.url.path.startswith("/api/jobs") or request.url.path.startswith("/admin/"):
+        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs") or request.url.path.startswith("/api/jobs") or request.url.path.startswith("/admin/"):
             return await call_next(request)
 
         # 3. Verify origin, referer, or extension secret key
@@ -2676,6 +2678,67 @@ async def update_engines_handler(request):
     return JSONResponse({"ok": True, "message": "Engine update triggered."})
 
 
+async def contact_handler(request):
+    try:
+        import time
+        from datetime import datetime
+        body = await request.json()
+        name = (body.get("name") or "").strip()
+        email = (body.get("email") or "").strip()
+        subject = (body.get("subject") or "").strip()
+        message = (body.get("message") or "").strip()
+        if not name or not email or not message:
+            return JSONResponse({"ok": False, "error": "Name, email, and message are required."}, status_code=400)
+            
+        data_dir = os.path.join(os.path.dirname(__file__), "data")
+        os.makedirs(data_dir, exist_ok=True)
+        inquiries_file = os.path.join(data_dir, "inquiries.json")
+        
+        inquiries = []
+        if os.path.exists(inquiries_file):
+            try:
+                with open(inquiries_file, "r", encoding="utf-8") as f:
+                    inquiries = json.load(f)
+            except Exception:
+                inquiries = []
+                
+        rec = {
+            "id": f"inq_{int(time.time())}_{len(inquiries)+1}",
+            "name": name,
+            "email": email,
+            "subject": subject,
+            "message": message,
+            "timestamp": datetime.now().isoformat()
+        }
+        inquiries.append(rec)
+        with open(inquiries_file, "w", encoding="utf-8") as f:
+            json.dump(inquiries, f, indent=2)
+            
+        print(f"Contact inquiry received from {email} (id: {rec['id']})")
+        return JSONResponse({"ok": True, "message": "Thank you for reaching out. Your inquiry has been received."})
+    except Exception as e:
+        print(f"Contact handler error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+async def get_blogs_handler(request):
+    articles = blog_scheduler.get_articles()
+    return JSONResponse({"ok": True, "articles": articles})
+
+async def get_blog_settings_handler(request):
+    return JSONResponse({"ok": True, "settings": blog_scheduler.get_settings()})
+
+async def update_blog_settings_handler(request):
+    try:
+        body = await request.json()
+        updated = blog_scheduler.update_settings(body)
+        return JSONResponse({"ok": True, "settings": updated})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+async def generate_blog_handler(request):
+    res = blog_scheduler.generate_daily_article(force=True)
+    return JSONResponse(res)
+
 routes = [
     Route('/api/resolve', unified_extract_handler, methods=['POST']),
     Route('/api/extract', unified_extract_handler, methods=['POST']),
@@ -2685,6 +2748,12 @@ routes = [
     Route('/api/jobs/{id}', get_job_handler, methods=['GET']),
     Route('/api/jobs/{id}/file', get_job_file_handler, methods=['GET']),
     Route('/api/zip', create_zip_handler, methods=['POST']),
+    Route('/api/contact', contact_handler, methods=['POST']),
+    Route('/api/blogs', get_blogs_handler, methods=['GET']),
+    Route('/admin/blog/settings', get_blog_settings_handler, methods=['GET']),
+    Route('/admin/blog/settings', update_blog_settings_handler, methods=['POST']),
+    Route('/admin/blog/generate', generate_blog_handler, methods=['POST']),
+
     Route('/api/proxy-image', proxy_image_handler, methods=['GET']),
     Route('/admin/engine-versions', engine_versions_handler, methods=['GET']),
     Route('/admin/update-engines', update_engines_handler, methods=['POST']),
@@ -2707,6 +2776,7 @@ middleware = [
         allow_headers=["*"]
     )
 ]
+
 
 app = Starlette(debug=False, routes=routes, middleware=middleware)
 

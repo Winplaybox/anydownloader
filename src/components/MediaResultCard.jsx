@@ -190,9 +190,11 @@ export default function MediaResultCard({ data, onReset }) {
 
             if (res.job.status === 'done') {
               clearInterval(interval);
+              setActiveJob(prev => ({ ...prev, status: 'done', progress: 100 }));
               window.location.href = `${BACKEND_BASE}/api/jobs/${activeJob.id}/file`;
               setToastMessage('Download started successfully!');
               setTimeout(() => setToastMessage(''), 4000);
+              setTimeout(() => setActiveJob(null), 3000);
             } else if (res.job.status === 'failed') {
               clearInterval(interval);
               setJobError(res.job.error || 'Media processing encountered an issue.');
@@ -530,22 +532,25 @@ export default function MediaResultCard({ data, onReset }) {
           </div>
         </div>
 
-        {/* Dynamic Media Tabs - Base Design System Tabs Pattern */}
-        <div className="border-b border-[var(--border)] bg-[var(--bg-alt)]/60 px-4 sm:px-6">
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2">
+        {/* Elevated Segmented Tabs - Spectra UI / Radix Benchmark */}
+        <div className="border-b border-[var(--border)] bg-[var(--bg-alt)]/40 px-4 sm:px-6 py-2.5">
+          <div className="inline-flex items-center gap-1 bg-[var(--bg-alt)] p-1 rounded-xl border border-[var(--border)] max-w-full overflow-x-auto no-scrollbar">
             
             {hasVideos && !isShortOrReel && (
               <button
                 type="button"
                 onClick={() => setActiveTab('video')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === 'video'
                     ? 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] shadow-xs'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]/50'
                 }`}
               >
-                <Video className="w-3.5 h-3.5" />
-                <span>Video Formats ({videos.length})</span>
+                <Video className="w-3.5 h-3.5 text-[var(--accent)]" />
+                <span>Video Formats</span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)]">
+                  {videos.length}
+                </span>
               </button>
             )}
 
@@ -553,14 +558,17 @@ export default function MediaResultCard({ data, onReset }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('shorts')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === 'shorts'
                     ? 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] shadow-xs'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]/50'
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>Reel / Short Quality ({videos.length})</span>
+                <span>Reel / Short Quality</span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)]">
+                  {videos.length}
+                </span>
               </button>
             )}
 
@@ -568,14 +576,17 @@ export default function MediaResultCard({ data, onReset }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('images')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === 'images'
                     ? 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] shadow-xs'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]/50'
                 }`}
               >
-                <ImageIcon className="w-3.5 h-3.5" />
-                <span>Thumbnails & Photos ({images.length})</span>
+                <ImageIcon className="w-3.5 h-3.5 text-[var(--accent)]" />
+                <span>Thumbnails & Photos</span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)]">
+                  {images.length}
+                </span>
               </button>
             )}
 
@@ -583,14 +594,17 @@ export default function MediaResultCard({ data, onReset }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('audio')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === 'audio'
                     ? 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] shadow-xs'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]/50'
                 }`}
               >
-                <Music className="w-3.5 h-3.5" />
-                <span>Audio Only ({audios.length})</span>
+                <Music className="w-3.5 h-3.5 text-[var(--positive)]" />
+                <span>Audio Only</span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)]">
+                  {audios.length}
+                </span>
               </button>
             )}
 
@@ -598,38 +612,63 @@ export default function MediaResultCard({ data, onReset }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('subtitles')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === 'subtitles'
                     ? 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] shadow-xs'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]/50'
                 }`}
               >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Subtitles ({subtitles.length})</span>
+                <FileText className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                <span>Subtitles</span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)]">
+                  {subtitles.length}
+                </span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Processing Job Alert */}
+        {/* Processing Job Alert - Auto-dismisses and shows CheckCircle when done */}
         {activeJob && (
-          <div className="p-3.5 bg-[var(--accent-bg)] border-b border-[var(--accent)]/20 text-[var(--text)] flex items-center justify-between gap-4">
+          <div className={`p-3.5 border-b text-[var(--text)] flex items-center justify-between gap-4 transition-all duration-300 ${
+            activeJob.status === 'done' 
+              ? 'bg-[var(--positive-bg)] border-[var(--positive)]/30' 
+              : 'bg-[var(--accent-bg)] border-[var(--accent)]/20'
+          }`}>
             <div className="flex items-center gap-2.5">
-              <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin" />
+              {activeJob.status === 'done' ? (
+                <CheckCircle2 className="w-4 h-4 text-[var(--positive)] shrink-0" />
+              ) : (
+                <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin shrink-0" />
+              )}
               <div>
                 <p className="text-xs sm:text-sm font-semibold">
-                  {activeJob.action === 'merge' ? 'Merging Video & Audio Tracks with ffmpeg...' : 'Processing Media...'}
+                  {activeJob.status === 'done' 
+                    ? 'Media Merged & Ready! Downloading to device...' 
+                    : (activeJob.action === 'merge' ? 'Merging Video & Audio Tracks with ffmpeg...' : 'Processing Media...')}
                 </p>
                 <p className="text-xs text-[var(--text-muted)]">
-                  Status: {activeJob.status} ({activeJob.progress}%)
+                  {activeJob.status === 'done' ? 'Completed 100%' : `Status: ${activeJob.status} (${activeJob.progress}%)`}
                 </p>
               </div>
             </div>
-            <div className="w-28 bg-[var(--border)] h-1.5 rounded-full overflow-hidden">
-              <div 
-                className="bg-[var(--accent)] h-full transition-all duration-300"
-                style={{ width: `${activeJob.progress}%` }}
-              />
+            <div className="flex items-center gap-3">
+              <div className="w-24 sm:w-28 bg-[var(--border)] h-1.5 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-300 ${
+                    activeJob.status === 'done' ? 'bg-[var(--positive)]' : 'bg-[var(--accent)]'
+                  }`}
+                  style={{ width: `${activeJob.progress}%` }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveJob(null)}
+                className="text-[var(--text-muted)] hover:text-[var(--text)] p-1 rounded transition-colors cursor-pointer"
+                aria-label="Dismiss alert"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         )}
