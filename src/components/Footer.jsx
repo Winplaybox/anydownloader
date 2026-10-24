@@ -22,7 +22,7 @@ export default function Footer() {
               Free, fast social media video and image downloader. Works with any public post from Twitter/X, YouTube, Facebook, Instagram, TikTok and more.
             </p>
             <div className="text-xs text-[var(--text-muted)]">
-              Supported: X (Twitter) · YouTube · Facebook · Instagram · TikTok
+              Supported: X (Twitter) • YouTube • Facebook • Instagram • TikTok
             </div>
           </div>
 
