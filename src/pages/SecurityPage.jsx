@@ -122,23 +122,23 @@ export default function SecurityPage() {
             The safe, legitimate solution is the <strong className="text-[var(--text)]">Official OVD Browser Extension</strong>. Because the extension operates on your local browser machine, it allows you to download videos directly from your active session without sharing your password with any third-party server.
           </p>
 
-          <div className="pt-6 flex flex-col sm:flex-row items-center gap-4">
-            <Link
-              to="/"
-              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-[var(--text)] font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-red-600/25 transition"
-            >
-              <span>Back to OVD Downloader</span>
-            </Link>
-            <a
-              href="https://ovd.winplaybox.in"
-              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[var(--bg-alt)] hover:bg-slate-700 text-[var(--text)] font-bold text-sm flex items-center justify-center gap-2 transition"
-            >
-              <Download className="w-4 h-4 text-sky-400" />
-              <span>Get Official Browser Extension</span>
-            </a>
+          <div className="pt-6 flex flex-col sm:flex-row items-center gap-3">
+              <Link
+                to="/"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 font-semibold text-sm flex items-center justify-center gap-2 shadow-xs transition-opacity"
+              >
+                <span>Back to OVD Downloader</span>
+              </Link>
+              <a
+                href="/ovd-extension.zip"
+                download="ovd-extension.zip"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:bg-[var(--bg-alt)] font-semibold text-sm flex items-center justify-center gap-2 transition-colors"
+              >
+                <Download className="w-4 h-4 text-[var(--text)]" />
+                <span>Download Extension (.ZIP for Chrome)</span>
+              </a>
+            </div>
           </div>
-
-        </div>
 
       </div>
 

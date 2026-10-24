@@ -10,7 +10,8 @@ import {
   PinterestIcon,
   RedditIcon,
   ThreadsIcon,
-  GlobeIcon
+  GlobeIcon,
+  ChromeIcon
 } from './BrandIcons.jsx';
 
 export default function Header() {
@@ -113,6 +114,11 @@ export default function Header() {
             </button>
 
             {moreDropdownOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setMoreDropdownOpen(false)} 
+                />
               <div className="absolute top-full right-0 mt-1.5 w-48 rounded-xl bg-[var(--surface)] border border-[var(--border)] shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
                 {secondaryNavLinks.map((item) => {
                   const Icon = item.icon;
@@ -134,8 +140,22 @@ export default function Header() {
                   );
                 })}
               </div>
+              </>
             )}
           </div>
+
+          {/* Extension */}
+          <Link
+            to="/extension"
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-150 ${
+              location.pathname === '/extension'
+                ? 'bg-[var(--primary)] text-[var(--on-primary)] shadow-sm'
+                : 'text-[var(--text)] hover:bg-[var(--bg-alt)] border border-transparent hover:border-[var(--border)]'
+            }`}
+          >
+            <ChromeIcon className="w-4 h-4 text-[var(--text-muted)]" />
+            <span>Extension</span>
+          </Link>
 
           {/* Blog */}
           <Link

@@ -47,6 +47,7 @@ export default function Footer() {
               Resources
             </div>
             <ul className="space-y-2 text-xs font-semibold">
+              <li><Link to="/extension" className="hover:text-[var(--accent)] transition-colors font-bold text-[var(--text)]">Chrome Extension (PRO)</Link></li>
               <li><Link to="/blog" className="hover:text-[var(--accent)] transition-colors">Blog & Guides</Link></li>
               <li><Link to="/updates" className="hover:text-[var(--accent)] transition-colors">Updates & Changelog</Link></li>
               <li><Link to="/terms" className="hover:text-[var(--accent)] transition-colors">Terms of Service</Link></li>

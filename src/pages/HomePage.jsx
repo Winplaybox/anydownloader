@@ -56,8 +56,8 @@ export default function HomePage() {
         {/* Hero Downloader Box */}
         <HeroDownloader
           url={url}
-          setUrl={setUrl}
-          onFetch={() => fetchMedia()}
+          setUrl={(newUrl) => { setUrl(newUrl); if (error) setError(''); }}
+          onFetch={(target) => fetchMedia(target)}
           loading={loading}
           error={error}
           errorCode={errorCode}

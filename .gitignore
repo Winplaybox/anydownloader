@@ -17,3 +17,4 @@ ENV/
 scratch/
 
 *.zip
+!public/ovd-extension.zip

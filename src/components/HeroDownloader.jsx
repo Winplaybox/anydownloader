@@ -28,7 +28,6 @@ const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname =
   ? 'http://localhost:8000'
   : 'https://anydownloader-backend-vvbj.onrender.com';
 
-// Built-in initial platforms registry cache (ensures instant rendering before /api/platforms loads)
 const DEFAULT_PLATFORMS = [
   { id: 'all', name: 'Auto-Detect', icon: null, status: 'ok', tier: 'A', seo: { slug: '' } },
   { id: 'twitter', name: 'X (Twitter)', icon: TwitterXIcon, status: 'ok', tier: 'A', seo: { slug: 'twitter-video-downloader' } },
@@ -52,7 +51,6 @@ function getIconForPlatform(id) {
   if (p === 'pinterest') return PinterestIcon;
   if (p === 'reddit') return RedditIcon;
   if (p === 'threads') return ThreadsIcon;
-  if (p === 'generic') return GlobeIcon;
   return GlobeIcon;
 }
 
@@ -79,7 +77,6 @@ export default function HeroDownloader({
   const [wakeNotice, setWakeNotice] = useState('');
   const [clipboardPasted, setClipboardPasted] = useState(false);
 
-  // Desktop autofocus
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth >= 768 && inputRef.current) {
       inputRef.current.focus();
@@ -117,7 +114,7 @@ export default function HeroDownloader({
     return () => { isMounted = false; };
   }, []);
 
-  // Helpful status message during server cold starts
+  // Cold start feedback
   useEffect(() => {
     let timer;
     if (loading) {
@@ -130,7 +127,7 @@ export default function HeroDownloader({
     return () => clearTimeout(timer);
   }, [loading]);
 
-  // Auto-Detect platform & URL change handling
+  // URL auto-detect & platform switch
   useEffect(() => {
     if (url && typeof url === 'string' && url.trim().length > 4) {
       const norm = normalizeUrl(url);
@@ -142,7 +139,6 @@ export default function HeroDownloader({
           setPasteNotice('');
         }
 
-        // Automatic platform switch if user picked a chip and URL belongs to a different platform
         if (activeCategory && activeCategory !== 'all' && norm.platform !== 'generic' && norm.platform !== activeCategory) {
           if (typeof setActiveCategory === 'function') {
             setActiveCategory(norm.platform);
@@ -157,7 +153,7 @@ export default function HeroDownloader({
     }
   }, [url, activeCategory, setActiveCategory]);
 
-  // Paste & Auto-Extract
+  // Handle Paste
   async function handlePaste() {
     try {
       const text = await navigator.clipboard.readText();
@@ -177,7 +173,7 @@ export default function HeroDownloader({
           }
         }
 
-        // Auto-extract immediately on paste as per Section 5 spec
+        // Auto-extract immediately on paste passing the clean URL
         if (typeof onFetch === 'function') {
           onFetch(clean);
         }
@@ -192,11 +188,12 @@ export default function HeroDownloader({
   function handleKeyDown(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
-      onFetch();
+      if (typeof onFetch === 'function') {
+        onFetch(url);
+      }
     }
   }
 
-  // Handle platform chip navigation or selection
   function handleChipClick(platformItem) {
     const pId = platformItem.id;
     if (typeof setActiveCategory === 'function') {
@@ -207,7 +204,6 @@ export default function HeroDownloader({
       return;
     }
 
-    // On tool pages, navigate to corresponding route
     if (pId === 'all') {
       navigate('/');
     } else if (platformItem.seo?.slug) {
@@ -217,7 +213,6 @@ export default function HeroDownloader({
     }
   }
 
-  // Active platform indicator
   const path = location.pathname.toLowerCase();
   let routePlatform = 'all';
   if (path.includes('twitter') || path.includes('/x')) routePlatform = 'twitter';
@@ -231,27 +226,25 @@ export default function HeroDownloader({
   else if (path.includes('any-website') || path.includes('website')) routePlatform = 'generic';
 
   const currentActivePlatform = detectedPlatform || (activeCategory !== 'all' ? activeCategory : routePlatform) || 'all';
-
-  // Check if active platform is degraded
   const activePlatformData = platformList.find(p => p.id === currentActivePlatform);
   const isPlatformDegraded = activePlatformData?.status === 'degraded';
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 pt-10 pb-6">
       
-      {/* Title & Tagline */}
+      {/* Title & Description */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-[var(--text)] tracking-tight leading-tight">
           {pageH1 || 'Download Social Videos & Photos'}
         </h1>
-        <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+        <p className="mt-3 text-sm sm:text-base md:text-lg text-[var(--text-muted)] max-w-2xl mx-auto">
           {pageDesc || 'Fast, 100% free extractor for Twitter, YouTube, Instagram, TikTok, Facebook, Reddit, Pinterest, and any website.'}
         </p>
       </div>
 
-      {/* Main Input Box */}
-      <div className="relative bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 focus-within:border-blue-600 dark:focus-within:border-blue-500 rounded-3xl shadow-xl transition-all duration-300">
-        <div className="flex items-center p-2 sm:p-2.5">
+      {/* Main Search / URL Box - Base Design System Input Pattern */}
+      <div className="relative bg-[var(--surface)] border border-[var(--border)] focus-within:border-[var(--border-strong)] rounded-xl shadow-xs transition-colors">
+        <div className="flex items-center p-1.5 sm:p-2">
           <input
             ref={inputRef}
             type="text"
@@ -259,47 +252,47 @@ export default function HeroDownloader({
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Paste media link here (YouTube, Twitter, TikTok, Instagram...)"
-            className="w-full px-4 py-3 bg-transparent text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm sm:text-base outline-none"
+            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-transparent text-[var(--text)] placeholder-[var(--text-muted)] text-sm sm:text-base outline-none"
             aria-label="Social media post or video URL"
           />
 
-          {/* Action buttons (Clear / Paste) */}
+          {/* Action buttons */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {url ? (
               <button
                 type="button"
                 onClick={onClear}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition-colors"
+                className="p-2 text-[var(--text-muted)] hover:text-[var(--text)] rounded-lg transition-colors"
                 aria-label="Clear input"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handlePaste}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 rounded-xl transition-all hover:bg-slate-200 dark:hover:bg-slate-700"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[var(--text)] bg-[var(--bg-alt)] hover:bg-[var(--border)] rounded-lg border border-[var(--border)] transition-colors"
               >
-                {clipboardPasted ? <Check className="w-4 h-4 text-emerald-500" /> : <Clipboard className="w-4 h-4" />}
+                {clipboardPasted ? <Check className="w-3.5 h-3.5 text-[var(--positive)]" /> : <Clipboard className="w-3.5 h-3.5" />}
                 <span className="hidden sm:inline">{clipboardPasted ? 'Pasted!' : 'Paste'}</span>
               </button>
             )}
 
-            {/* Fetch / Download Button */}
+            {/* Submit / Extract Button - Base Design System Primary */}
             <button
               type="button"
-              onClick={() => onFetch()}
+              onClick={() => onFetch(url)}
               disabled={loading}
-              className="flex items-center gap-2 px-5 sm:px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-500/25 transition-all transform active:scale-95 disabled:opacity-75 disabled:pointer-events-none"
+              className="flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 font-semibold text-sm sm:text-base shadow-xs transition-opacity disabled:opacity-50 disabled:pointer-events-none"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   <span className="hidden sm:inline">Extracting...</span>
                 </>
               ) : (
                 <>
-                  <Download className="w-5 h-5" />
+                  <Download className="w-4 h-4" />
                   <span>Download</span>
                 </>
               )}
@@ -307,48 +300,48 @@ export default function HeroDownloader({
           </div>
         </div>
 
-        {/* Notices & Multiple Links Warning */}
+        {/* Notices */}
         {pasteNotice && (
-          <div className="px-5 py-2 text-xs text-amber-600 dark:text-amber-400 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5">
+          <div className="px-4 py-1.5 text-xs text-amber-600 dark:text-amber-400 border-t border-[var(--border)] flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
             <span>{pasteNotice}</span>
           </div>
         )}
       </div>
 
-      {/* Engine Wake Notice (during Render cold starts) */}
+      {/* Engine Wake Notice */}
       {wakeNotice && (
-        <div className="mt-3 px-4 py-2 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/40 flex items-center justify-center gap-2 animate-pulse">
+        <div className="mt-3 px-4 py-2 text-xs text-[var(--accent)] bg-[var(--accent-bg)] rounded-lg border border-[var(--accent)]/20 flex items-center justify-center gap-2 animate-pulse">
           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
           <span>{wakeNotice}</span>
         </div>
       )}
 
-      {/* Error Message Box */}
+      {/* Error Message Box - Base Design System Negative Token */}
       {error && (
-        <div className="mt-4 p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 flex items-start gap-3 animate-shake">
-          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-rose-500" />
-          <div className="text-sm">
+        <div className="mt-4 p-3.5 rounded-lg bg-[var(--negative-bg)] border border-[var(--negative)]/20 text-[var(--negative)] text-sm flex items-start gap-2.5">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <div>
             <p className="font-semibold">{error}</p>
             {errorCode && (
-              <p className="text-xs opacity-75 mt-0.5 font-mono">Error Code: {errorCode}</p>
+              <p className="text-xs opacity-80 mt-0.5 font-mono">Error Code: {errorCode}</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Platform Degraded Warning Banner */}
+      {/* Degraded Platform Warning */}
       {isPlatformDegraded && (
-        <div className="mt-4 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300 text-xs flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+        <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-500" />
           <span>
             <strong>{activePlatformData.name}</strong> is currently experiencing elevated upstream delays. Our fallback engines are engaged.
           </span>
         </div>
       )}
 
-      {/* Dynamic Platform Chips (Fetched from /api/platforms with status badges) */}
-      <div className="mt-6 flex items-center justify-start sm:justify-center gap-2 overflow-x-auto no-scrollbar py-2">
+      {/* Dynamic Platform Chips - Base Design System Chips Pattern */}
+      <div className="mt-6 flex items-center justify-start sm:justify-center gap-1.5 overflow-x-auto no-scrollbar py-2">
         {platformList.map((p) => {
           const isActive = currentActivePlatform === p.id;
           const Icon = p.icon;
@@ -360,27 +353,24 @@ export default function HeroDownloader({
               key={p.id}
               type="button"
               onClick={() => handleChipClick(p)}
-              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
                 isActive
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                  ? 'bg-[var(--primary)] text-[var(--on-primary)] shadow-xs'
+                  : 'bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] border border-[var(--border)] hover:bg-[var(--bg-alt)]'
               }`}
             >
               {Icon && <Icon className="w-3.5 h-3.5" />}
               <span>{p.name}</span>
 
-              {/* Status Badges */}
               {isBeta && (
-                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                <span className={`text-[9px] font-mono font-bold px-1 py-0.2 rounded border ${
+                  isActive ? 'border-[var(--on-primary)]/40 text-[var(--on-primary)]' : 'border-[var(--border)] text-[var(--text-muted)] bg-[var(--bg-alt)]'
                 }`}>
                   BETA
                 </span>
               )}
               {isDegraded && (
-                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                  isActive ? 'bg-amber-400 text-black' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
-                }`}>
+                <span className="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                   DEGRADED
                 </span>
               )}

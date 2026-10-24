@@ -47,7 +47,7 @@ if (fs.existsSync(distHtml)) {
 }
 
 // 3. Ensure favicon.svg, robots.txt, and sitemap.xml in root
-const filesToSync = ['favicon.svg', 'robots.txt', 'sitemap.xml', 'logo.svg', 'logo.png', 'apple-touch-icon.png', 'favicon-32x32.png'];
+const filesToSync = ['favicon.ico', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'logo.svg', 'logo.png', 'apple-touch-icon.png', 'favicon-32x32.png', 'ovd-extension.zip'];
 for (const fname of filesToSync) {
   const src = path.join(root, 'public', fname);
   if (fs.existsSync(src)) {

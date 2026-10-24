@@ -93,7 +93,6 @@ function getPlatformIcon(platform) {
 export default function MediaResultCard({ data, onReset }) {
   if (!data) return null;
 
-  // Extract from normalized schema or legacy response
   const platform = data.platform || 'social';
   const contentType = data.contentType || 'video';
   const title = data.title || 'Extracted Media';
@@ -110,7 +109,6 @@ export default function MediaResultCard({ data, onReset }) {
   const warnings = data.warnings || [];
   const isDegraded = data.status === 'degraded' || warnings.length > 0;
 
-  // Variants collections
   const videos = Array.isArray(data.videos) && data.videos.length > 0 
     ? data.videos 
     : (Array.isArray(data.items) 
@@ -131,17 +129,14 @@ export default function MediaResultCard({ data, onReset }) {
 
   const thumbnails = Array.isArray(data.thumbnails) ? data.thumbnails : [];
   const images = rawImages.length > 0 ? rawImages : thumbnails;
-
   const subtitles = Array.isArray(data.subtitles) ? data.subtitles : [];
 
-  // Tab availability
   const hasVideos = videos.length > 0;
   const hasAudios = audios.length > 0;
   const hasImages = images.length > 0;
   const hasSubtitles = subtitles.length > 0;
   const isShortOrReel = contentType === 'short' || contentType === 'reel';
 
-  // Calculate default active tab
   const [activeTab, setActiveTab] = useState(() => {
     if (isShortOrReel && hasVideos) return 'shorts';
     if (hasVideos) return 'video';
@@ -157,12 +152,10 @@ export default function MediaResultCard({ data, onReset }) {
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [copiedTags, setCopiedTags] = useState(false);
 
-  // Job manager state (for ffmpeg merges and zip archives)
-  const [activeJob, setActiveJob] = useState(null); // { id, status, progress, action }
+  const [activeJob, setActiveJob] = useState(null);
   const [jobError, setJobError] = useState(null);
   const [isZipping, setIsZipping] = useState(false);
 
-  // Stats values (honest omission of missing or 0 metrics)
   const viewsCount = formatMetricCount(stats.views);
   const likesCount = formatMetricCount(stats.likes);
   const commentsCount = formatMetricCount(stats.comments);
@@ -174,14 +167,12 @@ export default function MediaResultCard({ data, onReset }) {
 
   const PlatformIcon = getPlatformIcon(platform);
 
-  // Determine main preview thumbnail
   const mainThumbnail = thumbnails[0]?.token 
     ? `${BACKEND_BASE}/api/proxy-image?token=${thumbnails[0].token}`
     : (images[0]?.token 
         ? `${BACKEND_BASE}/api/proxy-image?token=${images[0].token}`
         : (data.thumbnail || thumbnails[0]?.downloadUrl || images[0]?.downloadUrl || avatar));
 
-  // Poll for background job completion
   useEffect(() => {
     if (!activeJob || activeJob.status === 'done' || activeJob.status === 'failed') return;
 
@@ -209,14 +200,13 @@ export default function MediaResultCard({ data, onReset }) {
           }
         }
       } catch (e) {
-        // Continue polling
+        // continue polling
       }
     }, 1500);
 
     return () => clearInterval(interval);
   }, [activeJob]);
 
-  // Handle direct download or proxy download
   function triggerDownload(item) {
     if (item.token) {
       const url = `${BACKEND_BASE}/api/download?token=${encodeURIComponent(item.token)}`;
@@ -226,7 +216,6 @@ export default function MediaResultCard({ data, onReset }) {
     }
   }
 
-  // Handle ffmpeg merge job for video-only formats
   async function triggerMergeJob(videoItem) {
     setJobError(null);
     const videoToken = videoItem.token;
@@ -248,10 +237,7 @@ export default function MediaResultCard({ data, onReset }) {
       const resp = await fetch(`${BACKEND_BASE}/api/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'merge',
-          tokens
-        })
+        body: JSON.stringify({ action: 'merge', tokens })
       });
 
       if (resp.ok) {
@@ -279,7 +265,6 @@ export default function MediaResultCard({ data, onReset }) {
     }
   }
 
-  // Handle Zip download of all images / thumbnails
   async function triggerZipDownload() {
     setIsZipping(true);
     setJobError(null);
@@ -320,7 +305,6 @@ export default function MediaResultCard({ data, onReset }) {
     }
   }
 
-  // Copy caption helper
   function handleCopyCaption() {
     if (!caption) return;
     navigator.clipboard.writeText(caption);
@@ -328,7 +312,6 @@ export default function MediaResultCard({ data, onReset }) {
     setTimeout(() => setCopiedCaption(false), 2000);
   }
 
-  // Copy all tags helper
   function handleCopyAllTags() {
     const allTags = [...tags, ...hashtags.map(h => (h.startsWith('#') ? h : `#${h}`))].join(' ');
     if (!allTags) return;
@@ -339,57 +322,54 @@ export default function MediaResultCard({ data, onReset }) {
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-8 animate-fadeIn">
-      {/* Degraded Status Banner */}
+      {/* Degraded Notice */}
       {isDegraded && (
-        <div className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-500" />
-          <div className="text-sm">
+        <div className="mb-4 p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 flex items-start gap-2.5">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
+          <div className="text-xs">
             <p className="font-semibold">Platform Service Notice</p>
-            <p className="text-xs opacity-90 mt-0.5">
+            <p className="opacity-90 mt-0.5">
               {warnings[0] || 'This platform is currently operating in fallback mode or experiencing rate restrictions. Downloads remain active.'}
             </p>
           </div>
         </div>
       )}
 
-      {/* Main Container Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl overflow-hidden transition-all duration-300">
+      {/* Main Container Card - Base Design System Surface Pattern */}
+      <div className="bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] rounded-xl sm:rounded-2xl shadow-xs overflow-hidden transition-colors">
         
         {/* Header Summary Section */}
-        <div className="p-6 md:p-8 border-b border-slate-100 dark:border-slate-800/80">
-          <div className="flex flex-col md:flex-row gap-6 items-start">
+        <div className="p-5 sm:p-6 md:p-8 border-b border-[var(--border)]">
+          <div className="flex flex-col md:flex-row gap-5 md:gap-6 items-start">
             
-            {/* Visual Media Preview Thumbnail */}
-            <div className="relative group w-full md:w-56 h-56 flex-shrink-0 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            {/* Visual Media Preview */}
+            <div className="relative group w-full md:w-52 h-52 flex-shrink-0 rounded-xl overflow-hidden bg-[var(--bg-alt)] border border-[var(--border)]">
               {mainThumbnail ? (
                 <img 
                   src={mainThumbnail} 
                   alt={title}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                  }}
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  onError={(e) => { e.target.style.display = 'none'; }}
                 />
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                  <ImageIcon className="w-12 h-12 stroke-[1.5]" />
-                  <span className="text-xs mt-2 font-medium">No Preview</span>
+                <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
+                  <ImageIcon className="w-10 h-10 stroke-[1.5]" />
+                  <span className="text-xs mt-1.5 font-medium">No Preview</span>
                 </div>
               )}
 
-              {/* Badge Overlay */}
-              <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 text-white text-xs font-semibold">
+              {/* Platform Chip Badge */}
+              <div className="absolute top-2.5 left-2.5 bg-black/75 backdrop-blur-xs px-2.5 py-1 rounded-md flex items-center gap-1.5 text-white text-xs font-semibold">
                 <PlatformIcon className="w-3.5 h-3.5" />
                 <span className="capitalize">{platform}</span>
               </div>
 
               {duration && (
-                <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded text-white text-[11px] font-mono font-medium">
+                <div className="absolute bottom-2.5 right-2.5 bg-black/80 backdrop-blur-xs px-2 py-0.5 rounded text-white text-[11px] font-mono font-medium">
                   {formatDuration(duration)}
                 </div>
               )}
 
-              {/* Click to expand lightbox */}
               {mainThumbnail && (
                 <button
                   type="button"
@@ -397,33 +377,33 @@ export default function MediaResultCard({ data, onReset }) {
                   className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"
                   aria-label="Enlarge image preview"
                 >
-                  <div className="p-3 bg-white/20 backdrop-blur-md rounded-full shadow-lg transform group-hover:scale-110 transition-transform">
-                    <Maximize2 className="w-5 h-5 text-white" />
+                  <div className="p-2.5 bg-white/20 backdrop-blur-md rounded-full">
+                    <Maximize2 className="w-4 h-4 text-white" />
                   </div>
                 </button>
               )}
             </div>
 
-            {/* Metadata & Author Column */}
+            {/* Metadata & Author Details */}
             <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch">
               <div>
-                {/* Author Badge & Reset */}
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
+                {/* Author Info & Reset */}
+                <div className="flex items-center justify-between gap-3 mb-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
                     {avatar && (
                       <img 
                         src={avatar} 
                         alt={authorName} 
-                        className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                        className="w-7 h-7 rounded-full object-cover border border-[var(--border)]"
                         onError={(e) => { e.target.style.display = 'none'; }}
                       />
                     )}
                     <div className="min-w-0 leading-tight">
-                      <div className="flex items-center gap-1 font-semibold text-slate-900 dark:text-white text-sm truncate">
+                      <div className="flex items-center gap-1 font-semibold text-[var(--text)] text-sm truncate">
                         <span>{authorName}</span>
-                        <BadgeCheck className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                        <BadgeCheck className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">@{authorHandle}</p>
+                      <p className="text-xs text-[var(--text-muted)] truncate">@{authorHandle}</p>
                     </div>
                   </div>
 
@@ -431,7 +411,7 @@ export default function MediaResultCard({ data, onReset }) {
                     <button
                       type="button"
                       onClick={onReset}
-                      className="text-xs text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                      className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] px-2.5 py-1 rounded-md border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--bg-alt)] transition-colors"
                     >
                       Search Again
                     </button>
@@ -439,22 +419,22 @@ export default function MediaResultCard({ data, onReset }) {
                 </div>
 
                 {/* Title */}
-                <h2 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white leading-snug line-clamp-2 mb-2">
+                <h2 className="text-base sm:text-lg font-bold text-[var(--text)] leading-snug line-clamp-2 mb-2">
                   {title}
                 </h2>
 
-                {/* Caption / Description with Copy */}
+                {/* Caption / Description Box */}
                 {caption && (
-                  <div className="mt-2 text-xs md:text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <div className="mt-2 text-xs md:text-sm text-[var(--text)] bg-[var(--bg-alt)] p-3 rounded-lg border border-[var(--border)]">
                     <div className={`relative ${!isCaptionExpanded && caption.length > 200 ? 'line-clamp-2' : ''}`}>
                       <p className="whitespace-pre-line leading-relaxed">{caption}</p>
                     </div>
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/50 dark:border-slate-700/50">
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]">
                       {caption.length > 200 ? (
                         <button
                           type="button"
                           onClick={() => setIsCaptionExpanded(!isCaptionExpanded)}
-                          className="text-[11px] font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1"
+                          className="text-xs font-medium text-[var(--accent)] flex items-center gap-1"
                         >
                           {isCaptionExpanded ? <>Show less <ChevronUp className="w-3 h-3" /></> : <>Show full caption <ChevronDown className="w-3 h-3" /></>}
                         </button>
@@ -462,9 +442,9 @@ export default function MediaResultCard({ data, onReset }) {
                       <button
                         type="button"
                         onClick={handleCopyCaption}
-                        className="text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center gap-1 ml-auto"
+                        className="text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text)] flex items-center gap-1 ml-auto"
                       >
-                        {copiedCaption ? <><Check className="w-3 h-3 text-emerald-500" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy Caption</>}
+                        {copiedCaption ? <><Check className="w-3 h-3 text-[var(--positive)]" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy Caption</>}
                       </button>
                     </div>
                   </div>
@@ -472,21 +452,21 @@ export default function MediaResultCard({ data, onReset }) {
 
                 {/* Tags & Hashtags */}
                 {(tags.length > 0 || hashtags.length > 0) && (
-                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                     {hashtags.slice(0, 6).map((tag, i) => (
-                      <span key={`ht_${i}`} className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium">
+                      <span key={`ht_${i}`} className="text-xs px-2 py-0.5 rounded-md bg-[var(--accent-bg)] text-[var(--accent)] font-medium">
                         {tag.startsWith('#') ? tag : `#${tag}`}
                       </span>
                     ))}
                     {tags.slice(0, 4).map((tag, i) => (
-                      <span key={`tg_${i}`} className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      <span key={`tg_${i}`} className="text-xs px-2 py-0.5 rounded-md bg-[var(--bg-alt)] border border-[var(--border)] text-[var(--text-muted)]">
                         {tag}
                       </span>
                     ))}
                     <button
                       type="button"
                       onClick={handleCopyAllTags}
-                      className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 ml-1 underline"
+                      className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] ml-1 underline cursor-pointer"
                     >
                       {copiedTags ? 'Copied!' : 'Copy tags'}
                     </button>
@@ -496,10 +476,10 @@ export default function MediaResultCard({ data, onReset }) {
 
               {/* Stats Row (Honest metadata, omitting unavailable keys) */}
               {hasStats && (
-                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                <div className="mt-3.5 pt-3 border-t border-[var(--border)] flex flex-wrap items-center gap-4 text-xs text-[var(--text-muted)] font-medium">
                   {viewsCount && (
                     <div className="flex items-center gap-1.5" title="Views">
-                      <Eye className="w-3.5 h-3.5 text-slate-400" />
+                      <Eye className="w-3.5 h-3.5" />
                       <span>{viewsCount} views</span>
                     </div>
                   )}
@@ -517,7 +497,7 @@ export default function MediaResultCard({ data, onReset }) {
                   )}
                   {sharesCount && (
                     <div className="flex items-center gap-1.5" title="Shares">
-                      <Share2 className="w-3.5 h-3.5 text-emerald-500" />
+                      <Share2 className="w-3.5 h-3.5 text-[var(--positive)]" />
                       <span>{sharesCount}</span>
                     </div>
                   )}
@@ -534,13 +514,13 @@ export default function MediaResultCard({ data, onReset }) {
                     </div>
                   )}
                   {scoreCount && (
-                    <div className="flex items-center gap-1.5" title="Reddit Score">
+                    <div className="flex items-center gap-1.5" title="Score">
                       <Sparkles className="w-3.5 h-3.5 text-orange-500" />
                       <span>{scoreCount} pts</span>
                     </div>
                   )}
                   {publishedAt && (
-                    <span className="text-[11px] text-slate-400 ml-auto">
+                    <span className="text-[11px] text-[var(--text-muted)] ml-auto">
                       {new Date(publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                   )}
@@ -550,21 +530,21 @@ export default function MediaResultCard({ data, onReset }) {
           </div>
         </div>
 
-        {/* Dynamic Media Tabs (Shown only if data exists for that content type) */}
-        <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 px-6">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2">
+        {/* Dynamic Media Tabs - Base Design System Tabs Pattern */}
+        <div className="border-b border-[var(--border)] bg-[var(--bg-alt)]/60 px-4 sm:px-6">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2">
             
             {hasVideos && !isShortOrReel && (
               <button
                 type="button"
                 onClick={() => setActiveTab('video')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                   activeTab === 'video'
-                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200 dark:border-slate-700'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] shadow-xs'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)]'
                 }`}
               >
-                <Video className="w-4 h-4" />
+                <Video className="w-3.5 h-3.5" />
                 <span>Video Formats ({videos.length})</span>
               </button>
             )}
@@ -573,13 +553,13 @@ export default function MediaResultCard({ data, onReset }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('shorts')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                   activeTab === 'shorts'
-                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200 dark:border-slate-700'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] shadow-xs'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)]'
                 }`}
               >
-                <Sparkles className="w-4 h-4 text-amber-500" />
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                 <span>Reel / Short Quality ({videos.length})</span>
               </button>
             )}
@@ -588,13 +568,13 @@ export default function MediaResultCard({ data, onReset }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('images')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                   activeTab === 'images'
-                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200 dark:border-slate-700'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] shadow-xs'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)]'
                 }`}
               >
-                <ImageIcon className="w-4 h-4" />
+                <ImageIcon className="w-3.5 h-3.5" />
                 <span>Thumbnails & Photos ({images.length})</span>
               </button>
             )}
@@ -603,13 +583,13 @@ export default function MediaResultCard({ data, onReset }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('audio')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                   activeTab === 'audio'
-                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200 dark:border-slate-700'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] shadow-xs'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)]'
                 }`}
               >
-                <Music className="w-4 h-4" />
+                <Music className="w-3.5 h-3.5" />
                 <span>Audio Only ({audios.length})</span>
               </button>
             )}
@@ -618,36 +598,36 @@ export default function MediaResultCard({ data, onReset }) {
               <button
                 type="button"
                 onClick={() => setActiveTab('subtitles')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
                   activeTab === 'subtitles'
-                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200 dark:border-slate-700'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] shadow-xs'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)]'
                 }`}
               >
-                <FileText className="w-4 h-4" />
+                <FileText className="w-3.5 h-3.5" />
                 <span>Subtitles ({subtitles.length})</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Processing Job Progress Alert */}
+        {/* Processing Job Alert */}
         {activeJob && (
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40 text-blue-900 dark:text-blue-200 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+          <div className="p-3.5 bg-[var(--accent-bg)] border-b border-[var(--accent)]/20 text-[var(--text)] flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin" />
               <div>
-                <p className="text-sm font-semibold">
+                <p className="text-xs sm:text-sm font-semibold">
                   {activeJob.action === 'merge' ? 'Merging Video & Audio Tracks with ffmpeg...' : 'Processing Media...'}
                 </p>
-                <p className="text-xs text-blue-700 dark:text-blue-300">
+                <p className="text-xs text-[var(--text-muted)]">
                   Status: {activeJob.status} ({activeJob.progress}%)
                 </p>
               </div>
             </div>
-            <div className="w-32 bg-blue-200 dark:bg-blue-800 h-2 rounded-full overflow-hidden">
+            <div className="w-28 bg-[var(--border)] h-1.5 rounded-full overflow-hidden">
               <div 
-                className="bg-blue-600 h-full transition-all duration-300"
+                className="bg-[var(--accent)] h-full transition-all duration-300"
                 style={{ width: `${activeJob.progress}%` }}
               />
             </div>
@@ -656,12 +636,12 @@ export default function MediaResultCard({ data, onReset }) {
 
         {/* Job Error Alert */}
         {jobError && (
-          <div className="p-4 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-100 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-sm flex items-center justify-between">
+          <div className="p-3 bg-[var(--negative-bg)] border-b border-[var(--negative)]/20 text-[var(--negative)] text-xs flex items-center justify-between">
             <span>{jobError}</span>
             <button 
               type="button" 
               onClick={() => setJobError(null)}
-              className="text-xs font-semibold underline ml-2"
+              className="text-xs font-semibold underline ml-2 cursor-pointer"
             >
               Dismiss
             </button>
@@ -669,21 +649,21 @@ export default function MediaResultCard({ data, onReset }) {
         )}
 
         {/* Tab Content Panes */}
-        <div className="p-6 md:p-8">
+        <div className="p-4 sm:p-6 md:p-8">
           
           {/* 1. Video / Shorts Tab */}
           {(activeTab === 'video' || activeTab === 'shorts') && hasVideos && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   Available Video Formats
                 </h3>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-[var(--text-muted)]">
                   Direct High-Speed Stream
                 </span>
               </div>
 
-              <div className="overflow-hidden border border-slate-200 dark:border-slate-800 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800/80">
+              <div className="overflow-hidden border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]">
                 {videos.map((vid, idx) => {
                   const isRecommended = idx === 0 || vid.label?.includes('1080');
                   const hasAudio = vid.hasAudio !== false;
@@ -694,60 +674,61 @@ export default function MediaResultCard({ data, onReset }) {
                   return (
                     <div 
                       key={`vid_${idx}`}
-                      className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                      className="p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-[var(--bg-alt)]/50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-                          <Video className="w-5 h-5" />
+                        <div className="p-2 rounded-lg bg-[var(--bg-alt)] border border-[var(--border)] text-[var(--text)]">
+                          <Video className="w-4 h-4" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 dark:text-white text-base">
+                            <span className="font-bold text-[var(--text)] text-sm sm:text-base">
                               {vid.label || vid.quality || `${vid.height || 720}p`}
                             </span>
-                            <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                            <span className="text-xs font-mono px-2 py-0.5 rounded bg-[var(--bg-alt)] border border-[var(--border)] text-[var(--text-muted)]">
                               {ext}
                             </span>
                             {isRecommended && (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--positive-bg)] text-[var(--positive)] border border-[var(--positive)]/30">
                                 Recommended
                               </span>
                             )}
                           </div>
                           
-                          <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--text-muted)]">
                             {vid.fps && <span>{vid.fps} FPS</span>}
-                            {vid.fps && sizeFormatted && <span>•</span>}
+                            {vid.fps && sizeFormatted && <span>&bull;</span>}
                             {sizeFormatted && <span>{sizeFormatted}</span>}
-                            <span>•</span>
+                            <span>&bull;</span>
                             {needsMerge ? (
                               <span className="text-amber-600 dark:text-amber-400 font-medium">Merging needed</span>
                             ) : hasAudio ? (
-                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">Audio included</span>
+                              <span className="text-[var(--positive)] font-medium">Audio included</span>
                             ) : (
-                              <span className="text-slate-400">Video only</span>
+                              <span className="text-[var(--text-muted)]">Video only</span>
                             )}
                           </div>
                         </div>
                       </div>
 
+                      {/* Download Buttons - Base Design System Actions */}
                       <div className="w-full sm:w-auto flex items-center gap-2">
                         {needsMerge ? (
                           <button
                             type="button"
                             onClick={() => triggerMergeJob(vid)}
-                            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-black dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm transition-all hover:shadow-md"
+                            className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[var(--accent)] text-white hover:opacity-90 font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs transition-opacity"
                           >
-                            <Download className="w-4 h-4" />
+                            <Download className="w-3.5 h-3.5" />
                             <span>Merge & Download</span>
                           </button>
                         ) : (
                           <button
                             type="button"
                             onClick={() => triggerDownload(vid)}
-                            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-sm transition-all hover:shadow-md"
+                            className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs transition-opacity"
                           >
-                            <Download className="w-4 h-4" />
+                            <Download className="w-3.5 h-3.5" />
                             <span>Download ({ext})</span>
                           </button>
                         )}
@@ -764,11 +745,11 @@ export default function MediaResultCard({ data, onReset }) {
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-2">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                     Thumbnails & Original Photos
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Save individual full-resolution stills or export all as a ZIP archive
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    Save individual stills or export all as a ZIP archive
                   </p>
                 </div>
                 
@@ -777,7 +758,7 @@ export default function MediaResultCard({ data, onReset }) {
                     type="button"
                     onClick={triggerZipDownload}
                     disabled={isZipping}
-                    className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-black dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-semibold text-xs flex items-center gap-2 transition-all disabled:opacity-50"
+                    className="px-3.5 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 font-semibold text-xs flex items-center gap-1.5 transition-opacity disabled:opacity-50"
                   >
                     {isZipping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Archive className="w-3.5 h-3.5" />}
                     <span>{isZipping ? 'Creating ZIP...' : 'Download All (ZIP)'}</span>
@@ -786,7 +767,7 @@ export default function MediaResultCard({ data, onReset }) {
               </div>
 
               {/* Grid of Images */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
                 {images.map((img, idx) => {
                   const imgUrl = img.token 
                     ? `${BACKEND_BASE}/api/proxy-image?token=${img.token}`
@@ -795,13 +776,13 @@ export default function MediaResultCard({ data, onReset }) {
                   return (
                     <div 
                       key={`img_${idx}`}
-                      className="group bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-300 hover:shadow-md"
+                      className="group bg-[var(--bg-alt)] border border-[var(--border)] rounded-xl overflow-hidden flex flex-col justify-between transition-colors"
                     >
-                      <div className="relative aspect-video overflow-hidden bg-slate-100 dark:bg-slate-800">
+                      <div className="relative aspect-video overflow-hidden bg-[var(--bg-alt)]">
                         <img 
                           src={imgUrl} 
                           alt={img.label || `Image ${idx + 1}`}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                           onError={(e) => { e.target.style.display = 'none'; }}
                         />
                         <button
@@ -810,26 +791,26 @@ export default function MediaResultCard({ data, onReset }) {
                           className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"
                           aria-label="Preview full size"
                         >
-                          <Maximize2 className="w-5 h-5" />
+                          <Maximize2 className="w-4 h-4" />
                         </button>
                       </div>
 
-                      <div className="p-3.5 flex items-center justify-between gap-2 border-t border-slate-200/50 dark:border-slate-700/50">
+                      <div className="p-3 flex items-center justify-between gap-2 border-t border-[var(--border)]">
                         <div className="min-w-0">
-                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                          <p className="text-xs font-semibold text-[var(--text)] truncate">
                             {img.label || `Photo ${idx + 1}`}
                           </p>
-                          <p className="text-[11px] text-slate-500 font-mono">
+                          <p className="text-[10px] text-[var(--text-muted)] font-mono">
                             {img.width && img.height ? `${img.width}x${img.height}` : (img.ext || 'JPG').toUpperCase()}
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => triggerDownload(img)}
-                          className="p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-sm flex-shrink-0"
+                          className="p-1.5 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 transition-opacity shrink-0"
                           aria-label={`Download image ${idx + 1}`}
                         >
-                          <Download className="w-4 h-4" />
+                          <Download className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -843,15 +824,15 @@ export default function MediaResultCard({ data, onReset }) {
           {activeTab === 'audio' && hasAudios && (
             <div className="space-y-3">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                   Audio Tracks & Streams
                 </h3>
-                <span className="text-xs text-slate-500">
-                  Uncompressed High-Bitrate Audio
+                <span className="text-xs text-[var(--text-muted)]">
+                  High-Bitrate Audio
                 </span>
               </div>
 
-              <div className="overflow-hidden border border-slate-200 dark:border-slate-800 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800/80">
+              <div className="overflow-hidden border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]">
                 {audios.map((aud, idx) => {
                   const ext = (aud.ext || 'm4a').toUpperCase();
                   const sizeFormatted = formatBytes(aud.filesize);
@@ -859,24 +840,24 @@ export default function MediaResultCard({ data, onReset }) {
                   return (
                     <div 
                       key={`aud_${idx}`}
-                      className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                      className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-[var(--bg-alt)]/50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
-                          <Music className="w-5 h-5" />
+                        <div className="p-2 rounded-lg bg-[var(--bg-alt)] border border-[var(--border)] text-[var(--text)]">
+                          <Music className="w-4 h-4" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 dark:text-white text-sm">
+                            <span className="font-bold text-[var(--text)] text-sm">
                               {aud.label || `Audio Track ${idx + 1}`}
                             </span>
-                            <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                            <span className="text-xs font-mono px-2 py-0.5 rounded bg-[var(--bg-alt)] border border-[var(--border)] text-[var(--text-muted)]">
                               {ext}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                          <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--text-muted)]">
                             {aud.bitrate && <span>{aud.bitrate} kbps</span>}
-                            {aud.bitrate && sizeFormatted && <span>•</span>}
+                            {aud.bitrate && sizeFormatted && <span>&bull;</span>}
                             {sizeFormatted && <span>{sizeFormatted}</span>}
                           </div>
                         </div>
@@ -885,7 +866,7 @@ export default function MediaResultCard({ data, onReset }) {
                       <button
                         type="button"
                         onClick={() => triggerDownload(aud)}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-2 transition-all shadow-sm"
+                        className="px-3.5 py-1.5 rounded-lg bg-[var(--positive)] text-white hover:opacity-90 font-semibold text-xs flex items-center gap-1.5 transition-opacity shadow-xs"
                       >
                         <Download className="w-3.5 h-3.5" />
                         <span>Download Audio</span>
@@ -900,26 +881,26 @@ export default function MediaResultCard({ data, onReset }) {
           {/* 4. Subtitles Tab */}
           {activeTab === 'subtitles' && hasSubtitles && (
             <div className="space-y-3">
-              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2">
+              <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">
                 Closed Captions & Subtitles
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {subtitles.map((sub, idx) => (
                   <div 
                     key={`sub_${idx}`}
-                    className="p-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between"
+                    className="p-3 bg-[var(--bg-alt)] border border-[var(--border)] rounded-lg flex items-center justify-between"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <FileText className="w-4 h-4 text-slate-500" />
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                       <div>
-                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{sub.lang || 'Subtitle'}</p>
-                        <p className="text-[10px] text-slate-500 font-mono">{(sub.ext || 'vtt').toUpperCase()}</p>
+                        <p className="text-xs font-semibold text-[var(--text)]">{sub.lang || 'Subtitle'}</p>
+                        <p className="text-[10px] text-[var(--text-muted)] font-mono">{(sub.ext || 'vtt').toUpperCase()}</p>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => triggerDownload(sub)}
-                      className="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
+                      className="p-1.5 rounded-md bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 text-xs font-semibold"
                     >
                       <Download className="w-3.5 h-3.5" />
                     </button>
@@ -933,37 +914,37 @@ export default function MediaResultCard({ data, onReset }) {
 
       </div>
 
-      {/* Lightbox / Preview Modal */}
+      {/* Lightbox Modal */}
       {previewMedia && (
         <div 
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setPreviewMedia(null)}
         >
           <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center" onClick={e => e.stopPropagation()}>
             <button
               type="button"
               onClick={() => setPreviewMedia(null)}
-              className="absolute -top-12 right-0 p-2 text-white/80 hover:text-white rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              className="absolute -top-10 right-0 p-1.5 text-white/80 hover:text-white rounded-full bg-white/10 hover:bg-white/20 transition-colors"
               aria-label="Close preview"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             </button>
             <img 
               src={previewMedia.url} 
               alt={previewMedia.title || 'Preview'} 
-              className="max-h-[80vh] w-auto rounded-2xl object-contain shadow-2xl"
+              className="max-h-[80vh] w-auto rounded-xl object-contain shadow-2xl"
             />
             {previewMedia.title && (
-              <p className="text-white/90 text-sm mt-3 font-medium text-center">{previewMedia.title}</p>
+              <p className="text-white/90 text-xs mt-2.5 font-medium text-center">{previewMedia.title}</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Feedback Toast Notification */}
+      {/* Feedback Toast */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 bg-slate-900 text-white text-sm font-semibold rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] text-xs font-semibold rounded-xl shadow-lg flex items-center gap-2 animate-bounce">
+          <CheckCircle2 className="w-4 h-4 text-[var(--positive)]" />
           <span>{toastMessage}</span>
         </div>
       )}

@@ -10,6 +10,7 @@ import ContactPage from './pages/ContactPage.jsx';
 import SecurityPage from './pages/SecurityPage.jsx';
 import BlogsPage from './pages/BlogsPage.jsx';
 import UpdatesPage from './pages/UpdatesPage.jsx';
+import ExtensionPage from './pages/ExtensionPage.jsx';
 import { pagesConfig } from './data/pagesConfig.js';
 import { initAttribution } from './utils/attribution.js';
 
@@ -87,6 +88,8 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
 
             {/* Blog & Updates */}
+            <Route path="/extension" element={<ExtensionPage />} />
+            <Route path="/chrome-extension" element={<Navigate to="/extension" replace />} />
             <Route path="/blog" element={<BlogsPage />} />
             <Route path="/updates" element={<UpdatesPage />} />
             <Route path="/changelog" element={<Navigate to="/updates" replace />} />
