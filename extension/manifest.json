@@ -1,64 +1,62 @@
 {
- "manifest_version": 3,
- "name": "OVD Downloader - Video & Audio Saver",
- "version": "1.3.0",
- "description": "Download 1080p/4K YouTube videos, Instagram Reels, Facebook videos, Twitter/X media, and TikToks in 1-click.",
- "permissions": [
-  "activeTab",
-  "tabs",
-  "storage",
-  "downloads",
-  "scripting",
-  "contextMenus"
- ],
- "host_permissions": [
-  "*://*.youtube.com/*",
-  "*://*.instagram.com/*",
-  "*://*.facebook.com/*",
-  "*://*.twitter.com/*",
-  "*://*.x.com/*",
-  "*://*.pinterest.com/*",
-  "*://*.tiktok.com/*",
-  "*://*.reddit.com/*",
-  "*://*.threads.net/*",
-  "https://anydownloader-backend-vvbj.onrender.com/*",
-  "https://ovd.winplaybox.in/*"
- ],
- "action": {
-  "default_popup": "popup.html",
-  "default_title": "OVD Downloader",
-  "default_icon": {
-   "16": "icons/icon16.png",
-   "48": "icons/icon48.png",
-   "128": "icons/icon128.png"
-  }
- },
- "background": {
-  "service_worker": "background.js"
- },
- "content_scripts": [
-  {
-   "matches": [
+  "manifest_version": 3,
+  "name": "OVD Downloader - Video & Audio Saver",
+  "version": "1.3.0",
+  "description": "Download 1080p/4K YouTube videos, Instagram Reels, Facebook videos, Twitter/X media, and TikToks in 1-click.",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "downloads",
+    "contextMenus"
+  ],
+  "host_permissions": [
     "*://*.youtube.com/*",
     "*://*.instagram.com/*",
     "*://*.facebook.com/*",
     "*://*.twitter.com/*",
     "*://*.x.com/*",
     "*://*.pinterest.com/*",
-    "*://*.tiktok.com/*"
-   ],
-   "js": [
-    "content.js"
-   ],
-   "css": [
-    "content.css"
-   ],
-   "run_at": "document_idle"
+    "*://*.tiktok.com/*",
+    "*://*.reddit.com/*",
+    "*://*.threads.net/*",
+    "https://anydownloader-backend-vvbj.onrender.com/*",
+    "https://ovd.winplaybox.in/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "OVD Downloader",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://*.instagram.com/*",
+        "*://*.facebook.com/*",
+        "*://*.twitter.com/*",
+        "*://*.x.com/*",
+        "*://*.pinterest.com/*",
+        "*://*.tiktok.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   }
- ],
- "icons": {
-  "16": "icons/icon16.png",
-  "48": "icons/icon48.png",
-  "128": "icons/icon128.png"
- }
 }
