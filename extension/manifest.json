@@ -10,15 +10,7 @@
     "contextMenus"
   ],
   "host_permissions": [
-    "*://*.youtube.com/*",
-    "*://*.instagram.com/*",
-    "*://*.facebook.com/*",
-    "*://*.twitter.com/*",
-    "*://*.x.com/*",
-    "*://*.pinterest.com/*",
-    "*://*.tiktok.com/*",
-    "*://*.reddit.com/*",
-    "*://*.threads.net/*",
+    "<all_urls>",
     "https://anydownloader-backend-vvbj.onrender.com/*",
     "https://ovd.winplaybox.in/*"
   ],
@@ -37,13 +29,7 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.youtube.com/*",
-        "*://*.instagram.com/*",
-        "*://*.facebook.com/*",
-        "*://*.twitter.com/*",
-        "*://*.x.com/*",
-        "*://*.pinterest.com/*",
-        "*://*.tiktok.com/*"
+        "<all_urls>"
       ],
       "js": [
         "content.js"
