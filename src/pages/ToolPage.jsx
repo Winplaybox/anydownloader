@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import HeroDownloader from '../components/HeroDownloader.jsx';
 import MediaResultCard from '../components/MediaResultCard.jsx';
 import HowItWorks from '../components/HowItWorks.jsx';
@@ -12,6 +12,19 @@ export default function ToolPage({ config = {} }) {
   const [error, setError] = useState('');
   const [errorCode, setErrorCode] = useState(null);
   const [mediaData, setMediaData] = useState(null);
+
+  // Auto-ingest search / url parameters from query string (?url=, ?link=, ?q=, ?search=)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const incoming = params.get('url') || params.get('link') || params.get('q') || params.get('search') || params.get('query');
+      if (incoming && incoming.trim()) {
+        const target = incoming.trim();
+        setUrl(target);
+        fetchMedia(target);
+      }
+    }
+  }, []);
 
   async function fetchMedia(overrideUrl = null) {
     const rawTarget = typeof overrideUrl === 'string' && overrideUrl.trim() 
