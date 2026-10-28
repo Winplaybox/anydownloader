@@ -1,0 +1,81 @@
+[
+  {
+    "id": "TigerVlogs-2026",
+    "name": "Tiger Vlogs (2026 Sovereign)",
+    "type": "YouTube Shorts (3x Daily)",
+    "authenticated": true,
+    "auth_method": "OAuth2 (token.json)",
+    "status": "Armed & Scheduled",
+    "daily_slots": [
+      "08:00",
+      "13:00",
+      "19:00"
+    ],
+    "pipeline": "Wildlife & Nature Documentary 4K"
+  },
+  {
+    "id": "AllTrainReels",
+    "name": "All Train Reels",
+    "type": "YouTube Shorts & Reels",
+    "authenticated": true,
+    "auth_method": "OAuth2 (token.pickle)",
+    "status": "Armed & Scheduled",
+    "daily_slots": [
+      "09:00",
+      "18:00"
+    ],
+    "pipeline": "Vande Bharat & Indian Railways 4K"
+  },
+  {
+    "id": "DigitalImmortals",
+    "name": "Digital Immortals",
+    "type": "YouTube Long & Shorts",
+    "authenticated": true,
+    "auth_method": "OAuth2 (token.pickle)",
+    "status": "Armed & Scheduled",
+    "daily_slots": [
+      "10:30",
+      "19:30"
+    ],
+    "pipeline": "Historical Legends & AI Recreations"
+  },
+  {
+    "id": "EpicBharatSaga",
+    "name": "Epic Bharat Saga",
+    "type": "YouTube Long & Shorts",
+    "authenticated": true,
+    "auth_method": "OAuth2 (token.pickle)",
+    "status": "Armed & Scheduled",
+    "daily_slots": [
+      "11:00",
+      "20:00"
+    ],
+    "pipeline": "Sanatan Epics & Vedic Lore"
+  },
+  {
+    "id": "IndianHorrorTapes",
+    "name": "Indian Horror Tapes",
+    "type": "YouTube Shorts & Midnight Stories",
+    "authenticated": true,
+    "auth_method": "OAuth2 (token.pickle)",
+    "status": "Armed & Scheduled",
+    "daily_slots": [
+      "21:00",
+      "23:30"
+    ],
+    "pipeline": "True Folklore & Paranormal Encounters"
+  },
+  {
+    "id": "MindNestTales",
+    "name": "MindNest Tales (Chico the Cheetah)",
+    "type": "3D Pixar Animation Shorts",
+    "authenticated": true,
+    "auth_method": "OAuth2 (channels_config.json)",
+    "status": "Armed & Scheduled",
+    "daily_slots": [
+      "07:30",
+      "17:00"
+    ],
+    "pipeline": "Moral Stories & Animated Animal Fables"
+  }
+]

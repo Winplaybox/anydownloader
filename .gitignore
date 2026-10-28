@@ -22,3 +22,5 @@ scratch/
 backend/data/*.json
 
 backend/data/*.json
+
+!backend/data/channels_manifest.json

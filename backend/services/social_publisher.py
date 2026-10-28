@@ -23,6 +23,13 @@ class SocialPublisherService:
     def get_registered_channels(self) -> List[Dict[str, Any]]:
         """Scans channels and returns status, tokens, and daily slot metadata."""
         if not os.path.exists(self.channels_base):
+            manifest_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "channels_manifest.json")
+            if os.path.exists(manifest_path):
+                try:
+                    with open(manifest_path, "r", encoding="utf-8") as f:
+                        return json.load(f)
+                except Exception:
+                    pass
             return []
 
         channels = []
