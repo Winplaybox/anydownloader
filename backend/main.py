@@ -2866,37 +2866,66 @@ async def audio_download_handler(request):
         return JSONResponse({"ok": False, "error": "File not found or expired"}, status_code=404)
     return FileResponse(filepath, media_type="audio/mpeg", filename=safe_filename)
 
-async def generate_reel_handler(request):
-    token = _extract_auth_token(request)
-    origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "video:master", origin)
-    if not authorized:
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
-    if not authorized:
-        return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
-        
+async def diag_handler(request):
+    import shutil, subprocess
+    static_paths = []
     try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    audio_path = body.get("audio_path")
-    resolution = body.get("resolution", "1080x1920")
-    script = (body.get("script") or body.get("text") or "").strip()
-    voice = body.get("voice") or "hi-IN-MadhurNeural"
+        import static_ffmpeg
+        static_ffmpeg.add_paths()
+        static_paths.append('static_ffmpeg added')
+    except Exception as e:
+        static_paths.append(str(e))
+    ff_path = shutil.which('ffmpeg')
+    ff_ver = ''
+    if ff_path:
+        try:
+            p = subprocess.run([ff_path, '-version'], capture_output=True, text=True, timeout=5)
+            ff_ver = p.stdout.splitlines()[0] if p.stdout else 'no stdout'
+        except Exception as e:
+            ff_ver = str(e)
+    return JSONResponse({
+        'ffmpeg_path': ff_path,
+        'ffmpeg_version': ff_ver,
+        'static_ffmpeg': static_paths,
+        'temp_dir': tempfile.gettempdir()
+    })
 
-    # Auto-synthesize speech if script is provided without audio_path
-    if not audio_path and script:
-        v_res = await voice_service.synthesize_speech(text=script, voice=voice)
-        if v_res.get("ok") and v_res.get("audio_path"):
-            audio_path = v_res["audio_path"]
-        else:
-            return JSONResponse({"ok": False, "error": "Voice synthesis failed for script."}, status_code=500)
+async def generate_reel_handler(request):
+    try:
+        token = _extract_auth_token(request)
+        origin = _get_request_origin(request)
+        authorized, reason, payload = token_vault.verify_and_burn_token(token, "video:master", origin)
+        if not authorized:
+            authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+        if not authorized:
+            return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
+            
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        audio_path = body.get("audio_path")
+        resolution = body.get("resolution", "1080x1920")
+        script = (body.get("script") or body.get("text") or "").strip()
+        voice = body.get("voice") or "hi-IN-MadhurNeural"
 
-    if not audio_path:
-        return JSONResponse({"ok": False, "error": "Either script or audio_path is required."}, status_code=400)
-        
-    res = await asyncio.to_thread(video_producer.assemble_reel_video, audio_path=audio_path, resolution=resolution)
-    return JSONResponse(res)
+        # Auto-synthesize speech if script is provided without audio_path
+        if not audio_path and script:
+            v_res = await voice_service.synthesize_speech(text=script, voice=voice)
+            if v_res.get("ok") and v_res.get("audio_path"):
+                audio_path = v_res["audio_path"]
+            else:
+                return JSONResponse({"ok": False, "error": "Voice synthesis failed for script."}, status_code=500)
+
+        if not audio_path:
+            return JSONResponse({"ok": False, "error": "Either script or audio_path is required."}, status_code=400)
+            
+        res = await asyncio.to_thread(video_producer.assemble_reel_video, audio_path=audio_path, resolution=resolution)
+        return JSONResponse(res)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"ok": False, "error": f"Internal error during video generation: {str(e)}"}, status_code=500)
 
 routes = [
         # --- Sovereign Zero-Trust & AI Services Gateway ---
@@ -2906,6 +2935,7 @@ routes = [
     Route('/api/v1/voice/synthesize', voice_synthesize_handler, methods=['POST']),
     Route('/api/v1/channels/list', channels_list_handler, methods=['GET']),
     Route('/api/v1/channels/publish', channel_publish_handler, methods=['POST']),
+    Route('/api/v1/system/diag', diag_handler, methods=['GET']),
     Route('/api/v1/video/generate-reel', generate_reel_handler, methods=['POST']),
     Route('/api/v1/video/download', video_download_handler, methods=['GET']),
     Route('/api/v1/audio/download', audio_download_handler, methods=['GET']),
