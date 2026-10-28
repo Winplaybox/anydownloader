@@ -2895,7 +2895,7 @@ async def generate_reel_handler(request):
     if not audio_path:
         return JSONResponse({"ok": False, "error": "Either script or audio_path is required."}, status_code=400)
         
-    res = video_producer.assemble_reel_video(audio_path=audio_path, resolution=resolution)
+    res = await asyncio.to_thread(video_producer.assemble_reel_video, audio_path=audio_path, resolution=resolution)
     return JSONResponse(res)
 
 routes = [
