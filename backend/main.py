@@ -2846,10 +2846,32 @@ async def channel_publish_handler(request):
     )
     return JSONResponse(res)
 
+async def video_download_handler(request):
+    filename = request.query_params.get("file")
+    if not filename or not filename.endswith(".mp4"):
+        return JSONResponse({"ok": False, "error": "Invalid file parameter"}, status_code=400)
+    safe_filename = os.path.basename(filename)
+    filepath = os.path.join(tempfile.gettempdir(), safe_filename)
+    if not os.path.exists(filepath):
+        return JSONResponse({"ok": False, "error": "File not found or expired"}, status_code=404)
+    return FileResponse(filepath, media_type="video/mp4", filename=safe_filename)
+
+async def audio_download_handler(request):
+    filename = request.query_params.get("file")
+    if not filename or not (filename.endswith(".mp3") or filename.endswith(".wav")):
+        return JSONResponse({"ok": False, "error": "Invalid file parameter"}, status_code=400)
+    safe_filename = os.path.basename(filename)
+    filepath = os.path.join(tempfile.gettempdir(), safe_filename)
+    if not os.path.exists(filepath):
+        return JSONResponse({"ok": False, "error": "File not found or expired"}, status_code=404)
+    return FileResponse(filepath, media_type="audio/mpeg", filename=safe_filename)
+
 async def generate_reel_handler(request):
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
     authorized, reason, payload = token_vault.verify_and_burn_token(token, "video:master", origin)
+    if not authorized:
+        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
         
@@ -2859,8 +2881,19 @@ async def generate_reel_handler(request):
         body = {}
     audio_path = body.get("audio_path")
     resolution = body.get("resolution", "1080x1920")
+    script = (body.get("script") or body.get("text") or "").strip()
+    voice = body.get("voice") or "hi-IN-MadhurNeural"
+
+    # Auto-synthesize speech if script is provided without audio_path
+    if not audio_path and script:
+        v_res = await voice_service.synthesize_speech(text=script, voice=voice)
+        if v_res.get("ok") and v_res.get("audio_path"):
+            audio_path = v_res["audio_path"]
+        else:
+            return JSONResponse({"ok": False, "error": "Voice synthesis failed for script."}, status_code=500)
+
     if not audio_path:
-        return JSONResponse({"ok": False, "error": "audio_path is required."}, status_code=400)
+        return JSONResponse({"ok": False, "error": "Either script or audio_path is required."}, status_code=400)
         
     res = video_producer.assemble_reel_video(audio_path=audio_path, resolution=resolution)
     return JSONResponse(res)
@@ -2874,6 +2907,8 @@ routes = [
     Route('/api/v1/channels/list', channels_list_handler, methods=['GET']),
     Route('/api/v1/channels/publish', channel_publish_handler, methods=['POST']),
     Route('/api/v1/video/generate-reel', generate_reel_handler, methods=['POST']),
+    Route('/api/v1/video/download', video_download_handler, methods=['GET']),
+    Route('/api/v1/audio/download', audio_download_handler, methods=['GET']),
     Route('/api/resolve', unified_extract_handler, methods=['POST']),
     Route('/api/extract', unified_extract_handler, methods=['POST']),
     Route('/api/platforms', platforms_handler, methods=['GET']),
