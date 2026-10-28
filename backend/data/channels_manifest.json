@@ -2,80 +2,110 @@
   {
     "id": "TigerVlogs-2026",
     "name": "Tiger Vlogs (2026 Sovereign)",
+    "handle": "@TigerVlogs-2026",
+    "channel_id": "TigerVlogs-2026",
+    "url": "https://www.youtube.com/@TigerVlogs-2026",
     "type": "YouTube Shorts (3x Daily)",
     "authenticated": true,
     "auth_method": "OAuth2 (token.json)",
+    "auth_details": "Google Refresh Token valid (Auto-refresh on publish)",
     "status": "Armed & Scheduled",
     "daily_slots": [
       "08:00",
       "13:00",
       "19:00"
     ],
+    "slot_count": 3,
     "pipeline": "Wildlife & Nature Documentary 4K"
   },
   {
     "id": "AllTrainReels",
     "name": "All Train Reels",
+    "handle": "@AllTrainReels",
+    "channel_id": "UCKfX7By0w94LHI-AWj0a_QQ",
+    "url": "https://www.youtube.com/@AllTrainReels",
     "type": "YouTube Shorts & Reels",
     "authenticated": true,
     "auth_method": "OAuth2 (token.pickle)",
+    "auth_details": "Google Refresh Token valid (Auto-refresh on publish)",
     "status": "Armed & Scheduled",
     "daily_slots": [
       "09:00",
       "18:00"
     ],
+    "slot_count": 2,
     "pipeline": "Vande Bharat & Indian Railways 4K"
   },
   {
     "id": "DigitalImmortals",
     "name": "Digital Immortals",
+    "handle": "@DigitalImmortals",
+    "channel_id": "UCO_AVV1aoIjGEgbj50HTJLw",
+    "url": "https://www.youtube.com/@DigitalImmortals",
     "type": "YouTube Long & Shorts",
     "authenticated": true,
     "auth_method": "OAuth2 (token.pickle)",
+    "auth_details": "Google Refresh Token valid (Auto-refresh on publish)",
     "status": "Armed & Scheduled",
     "daily_slots": [
       "10:30",
       "19:30"
     ],
+    "slot_count": 2,
     "pipeline": "Historical Legends & AI Recreations"
   },
   {
     "id": "EpicBharatSaga",
     "name": "Epic Bharat Saga",
+    "handle": "@EpicBharatSaga",
+    "channel_id": "UCakmjqTBA6KgCF2F30Tnpjg",
+    "url": "https://www.youtube.com/@EpicBharatSaga",
     "type": "YouTube Long & Shorts",
     "authenticated": true,
     "auth_method": "OAuth2 (token.pickle)",
+    "auth_details": "Google Refresh Token valid (Auto-refresh on publish)",
     "status": "Armed & Scheduled",
     "daily_slots": [
       "11:00",
       "20:00"
     ],
+    "slot_count": 2,
     "pipeline": "Sanatan Epics & Vedic Lore"
   },
   {
     "id": "IndianHorrorTapes",
     "name": "Indian Horror Tapes",
+    "handle": "@IndianHorrorTapes",
+    "channel_id": "UCNRr8A9gVZQZJi1eMKiXIJw",
+    "url": "https://www.youtube.com/@IndianHorrorTapes",
     "type": "YouTube Shorts & Midnight Stories",
     "authenticated": true,
     "auth_method": "OAuth2 (token.pickle)",
+    "auth_details": "Google Refresh Token valid (Auto-refresh on publish)",
     "status": "Armed & Scheduled",
     "daily_slots": [
       "21:00",
       "23:30"
     ],
+    "slot_count": 2,
     "pipeline": "True Folklore & Paranormal Encounters"
   },
   {
     "id": "MindNestTales",
     "name": "MindNest Tales (Chico the Cheetah)",
+    "handle": "@MindNestTales",
+    "channel_id": "MindNestTales",
+    "url": "https://www.youtube.com/@MindNestTales",
     "type": "3D Pixar Animation Shorts",
     "authenticated": true,
     "auth_method": "OAuth2 (channels_config.json)",
+    "auth_details": "Google Refresh Token valid (Auto-refresh on publish)",
     "status": "Armed & Scheduled",
     "daily_slots": [
       "07:30",
       "17:00"
     ],
+    "slot_count": 2,
     "pipeline": "Moral Stories & Animated Animal Fables"
   }
 ]
