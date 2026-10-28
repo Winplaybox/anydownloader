@@ -16,6 +16,11 @@ try:
     from backend.normalizer import normalize_raw_result
     from backend.job_manager import job_manager
     from backend.blog_scheduler import blog_scheduler
+    from backend.security.token_vault import token_vault
+    from backend.services.subtitles_service import subtitles_service
+    from backend.services.voice_service import voice_service
+    from backend.services.video_producer import video_producer
+    from backend.services.social_publisher import social_publisher
     from backend.schema import (
         NormalizedResult, Author, Stats, VideoVariant, AudioVariant, ImageVariant, ThumbnailVariant
     )
@@ -26,6 +31,11 @@ except (ModuleNotFoundError, ImportError):
     from normalizer import normalize_raw_result
     from job_manager import job_manager
     from blog_scheduler import blog_scheduler
+    from security.token_vault import token_vault
+    from services.subtitles_service import subtitles_service
+    from services.voice_service import voice_service
+    from services.video_producer import video_producer
+    from services.social_publisher import social_publisher
     from schema import (
         NormalizedResult, Author, Stats, VideoVariant, AudioVariant, ImageVariant, ThumbnailVariant
     )
@@ -2296,7 +2306,7 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
-        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs") or request.url.path.startswith("/api/jobs") or request.url.path.startswith("/admin/"):
+        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs") or request.url.path.startswith("/api/jobs") or request.url.path.startswith("/api/v1") or request.url.path.startswith("/admin/"):
             return await call_next(request)
 
         # 3. Verify origin, referer, or extension secret key
@@ -2739,7 +2749,131 @@ async def generate_blog_handler(request):
     res = blog_scheduler.generate_daily_article(force=True)
     return JSONResponse(res)
 
+
+def _extract_auth_token(request) -> str:
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return request.headers.get("x-auth-token", "").strip()
+
+def _get_request_origin(request) -> str:
+    return request.headers.get("origin") or request.headers.get("referer") or ""
+
+async def issue_token_handler(request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    origin = body.get("origin") or _get_request_origin(request)
+    scope = body.get("scope") or "subtitles:generate"
+    client_ip = request.client.host if request.client else "unknown"
+    ok, res = token_vault.issue_token(origin=origin, scope=scope, client_ip=client_ip)
+    if not ok:
+        return JSONResponse(res, status_code=403)
+    return JSONResponse(res)
+
+async def subtitles_handler(request):
+    token = _extract_auth_token(request)
+    origin = _get_request_origin(request)
+    authorized, reason, payload = token_vault.verify_and_burn_token(token, "subtitles:generate", origin)
+    if not authorized:
+        return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
+    
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    media_url = body.get("url") or ""
+    if not media_url:
+        return JSONResponse({"ok": False, "error": "Parameter 'url' is required."}, status_code=400)
+    
+    res = subtitles_service.extract_subtitles_from_url(media_url)
+    return JSONResponse(res)
+
+async def voice_list_handler(request):
+    voices = voice_service.get_curated_voices()
+    return JSONResponse({"ok": True, "voices": voices, "total": len(voices)})
+
+async def voice_synthesize_handler(request):
+    token = _extract_auth_token(request)
+    origin = _get_request_origin(request)
+    authorized, reason, payload = token_vault.verify_and_burn_token(token, "voice:tts", origin)
+    if not authorized:
+        return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
+        
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    text = (body.get("text") or "").strip()
+    voice = body.get("voice") or "hi-IN-MadhurNeural"
+    if not text:
+        return JSONResponse({"ok": False, "error": "Text is required for voice synthesis."}, status_code=400)
+        
+    res = await voice_service.synthesize_speech(text=text, voice=voice)
+    return JSONResponse(res)
+
+async def channels_list_handler(request):
+    channels = social_publisher.get_registered_channels()
+    return JSONResponse({"ok": True, "channels": channels, "total": len(channels)})
+
+async def channel_publish_handler(request):
+    token = _extract_auth_token(request)
+    origin = _get_request_origin(request)
+    authorized, reason, payload = token_vault.verify_and_burn_token(token, "social:publish", origin)
+    if not authorized:
+        return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
+        
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    channel_id = body.get("channel_id")
+    video_path = body.get("video_path")
+    title = body.get("title", "Master Video Upload")
+    description = body.get("description", "")
+    tags = body.get("tags", [])
+    
+    if not channel_id or not video_path:
+        return JSONResponse({"ok": False, "error": "channel_id and video_path are required."}, status_code=400)
+        
+    res = social_publisher.publish_video_to_channel(
+        channel_id=channel_id,
+        video_path=video_path,
+        title=title,
+        description=description,
+        tags=tags
+    )
+    return JSONResponse(res)
+
+async def generate_reel_handler(request):
+    token = _extract_auth_token(request)
+    origin = _get_request_origin(request)
+    authorized, reason, payload = token_vault.verify_and_burn_token(token, "video:master", origin)
+    if not authorized:
+        return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
+        
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    audio_path = body.get("audio_path")
+    resolution = body.get("resolution", "1080x1920")
+    if not audio_path:
+        return JSONResponse({"ok": False, "error": "audio_path is required."}, status_code=400)
+        
+    res = video_producer.assemble_reel_video(audio_path=audio_path, resolution=resolution)
+    return JSONResponse(res)
+
 routes = [
+        # --- Sovereign Zero-Trust & AI Services Gateway ---
+    Route('/api/v1/auth/token', issue_token_handler, methods=['POST']),
+    Route('/api/v1/media/subtitles', subtitles_handler, methods=['POST']),
+    Route('/api/v1/voice/list', voice_list_handler, methods=['GET']),
+    Route('/api/v1/voice/synthesize', voice_synthesize_handler, methods=['POST']),
+    Route('/api/v1/channels/list', channels_list_handler, methods=['GET']),
+    Route('/api/v1/channels/publish', channel_publish_handler, methods=['POST']),
+    Route('/api/v1/video/generate-reel', generate_reel_handler, methods=['POST']),
     Route('/api/resolve', unified_extract_handler, methods=['POST']),
     Route('/api/extract', unified_extract_handler, methods=['POST']),
     Route('/api/platforms', platforms_handler, methods=['GET']),
