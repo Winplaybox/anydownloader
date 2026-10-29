@@ -1,0 +1,2736 @@
+{
+  "version": "2.0.0",
+  "total_script_agents": 200,
+  "total_domains": 100,
+  "script_agents": [
+    {
+      "id": "SCR-0001",
+      "family": "Video & Film",
+      "name": "YouTube long-form scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0002",
+      "family": "Video & Film",
+      "name": "YouTube Shorts scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0003",
+      "family": "Video & Film",
+      "name": "Instagram Reels scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0004",
+      "family": "Video & Film",
+      "name": "TikTok scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0005",
+      "family": "Video & Film",
+      "name": "Documentary scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0006",
+      "family": "Video & Film",
+      "name": "Feature-film screenwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0007",
+      "family": "Video & Film",
+      "name": "Short-film screenwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0008",
+      "family": "Video & Film",
+      "name": "Web-series episode writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0009",
+      "family": "Storytelling",
+      "name": "Fiction story generator",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0010",
+      "family": "Storytelling",
+      "name": "Flash-fiction writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0011",
+      "family": "Storytelling",
+      "name": "Novel chapter writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0012",
+      "family": "Storytelling",
+      "name": "Fantasy story writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0013",
+      "family": "Storytelling",
+      "name": "Science-fiction writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0014",
+      "family": "Storytelling",
+      "name": "Mystery story writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0015",
+      "family": "Storytelling",
+      "name": "Thriller story writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0016",
+      "family": "Storytelling",
+      "name": "Adventure story writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0017",
+      "family": "Storytelling",
+      "name": "Interactive-fiction writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0018",
+      "family": "Horror",
+      "name": "Horror story scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0019",
+      "family": "Horror",
+      "name": "Paranormal-fiction scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0020",
+      "family": "Horror",
+      "name": "Ghost-story writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0021",
+      "family": "Horror",
+      "name": "Supernatural thriller writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0022",
+      "family": "Horror",
+      "name": "Psychological suspense writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0023",
+      "family": "Horror",
+      "name": "Gothic fiction writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0024",
+      "family": "Horror",
+      "name": "Folklore-inspired horror writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0025",
+      "family": "Horror",
+      "name": "Urban-legend fiction writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0026",
+      "family": "Horror",
+      "name": "Suspense narration writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0027",
+      "family": "Mythology & Culture",
+      "name": "Indian mythology scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0028",
+      "family": "Mythology & Culture",
+      "name": "Ramayana episode writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0029",
+      "family": "Mythology & Culture",
+      "name": "Mahabharata episode writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0030",
+      "family": "Mythology & Culture",
+      "name": "Bhagavad Gita explainer writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0031",
+      "family": "Mythology & Culture",
+      "name": "Festival explainer writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0032",
+      "family": "Mythology & Culture",
+      "name": "Historical documentary writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0033",
+      "family": "Mythology & Culture",
+      "name": "Ancient civilization storyteller",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0034",
+      "family": "Mythology & Culture",
+      "name": "Cultural-tradition explainer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0035",
+      "family": "Mythology & Culture",
+      "name": "Mythology character biography writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0036",
+      "family": "Mythology & Culture",
+      "name": "Comparative mythology educator",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0037",
+      "family": "Education",
+      "name": "Educational video writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0038",
+      "family": "Education",
+      "name": "Science explainer writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0039",
+      "family": "Education",
+      "name": "Mathematics lesson writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0040",
+      "family": "Education",
+      "name": "History lesson writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0041",
+      "family": "Education",
+      "name": "Language-learning dialogue writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0042",
+      "family": "Education",
+      "name": "Programming tutorial writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0043",
+      "family": "Education",
+      "name": "Study-guide narrator",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0044",
+      "family": "Education",
+      "name": "Educational animation writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0045",
+      "family": "Children",
+      "name": "Children's story writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0046",
+      "family": "Children",
+      "name": "Bedtime-story writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0047",
+      "family": "Children",
+      "name": "Nursery-rhyme scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0048",
+      "family": "Children",
+      "name": "Animated-cartoon scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0049",
+      "family": "Children",
+      "name": "Puppet-show scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0050",
+      "family": "Children",
+      "name": "Children's educational video writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0051",
+      "family": "Children",
+      "name": "Animal-story writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0052",
+      "family": "Children",
+      "name": "Fairy-tale adaptation writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0053",
+      "family": "Marketing",
+      "name": "Video advertisement scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0054",
+      "family": "Marketing",
+      "name": "Product-promotion scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0055",
+      "family": "Marketing",
+      "name": "Brand-story scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0056",
+      "family": "Marketing",
+      "name": "Commercial voice-over writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0057",
+      "family": "Marketing",
+      "name": "Product-demo scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0058",
+      "family": "Marketing",
+      "name": "Explainer-video writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0059",
+      "family": "Marketing",
+      "name": "Customer-testimonial scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0060",
+      "family": "Marketing",
+      "name": "Campaign video writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0061",
+      "family": "Social Media",
+      "name": "Short-video scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0062",
+      "family": "Social Media",
+      "name": "Educational Reel writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0063",
+      "family": "Social Media",
+      "name": "Motivational-video writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0064",
+      "family": "Social Media",
+      "name": "Quote-explanation writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0065",
+      "family": "Social Media",
+      "name": "Trend-adaptation scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0066",
+      "family": "Social Media",
+      "name": "Behind-the-scenes writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0067",
+      "family": "Podcast & Audio",
+      "name": "Podcast episode writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0068",
+      "family": "Podcast & Audio",
+      "name": "Podcast intro writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0069",
+      "family": "Podcast & Audio",
+      "name": "Interview question generator",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0070",
+      "family": "Podcast & Audio",
+      "name": "Audio-documentary writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0071",
+      "family": "Podcast & Audio",
+      "name": "Audio-drama writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0072",
+      "family": "Podcast & Audio",
+      "name": "Radio-program writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0073",
+      "family": "Comedy",
+      "name": "Comedy sketch writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0074",
+      "family": "Comedy",
+      "name": "Satirical commentary writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0075",
+      "family": "Comedy",
+      "name": "Parody scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0076",
+      "family": "Comedy",
+      "name": "Improv-scene generator",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0077",
+      "family": "Comedy",
+      "name": "Situational-comedy writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0078",
+      "family": "News",
+      "name": "News explainer writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0079",
+      "family": "News",
+      "name": "Current-affairs explainer writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0080",
+      "family": "News",
+      "name": "News-summary narrator",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0081",
+      "family": "News",
+      "name": "Investigative-documentary writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0082",
+      "family": "News",
+      "name": "Fact-checking explainer writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0083",
+      "family": "Business",
+      "name": "Corporate presentation narrator",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0084",
+      "family": "Business",
+      "name": "Company introduction writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0085",
+      "family": "Business",
+      "name": "Employee onboarding scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0086",
+      "family": "Business",
+      "name": "Training video writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0087",
+      "family": "Business",
+      "name": "Executive message writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0088",
+      "family": "Business",
+      "name": "Business case-study writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0089",
+      "family": "Sales",
+      "name": "Product sales video writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0090",
+      "family": "Sales",
+      "name": "Product comparison explainer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0091",
+      "family": "Sales",
+      "name": "Sales demonstration scriptwriter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0092",
+      "family": "Sales",
+      "name": "Customer onboarding writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0093",
+      "family": "Gaming",
+      "name": "Video game dialogue writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0094",
+      "family": "Gaming",
+      "name": "Game narrative designer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0095",
+      "family": "Gaming",
+      "name": "NPC dialogue writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0096",
+      "family": "Gaming",
+      "name": "Game quest writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0097",
+      "family": "Gaming",
+      "name": "Interactive story designer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0098",
+      "family": "Gaming",
+      "name": "Game trailer scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0099",
+      "family": "Travel & Food",
+      "name": "Travel vlog scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0100",
+      "family": "Travel & Food",
+      "name": "Destination guide writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0101",
+      "family": "Travel & Food",
+      "name": "Food vlog scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0102",
+      "family": "Travel & Food",
+      "name": "Recipe video scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0103",
+      "family": "Travel & Food",
+      "name": "Restaurant review writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0104",
+      "family": "Travel & Food",
+      "name": "Festival travel-video writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0105",
+      "family": "Technology",
+      "name": "Software tutorial scriptwriter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0106",
+      "family": "Technology",
+      "name": "AI-tool review writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0107",
+      "family": "Technology",
+      "name": "Technology explainer writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0108",
+      "family": "Technology",
+      "name": "Product walkthrough writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0109",
+      "family": "Technology",
+      "name": "App review scriptwriter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0110",
+      "family": "Technology",
+      "name": "Cybersecurity awareness educator",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0111",
+      "family": "Personal Development",
+      "name": "Motivational speechwriter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0112",
+      "family": "Personal Development",
+      "name": "Leadership video writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0113",
+      "family": "Personal Development",
+      "name": "Career-advice scriptwriter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0114",
+      "family": "Personal Development",
+      "name": "Interview preparation writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0115",
+      "family": "Science & Nature",
+      "name": "Wildlife documentary writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0116",
+      "family": "Science & Nature",
+      "name": "Space explainer writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0117",
+      "family": "Science & Nature",
+      "name": "Environmental education writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0118",
+      "family": "Science & Nature",
+      "name": "Ocean documentary writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0119",
+      "family": "Adaptation",
+      "name": "Article-to-video converter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0120",
+      "family": "Adaptation",
+      "name": "Blog-to-YouTube converter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0121",
+      "family": "Adaptation",
+      "name": "Podcast-to-Shorts converter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0122",
+      "family": "Adaptation",
+      "name": "Outline-to-script converter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0123",
+      "family": "Adaptation",
+      "name": "Interview-to-narrative converter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0124",
+      "family": "Adaptation",
+      "name": "Script localization agent",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0125",
+      "family": "Script Quality",
+      "name": "Script structure evaluator",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0126",
+      "family": "Script Quality",
+      "name": "Hook evaluator",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0127",
+      "family": "Script Quality",
+      "name": "Narrative continuity checker",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0128",
+      "family": "Script Quality",
+      "name": "Dialogue editor",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0129",
+      "family": "Script Quality",
+      "name": "Pacing and retention analyst",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0130",
+      "family": "Script Quality",
+      "name": "Factual consistency checker",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0131",
+      "family": "Script Quality",
+      "name": "Voice-over timing estimator",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0132",
+      "family": "Script Quality",
+      "name": "Scene breakdown generator",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0133",
+      "family": "Script Quality",
+      "name": "Script-to-storyboard planner",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0134",
+      "family": "Documentary",
+      "name": "Biography documentary writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0135",
+      "family": "Documentary",
+      "name": "Nature documentary writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0136",
+      "family": "Documentary",
+      "name": "True-crime documentary writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0137",
+      "family": "Documentary",
+      "name": "Travel documentary writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0138",
+      "family": "Religious & Cultural",
+      "name": "Devotional narration writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0139",
+      "family": "Religious & Cultural",
+      "name": "Festival ritual explainer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0140",
+      "family": "Religious & Cultural",
+      "name": "Cultural etiquette video writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0141",
+      "family": "Religious & Cultural",
+      "name": "Folktale adaptation writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0142",
+      "family": "Marketing",
+      "name": "UGC ad scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0143",
+      "family": "Marketing",
+      "name": "Launch teaser writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0144",
+      "family": "Marketing",
+      "name": "Brand manifesto writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0145",
+      "family": "Marketing",
+      "name": "Comparison ad writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0146",
+      "family": "Social Media",
+      "name": "LinkedIn video scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0147",
+      "family": "Social Media",
+      "name": "Facebook video scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0148",
+      "family": "Social Media",
+      "name": "Creator introduction writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0149",
+      "family": "Social Media",
+      "name": "Community engagement writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0150",
+      "family": "Podcast & Audio",
+      "name": "Podcast outro writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0151",
+      "family": "Podcast & Audio",
+      "name": "Guest intro writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0152",
+      "family": "Podcast & Audio",
+      "name": "Podcast trailer writer",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0153",
+      "family": "Podcast & Audio",
+      "name": "Audiobook narration adapter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0154",
+      "family": "Education",
+      "name": "Course module scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0155",
+      "family": "Education",
+      "name": "How-to tutorial writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0156",
+      "family": "Education",
+      "name": "Exam revision narrator",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0157",
+      "family": "Education",
+      "name": "Language practice dialogue writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0158",
+      "family": "Children",
+      "name": "Social-skills story writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0159",
+      "family": "Children",
+      "name": "Children's adventure writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0160",
+      "family": "Gaming",
+      "name": "Game tutorial writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0161",
+      "family": "Gaming",
+      "name": "Game lore writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0162",
+      "family": "Gaming",
+      "name": "Character backstory writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0163",
+      "family": "Gaming",
+      "name": "Branching-dialogue generator",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0164",
+      "family": "Business",
+      "name": "Product training writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0165",
+      "family": "Business",
+      "name": "Internal announcement video writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0166",
+      "family": "News",
+      "name": "Local-news video writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0167",
+      "family": "News",
+      "name": "Technology-news explainer writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0168",
+      "family": "Travel & Food",
+      "name": "City-tour narration writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0169",
+      "family": "Travel & Food",
+      "name": "Lifestyle vlog scriptwriter",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0170",
+      "family": "Science & Nature",
+      "name": "Animal-facts video writer",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0171",
+      "family": "Science & Nature",
+      "name": "Scientific discovery storyteller",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0172",
+      "family": "Adaptation",
+      "name": "Book-notes-to-video converter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0173",
+      "family": "Adaptation",
+      "name": "Transcript-to-explainer converter",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0174",
+      "family": "Script Quality",
+      "name": "Audience-level adaptation agent",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0175",
+      "family": "Script Quality",
+      "name": "Scene continuity checker",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0176",
+      "family": "Script Quality",
+      "name": "Claims-to-sources checker",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0177",
+      "family": "Script Quality",
+      "name": "Production checklist generator",
+      "deliverable": "Script, outline, or structured narrative",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0178",
+      "family": "Video & Film",
+      "name": "YouTube long-form scriptwriter — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0179",
+      "family": "Video & Film",
+      "name": "YouTube Shorts scriptwriter — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0180",
+      "family": "Video & Film",
+      "name": "Instagram Reels scriptwriter — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0181",
+      "family": "Video & Film",
+      "name": "TikTok scriptwriter — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0182",
+      "family": "Video & Film",
+      "name": "Documentary scriptwriter — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0183",
+      "family": "Video & Film",
+      "name": "Feature-film screenwriter — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0184",
+      "family": "Video & Film",
+      "name": "Short-film screenwriter — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0185",
+      "family": "Video & Film",
+      "name": "Web-series episode writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0186",
+      "family": "Storytelling",
+      "name": "Fiction story generator — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0187",
+      "family": "Storytelling",
+      "name": "Flash-fiction writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0188",
+      "family": "Storytelling",
+      "name": "Novel chapter writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0189",
+      "family": "Storytelling",
+      "name": "Fantasy story writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0190",
+      "family": "Storytelling",
+      "name": "Science-fiction writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0191",
+      "family": "Storytelling",
+      "name": "Mystery story writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0192",
+      "family": "Storytelling",
+      "name": "Thriller story writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0193",
+      "family": "Storytelling",
+      "name": "Adventure story writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0194",
+      "family": "Storytelling",
+      "name": "Interactive-fiction writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0195",
+      "family": "Horror",
+      "name": "Horror story scriptwriter — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0196",
+      "family": "Horror",
+      "name": "Paranormal-fiction scriptwriter — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0197",
+      "family": "Horror",
+      "name": "Ghost-story writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0198",
+      "family": "Horror",
+      "name": "Supernatural thriller writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0199",
+      "family": "Horror",
+      "name": "Psychological suspense writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    },
+    {
+      "id": "SCR-0200",
+      "family": "Horror",
+      "name": "Gothic fiction writer — for Beginners",
+      "deliverable": "Video script with sections/scenes",
+      "workflow": "Brief → research (if needed) → outline → draft → review → finalize",
+      "checks": "Audience fit; structure; originality; factual verification when applicable; duration/timing"
+    }
+  ],
+  "domains": [
+    {
+      "id": "DOM-001",
+      "domain": "Writing & Publishing",
+      "group": "Writing",
+      "scope": "Articles, books, editing, publishing workflows"
+    },
+    {
+      "id": "DOM-002",
+      "domain": "Scriptwriting",
+      "group": "Creative",
+      "scope": "Scripts for video, film, audio, and interactive media"
+    },
+    {
+      "id": "DOM-003",
+      "domain": "Video Production",
+      "group": "Creative",
+      "scope": "Pre-production, shot lists, production planning"
+    },
+    {
+      "id": "DOM-004",
+      "domain": "Graphic Design",
+      "group": "Creative",
+      "scope": "Visual concepts, layouts, brand assets"
+    },
+    {
+      "id": "DOM-005",
+      "domain": "Image Generation",
+      "group": "Creative",
+      "scope": "Image prompt design, visual concepts, image review"
+    },
+    {
+      "id": "DOM-006",
+      "domain": "Animation",
+      "group": "Creative",
+      "scope": "Storyboards, motion planning, character animation"
+    },
+    {
+      "id": "DOM-007",
+      "domain": "Audio Production",
+      "group": "Creative",
+      "scope": "Narration, sound design, audio editing workflows"
+    },
+    {
+      "id": "DOM-008",
+      "domain": "Music Production",
+      "group": "Creative",
+      "scope": "Composition planning, arrangements, music theory"
+    },
+    {
+      "id": "DOM-009",
+      "domain": "Photography",
+      "group": "Creative",
+      "scope": "Shot planning, lighting, photo organization"
+    },
+    {
+      "id": "DOM-010",
+      "domain": "Film & Television",
+      "group": "Creative",
+      "scope": "Screenplays, continuity, production workflows"
+    },
+    {
+      "id": "DOM-011",
+      "domain": "Gaming",
+      "group": "Creative",
+      "scope": "Game narratives, quests, dialogue, design"
+    },
+    {
+      "id": "DOM-012",
+      "domain": "Social Media",
+      "group": "Marketing",
+      "scope": "Platform-specific content and community workflows"
+    },
+    {
+      "id": "DOM-013",
+      "domain": "Blogging & SEO",
+      "group": "Marketing",
+      "scope": "Topic research, SEO content, content refresh"
+    },
+    {
+      "id": "DOM-014",
+      "domain": "Journalism",
+      "group": "Media",
+      "scope": "News research, interviews, fact-checking workflows"
+    },
+    {
+      "id": "DOM-015",
+      "domain": "Podcasting",
+      "group": "Media",
+      "scope": "Episode planning, interviews, show notes"
+    },
+    {
+      "id": "DOM-016",
+      "domain": "Digital Publishing",
+      "group": "Publishing",
+      "scope": "Ebooks, formatting, metadata, distribution"
+    },
+    {
+      "id": "DOM-017",
+      "domain": "Advertising",
+      "group": "Marketing",
+      "scope": "Ad copy, campaigns, creative briefs"
+    },
+    {
+      "id": "DOM-018",
+      "domain": "Branding",
+      "group": "Marketing",
+      "scope": "Naming, positioning, brand consistency"
+    },
+    {
+      "id": "DOM-019",
+      "domain": "Translation & Localization",
+      "group": "Language",
+      "scope": "Translation, localization, multilingual adaptation"
+    },
+    {
+      "id": "DOM-020",
+      "domain": "Digital Asset Management",
+      "group": "Operations",
+      "scope": "Media classification, metadata, asset libraries"
+    },
+    {
+      "id": "DOM-021",
+      "domain": "Software Development",
+      "group": "Technology",
+      "scope": "Code generation, debugging, refactoring"
+    },
+    {
+      "id": "DOM-022",
+      "domain": "Front-End Engineering",
+      "group": "Technology",
+      "scope": "React, UI components, CSS, accessibility"
+    },
+    {
+      "id": "DOM-023",
+      "domain": "Back-End Engineering",
+      "group": "Technology",
+      "scope": "APIs, services, data access"
+    },
+    {
+      "id": "DOM-024",
+      "domain": "Mobile Development",
+      "group": "Technology",
+      "scope": "iOS, Android, cross-platform applications"
+    },
+    {
+      "id": "DOM-025",
+      "domain": "DevOps & Cloud",
+      "group": "Technology",
+      "scope": "CI/CD, cloud infrastructure, deployment"
+    },
+    {
+      "id": "DOM-026",
+      "domain": "Quality Assurance",
+      "group": "Technology",
+      "scope": "Test design, regression, defect triage"
+    },
+    {
+      "id": "DOM-027",
+      "domain": "Cybersecurity",
+      "group": "Technology",
+      "scope": "Defensive security, audits, awareness"
+    },
+    {
+      "id": "DOM-028",
+      "domain": "Data Engineering",
+      "group": "Technology",
+      "scope": "ETL, pipelines, data quality"
+    },
+    {
+      "id": "DOM-029",
+      "domain": "Data Analytics",
+      "group": "Technology",
+      "scope": "Analysis, statistics, insights"
+    },
+    {
+      "id": "DOM-030",
+      "domain": "Business Intelligence",
+      "group": "Technology",
+      "scope": "Dashboards, KPIs, reporting"
+    },
+    {
+      "id": "DOM-031",
+      "domain": "Machine Learning",
+      "group": "Technology",
+      "scope": "Experiments, features, model evaluation"
+    },
+    {
+      "id": "DOM-032",
+      "domain": "AI Engineering",
+      "group": "Technology",
+      "scope": "RAG, model integration, agent workflows"
+    },
+    {
+      "id": "DOM-033",
+      "domain": "Database Administration",
+      "group": "Technology",
+      "scope": "Queries, schemas, database operations"
+    },
+    {
+      "id": "DOM-034",
+      "domain": "IT Support",
+      "group": "Technology",
+      "scope": "Troubleshooting, ticket triage, knowledge bases"
+    },
+    {
+      "id": "DOM-035",
+      "domain": "Systems Administration",
+      "group": "Technology",
+      "scope": "Configuration, maintenance, diagnostics"
+    },
+    {
+      "id": "DOM-036",
+      "domain": "Network Engineering",
+      "group": "Technology",
+      "scope": "Network documentation, monitoring"
+    },
+    {
+      "id": "DOM-037",
+      "domain": "API Engineering",
+      "group": "Technology",
+      "scope": "API design, integration, contract testing"
+    },
+    {
+      "id": "DOM-038",
+      "domain": "Technical Documentation",
+      "group": "Technology",
+      "scope": "Docs, release notes, tutorials"
+    },
+    {
+      "id": "DOM-039",
+      "domain": "Developer Productivity",
+      "group": "Technology",
+      "scope": "Code review, repository navigation, task planning"
+    },
+    {
+      "id": "DOM-040",
+      "domain": "Digital Accessibility",
+      "group": "Technology",
+      "scope": "Accessibility audits, inclusive design"
+    },
+    {
+      "id": "DOM-041",
+      "domain": "Business Strategy",
+      "group": "Business",
+      "scope": "Strategy analysis, business models, scenarios"
+    },
+    {
+      "id": "DOM-042",
+      "domain": "Project Management",
+      "group": "Business",
+      "scope": "Tasks, milestones, risks, delivery tracking"
+    },
+    {
+      "id": "DOM-043",
+      "domain": "Product Management",
+      "group": "Business",
+      "scope": "Discovery, roadmaps, requirements"
+    },
+    {
+      "id": "DOM-044",
+      "domain": "Marketing",
+      "group": "Business",
+      "scope": "Campaigns, audience research, performance analysis"
+    },
+    {
+      "id": "DOM-045",
+      "domain": "Sales",
+      "group": "Business",
+      "scope": "Lead qualification, proposals, sales research"
+    },
+    {
+      "id": "DOM-046",
+      "domain": "Customer Support",
+      "group": "Business",
+      "scope": "Support responses, FAQs, ticket classification"
+    },
+    {
+      "id": "DOM-047",
+      "domain": "Customer Success",
+      "group": "Business",
+      "scope": "Onboarding, retention, feedback synthesis"
+    },
+    {
+      "id": "DOM-048",
+      "domain": "E-commerce",
+      "group": "Commerce",
+      "scope": "Product listings, catalog, merchandising"
+    },
+    {
+      "id": "DOM-049",
+      "domain": "Retail",
+      "group": "Commerce",
+      "scope": "Inventory, store operations, customer insights"
+    },
+    {
+      "id": "DOM-050",
+      "domain": "Finance",
+      "group": "Finance",
+      "scope": "Budgets, cash flow, financial reporting"
+    },
+    {
+      "id": "DOM-051",
+      "domain": "Accounting",
+      "group": "Finance",
+      "scope": "Invoices, reconciliation, expense categorization"
+    },
+    {
+      "id": "DOM-052",
+      "domain": "Tax Administration",
+      "group": "Finance",
+      "scope": "Document organization, tax research, filing checklists"
+    },
+    {
+      "id": "DOM-053",
+      "domain": "Banking Operations",
+      "group": "Finance",
+      "scope": "Document processing, service workflows"
+    },
+    {
+      "id": "DOM-054",
+      "domain": "Insurance",
+      "group": "Finance",
+      "scope": "Claims documents, policy explanations, risk records"
+    },
+    {
+      "id": "DOM-055",
+      "domain": "Procurement",
+      "group": "Operations",
+      "scope": "Vendor research, purchasing, contract comparison"
+    },
+    {
+      "id": "DOM-056",
+      "domain": "Supply Chain",
+      "group": "Operations",
+      "scope": "Demand planning, shipment exceptions, supply risks"
+    },
+    {
+      "id": "DOM-057",
+      "domain": "Logistics",
+      "group": "Operations",
+      "scope": "Routes, delivery coordination, dispatch"
+    },
+    {
+      "id": "DOM-058",
+      "domain": "Human Resources",
+      "group": "Business",
+      "scope": "Recruitment, onboarding, HR policies"
+    },
+    {
+      "id": "DOM-059",
+      "domain": "Legal Operations",
+      "group": "Legal",
+      "scope": "Document organization, clause extraction, legal research"
+    },
+    {
+      "id": "DOM-060",
+      "domain": "Compliance & Governance",
+      "group": "Legal",
+      "scope": "Policy checks, audit evidence, control mapping"
+    },
+    {
+      "id": "DOM-061",
+      "domain": "Education",
+      "group": "Education",
+      "scope": "Lesson planning, curriculum, learning content"
+    },
+    {
+      "id": "DOM-062",
+      "domain": "Tutoring",
+      "group": "Education",
+      "scope": "Concept explanation, practice, study coaching"
+    },
+    {
+      "id": "DOM-063",
+      "domain": "Academic Research",
+      "group": "Research",
+      "scope": "Literature reviews, citations, research planning"
+    },
+    {
+      "id": "DOM-064",
+      "domain": "Scientific Research",
+      "group": "Research",
+      "scope": "Experiment planning, paper analysis, synthesis"
+    },
+    {
+      "id": "DOM-065",
+      "domain": "Mathematics",
+      "group": "Education",
+      "scope": "Problem solving, proofs, math explanations"
+    },
+    {
+      "id": "DOM-066",
+      "domain": "Physics",
+      "group": "Education",
+      "scope": "Physics explanations, simulation planning"
+    },
+    {
+      "id": "DOM-067",
+      "domain": "Chemistry",
+      "group": "Education",
+      "scope": "Chemistry education, lab documentation"
+    },
+    {
+      "id": "DOM-068",
+      "domain": "Biology",
+      "group": "Education",
+      "scope": "Biology education, taxonomy, research summaries"
+    },
+    {
+      "id": "DOM-069",
+      "domain": "History",
+      "group": "Education",
+      "scope": "Timelines, source analysis, historical storytelling"
+    },
+    {
+      "id": "DOM-070",
+      "domain": "Geography",
+      "group": "Education",
+      "scope": "Maps, regional research, geographic explanation"
+    },
+    {
+      "id": "DOM-071",
+      "domain": "Language Learning",
+      "group": "Education",
+      "scope": "Vocabulary, dialogue practice, grammar"
+    },
+    {
+      "id": "DOM-072",
+      "domain": "Libraries & Archives",
+      "group": "Knowledge",
+      "scope": "Cataloging, metadata, archival search"
+    },
+    {
+      "id": "DOM-073",
+      "domain": "Knowledge Management",
+      "group": "Knowledge",
+      "scope": "Knowledge bases, duplicate detection, semantic search"
+    },
+    {
+      "id": "DOM-074",
+      "domain": "Technical Training",
+      "group": "Education",
+      "scope": "Training modules, assessments, instruction"
+    },
+    {
+      "id": "DOM-075",
+      "domain": "Career Development",
+      "group": "Career",
+      "scope": "Resume review, interview practice, skill gaps"
+    },
+    {
+      "id": "DOM-076",
+      "domain": "Healthcare Administration",
+      "group": "Healthcare",
+      "scope": "Appointments, document organization, admin workflows"
+    },
+    {
+      "id": "DOM-077",
+      "domain": "Clinical Documentation",
+      "group": "Healthcare",
+      "scope": "Note formatting, document summaries, terminology"
+    },
+    {
+      "id": "DOM-078",
+      "domain": "Medical Education",
+      "group": "Healthcare",
+      "scope": "Terminology tutoring, educational content"
+    },
+    {
+      "id": "DOM-079",
+      "domain": "Public Health",
+      "group": "Healthcare",
+      "scope": "Public information, campaigns, report summaries"
+    },
+    {
+      "id": "DOM-080",
+      "domain": "Wellness Education",
+      "group": "Wellness",
+      "scope": "General wellness information and habit planning"
+    },
+    {
+      "id": "DOM-081",
+      "domain": "Fitness Education",
+      "group": "Wellness",
+      "scope": "Activity planning, exercise education"
+    },
+    {
+      "id": "DOM-082",
+      "domain": "Nutrition Education",
+      "group": "Wellness",
+      "scope": "Food labels, meal planning, nutrition information"
+    },
+    {
+      "id": "DOM-083",
+      "domain": "Mental Wellness Education",
+      "group": "Wellness",
+      "scope": "Coping-skills education, reflection prompts"
+    },
+    {
+      "id": "DOM-084",
+      "domain": "Accessibility Services",
+      "group": "Public Services",
+      "scope": "Accessible communication and accommodation documentation"
+    },
+    {
+      "id": "DOM-085",
+      "domain": "Public Administration",
+      "group": "Public Services",
+      "scope": "Forms, public service information, document explanations"
+    },
+    {
+      "id": "DOM-086",
+      "domain": "Manufacturing",
+      "group": "Industry",
+      "scope": "Production planning, quality documentation"
+    },
+    {
+      "id": "DOM-087",
+      "domain": "Industrial Engineering",
+      "group": "Industry",
+      "scope": "Process maps, operations analysis"
+    },
+    {
+      "id": "DOM-088",
+      "domain": "Robotics",
+      "group": "Industry",
+      "scope": "Robot task planning, simulation, documentation"
+    },
+    {
+      "id": "DOM-089",
+      "domain": "Automotive",
+      "group": "Industry",
+      "scope": "Vehicle information, service documentation"
+    },
+    {
+      "id": "DOM-090",
+      "domain": "Construction",
+      "group": "Industry",
+      "scope": "Project documents, schedules, drawing review"
+    },
+    {
+      "id": "DOM-091",
+      "domain": "Architecture",
+      "group": "Industry",
+      "scope": "Design briefs, space planning, specifications"
+    },
+    {
+      "id": "DOM-092",
+      "domain": "Real Estate",
+      "group": "Property",
+      "scope": "Listings, property research, document organization"
+    },
+    {
+      "id": "DOM-093",
+      "domain": "Agriculture",
+      "group": "Industry",
+      "scope": "Crop information, farm planning, research"
+    },
+    {
+      "id": "DOM-094",
+      "domain": "Environment & Sustainability",
+      "group": "Environment",
+      "scope": "Environmental reports, conservation, sustainability"
+    },
+    {
+      "id": "DOM-095",
+      "domain": "Energy",
+      "group": "Industry",
+      "scope": "Energy reports, consumption analysis, maintenance docs"
+    },
+    {
+      "id": "DOM-096",
+      "domain": "Transportation",
+      "group": "Industry",
+      "scope": "Travel information, fleet planning, service coordination"
+    },
+    {
+      "id": "DOM-097",
+      "domain": "Travel & Hospitality",
+      "group": "Travel",
+      "scope": "Itineraries, destination research, guest communication"
+    },
+    {
+      "id": "DOM-098",
+      "domain": "Food Service",
+      "group": "Food",
+      "scope": "Recipe documentation, menu planning, food content"
+    },
+    {
+      "id": "DOM-099",
+      "domain": "Emergency Preparedness",
+      "group": "Public Services",
+      "scope": "Preparedness education, public alert drafts, checklists"
+    },
+    {
+      "id": "DOM-100",
+      "domain": "Science & Space",
+      "group": "Science",
+      "scope": "Astronomy education, mission information, visualization planning"
+    }
+  ],
+  "functions": [
+    {
+      "id": "FUN-001",
+      "name": "Research",
+      "definition": "Find, collect, compare, and synthesize relevant information"
+    },
+    {
+      "id": "FUN-002",
+      "name": "Writing",
+      "definition": "Draft clear text or structured narratives"
+    },
+    {
+      "id": "FUN-003",
+      "name": "Generation",
+      "definition": "Create a new artifact from a specification"
+    },
+    {
+      "id": "FUN-004",
+      "name": "Transformation",
+      "definition": "Convert content between formats or styles"
+    },
+    {
+      "id": "FUN-005",
+      "name": "Analysis",
+      "definition": "Inspect evidence, data, or content and derive insights"
+    },
+    {
+      "id": "FUN-006",
+      "name": "Evaluation",
+      "definition": "Score output against explicit criteria"
+    },
+    {
+      "id": "FUN-007",
+      "name": "Verification",
+      "definition": "Check claims, calculations, consistency, or provenance"
+    },
+    {
+      "id": "FUN-008",
+      "name": "Planning",
+      "definition": "Break a goal into steps, dependencies, and milestones"
+    },
+    {
+      "id": "FUN-009",
+      "name": "Decision Support",
+      "definition": "Compare options and explain trade-offs"
+    },
+    {
+      "id": "FUN-010",
+      "name": "Coding",
+      "definition": "Create or modify software and scripts"
+    },
+    {
+      "id": "FUN-011",
+      "name": "Testing",
+      "definition": "Design and execute tests or quality checks"
+    },
+    {
+      "id": "FUN-012",
+      "name": "Optimization",
+      "definition": "Improve performance, clarity, or efficiency"
+    },
+    {
+      "id": "FUN-013",
+      "name": "Retrieval",
+      "definition": "Find information in approved sources or repositories"
+    },
+    {
+      "id": "FUN-014",
+      "name": "Knowledge Management",
+      "definition": "Organize, update, and connect information"
+    },
+    {
+      "id": "FUN-015",
+      "name": "Summarization",
+      "definition": "Condense information while preserving key points"
+    },
+    {
+      "id": "FUN-016",
+      "name": "Classification",
+      "definition": "Assign labels or categories"
+    },
+    {
+      "id": "FUN-017",
+      "name": "Extraction",
+      "definition": "Extract fields, entities, and structured facts"
+    },
+    {
+      "id": "FUN-018",
+      "name": "Conversation",
+      "definition": "Handle task-oriented dialogue"
+    },
+    {
+      "id": "FUN-019",
+      "name": "Tutoring",
+      "definition": "Teach, explain, quiz, and provide practice"
+    },
+    {
+      "id": "FUN-020",
+      "name": "Personalization",
+      "definition": "Adapt output to declared preferences"
+    },
+    {
+      "id": "FUN-021",
+      "name": "Recommendation",
+      "definition": "Suggest options based on criteria"
+    },
+    {
+      "id": "FUN-022",
+      "name": "Monitoring",
+      "definition": "Observe permitted data for defined changes"
+    },
+    {
+      "id": "FUN-023",
+      "name": "Scheduling",
+      "definition": "Plan dates, time slots, and reminders"
+    },
+    {
+      "id": "FUN-024",
+      "name": "Communication",
+      "definition": "Prepare messages and communications"
+    },
+    {
+      "id": "FUN-025",
+      "name": "Integration",
+      "definition": "Connect systems, APIs, and services"
+    },
+    {
+      "id": "FUN-026",
+      "name": "Automation",
+      "definition": "Execute bounded multi-step workflows"
+    },
+    {
+      "id": "FUN-027",
+      "name": "Orchestration",
+      "definition": "Coordinate tools, subagents, and task dependencies"
+    },
+    {
+      "id": "FUN-028",
+      "name": "Memory Management",
+      "definition": "Maintain authorized task context"
+    },
+    {
+      "id": "FUN-029",
+      "name": "Quality Assurance",
+      "definition": "Validate deliverables against acceptance criteria"
+    },
+    {
+      "id": "FUN-030",
+      "name": "Compliance Review",
+      "definition": "Check against defined policies and requirements"
+    },
+    {
+      "id": "FUN-031",
+      "name": "Documentation",
+      "definition": "Generate and maintain documentation"
+    },
+    {
+      "id": "FUN-032",
+      "name": "Simulation",
+      "definition": "Model scenarios and compare outcomes"
+    },
+    {
+      "id": "FUN-033",
+      "name": "Forecasting",
+      "definition": "Estimate outcomes from available data"
+    },
+    {
+      "id": "FUN-034",
+      "name": "Workflow Recovery",
+      "definition": "Diagnose failed steps and plan recovery"
+    },
+    {
+      "id": "FUN-035",
+      "name": "Accessibility Review",
+      "definition": "Check inclusive and accessible outputs"
+    }
+  ],
+  "output_types": [
+    {
+      "id": "OUT-001",
+      "name": "Video script",
+      "definition": "A timed script with narration and/or dialogue"
+    },
+    {
+      "id": "OUT-002",
+      "name": "Short-form script",
+      "definition": "A concise vertical-video script"
+    },
+    {
+      "id": "OUT-003",
+      "name": "Screenplay",
+      "definition": "Scene-based film or episode screenplay"
+    },
+    {
+      "id": "OUT-004",
+      "name": "Podcast script",
+      "definition": "Audio episode outline and host copy"
+    },
+    {
+      "id": "OUT-005",
+      "name": "Dialogue",
+      "definition": "Character or conversational dialogue"
+    },
+    {
+      "id": "OUT-006",
+      "name": "Article",
+      "definition": "Structured long-form written content"
+    },
+    {
+      "id": "OUT-007",
+      "name": "Blog post",
+      "definition": "Web article with headings and metadata"
+    },
+    {
+      "id": "OUT-008",
+      "name": "Social caption",
+      "definition": "Platform-specific caption"
+    },
+    {
+      "id": "OUT-009",
+      "name": "Ad copy",
+      "definition": "Promotional copy with CTA"
+    },
+    {
+      "id": "OUT-010",
+      "name": "Email/message",
+      "definition": "Communication draft"
+    },
+    {
+      "id": "OUT-011",
+      "name": "Report",
+      "definition": "Structured findings and recommendations"
+    },
+    {
+      "id": "OUT-012",
+      "name": "Research brief",
+      "definition": "Evidence-based summary with sources"
+    },
+    {
+      "id": "OUT-013",
+      "name": "Storyboard",
+      "definition": "Scene-by-scene visual plan"
+    },
+    {
+      "id": "OUT-014",
+      "name": "Image prompt",
+      "definition": "Prompt for image generation"
+    },
+    {
+      "id": "OUT-015",
+      "name": "Video prompt",
+      "definition": "Prompt for video generation"
+    },
+    {
+      "id": "OUT-016",
+      "name": "Audio/narration",
+      "definition": "Voice-over or audio direction"
+    },
+    {
+      "id": "OUT-017",
+      "name": "Code",
+      "definition": "Executable or illustrative code"
+    },
+    {
+      "id": "OUT-018",
+      "name": "Test suite",
+      "definition": "Automated or manual test cases"
+    },
+    {
+      "id": "OUT-019",
+      "name": "Data table",
+      "definition": "Structured rows and columns"
+    },
+    {
+      "id": "OUT-020",
+      "name": "Dashboard specification",
+      "definition": "KPIs, charts, and layout requirements"
+    },
+    {
+      "id": "OUT-021",
+      "name": "Checklist",
+      "definition": "Actionable verification list"
+    },
+    {
+      "id": "OUT-022",
+      "name": "Plan/roadmap",
+      "definition": "Sequenced steps and milestones"
+    },
+    {
+      "id": "OUT-023",
+      "name": "Presentation outline",
+      "definition": "Slide-by-slide content"
+    },
+    {
+      "id": "OUT-024",
+      "name": "Lesson plan",
+      "definition": "Learning objectives and activities"
+    },
+    {
+      "id": "OUT-025",
+      "name": "Quiz/assessment",
+      "definition": "Questions, answers, and rubric"
+    },
+    {
+      "id": "OUT-026",
+      "name": "Translation",
+      "definition": "Translated content"
+    },
+    {
+      "id": "OUT-027",
+      "name": "Summary",
+      "definition": "Condensed source content"
+    },
+    {
+      "id": "OUT-028",
+      "name": "Structured JSON",
+      "definition": "Machine-readable structured output"
+    },
+    {
+      "id": "OUT-029",
+      "name": "Workflow definition",
+      "definition": "Steps, inputs, outputs, and dependencies"
+    },
+    {
+      "id": "OUT-030",
+      "name": "Agent specification",
+      "definition": "Reusable configuration for an AI agent"
+    }
+  ],
+  "languages": [
+    "English",
+    "Hindi",
+    "Hinglish",
+    "Gujarati",
+    "Marathi",
+    "Tamil",
+    "Telugu",
+    "Bengali",
+    "Spanish",
+    "French",
+    "German",
+    "Portuguese",
+    "Arabic",
+    "Japanese",
+    "Korean",
+    "Chinese (Simplified)",
+    "Indonesian",
+    "Multilingual",
+    "User-specified",
+    "Other"
+  ],
+  "platforms": [
+    "Platform-neutral",
+    "YouTube",
+    "YouTube Shorts",
+    "Instagram Reels",
+    "TikTok",
+    "Facebook",
+    "LinkedIn",
+    "Website/Blog",
+    "Podcast",
+    "Email",
+    "Mobile App",
+    "Desktop App",
+    "API/Backend",
+    "Internal Business Tool",
+    "Print",
+    "Other"
+  ],
+  "audiences": [
+    "General audience",
+    "Children",
+    "Teen learners",
+    "Beginners",
+    "Intermediate learners",
+    "Experts",
+    "Customers",
+    "Executives",
+    "Developers",
+    "Creators",
+    "Researchers",
+    "Employees",
+    "Local community",
+    "Accessibility-first audience",
+    "User-specified"
+  ],
+  "tones": [
+    "Informative",
+    "Cinematic",
+    "Conversational",
+    "Professional",
+    "Humorous",
+    "Dramatic",
+    "Educational",
+    "Persuasive",
+    "Warm",
+    "Neutral",
+    "Investigative",
+    "Inspirational",
+    "Technical",
+    "Story-driven",
+    "User-specified"
+  ],
+  "workflows": [
+    {
+      "name": "Single-step",
+      "description": "One request produces one deliverable"
+    },
+    {
+      "name": "Sequential pipeline",
+      "description": "Steps run in a defined order"
+    },
+    {
+      "name": "Parallel specialists",
+      "description": "Independent subtasks run in parallel"
+    },
+    {
+      "name": "Planner-executor-reviewer",
+      "description": "Plan, execute, review, revise"
+    },
+    {
+      "name": "Research-write-verify",
+      "description": "Research, draft, fact-check, finalize"
+    },
+    {
+      "name": "Human approval gate",
+      "description": "Pause for review before consequential steps"
+    },
+    {
+      "name": "Event-triggered",
+      "description": "Starts when a defined event occurs"
+    },
+    {
+      "name": "Retrieval-augmented",
+      "description": "Retrieve source context before producing output"
+    },
+    {
+      "name": "Multi-agent delegation",
+      "description": "Coordinator delegates to specialist agents"
+    },
+    {
+      "name": "Batch processing",
+      "description": "Process multiple items with shared rules"
+    }
+  ],
+  "architectures": [
+    {
+      "name": "Rule-based",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Reactive",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Model-based",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Goal-based",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Utility-based",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Learning-enabled",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Planning",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Tool-using",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Retrieval-augmented",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Memory-enabled",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Reflective",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Human-supervised",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Bounded autonomous",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Multi-agent",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Hierarchical",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Event-driven",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Conversational",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Multimodal",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Computer-interaction",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    },
+    {
+      "name": "Embodied/robotic",
+      "description": "Choose based on capability, tools, risk, and autonomy requirements."
+    }
+  ]
+}
