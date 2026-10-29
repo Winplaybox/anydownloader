@@ -68,7 +68,7 @@ class VideoProducerService:
             url = f"https://image.pollinations.ai/prompt/{encoded}?width=720&height=1280&nologo=true&seed={idx * 101 + 42}"
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
             try:
-                with urllib.request.urlopen(req, timeout=12) as resp:
+                with urllib.request.urlopen(req, timeout=5) as resp:
                     data = resp.read()
                     if len(data) > 1000:
                         with open(dest_file, "wb") as f:
@@ -156,14 +156,14 @@ class VideoProducerService:
 
         inputs = []
         for img in resolved_images:
-            inputs.extend(["-loop", "1", "-t", f"{scene_dur + xfade_dur:.2f}", "-i", img])
+            inputs.extend(["-loop", "1", "-framerate", "18", "-t", f"{scene_dur + xfade_dur:.2f}", "-i", img])
 
         audio_idx = num_scenes
         inputs.extend(["-i", audio_path])
 
         filter_parts = []
         for i in range(num_scenes):
-            filter_parts.append(f"[{i}:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1[s{i}]")
+            filter_parts.append(f"[{i}:v]scale={w}:{h}:force_original_aspect_ratio=increase:flags=fast_bilinear,crop={w}:{h},setsar=1,fps=18[s{i}]")
 
         if num_scenes == 1:
             vout = "s0"
@@ -244,17 +244,24 @@ class VideoProducerService:
         Otherwise falls back to single-pass canvas with memory-safe threads.
         """
         self._ensure_ffmpeg_path()
-        if preset_id and not scenes:
+        if preset_id:
             presets = self.get_story_presets()
             if preset_id in presets:
                 preset_data = presets[preset_id]
-                scenes = preset_data.get("scenes", [])
+                preset_scenes = preset_data.get("scenes", [])
                 if not channel_name:
                     channel_name = preset_data.get("channel_name", "")
                 if not title:
                     title = preset_data.get("title", "")
                 if not moral:
                     moral = preset_data.get("moral", "")
+                if not scenes:
+                    scenes = preset_scenes
+                else:
+                    # Enrich scenes with local cached preset assets for 0ms loading
+                    for idx, sc in enumerate(scenes):
+                        if not sc.get("asset") and idx < len(preset_scenes):
+                            sc["asset"] = preset_scenes[idx].get("asset")
 
         if scenes and len(scenes) > 0:
             return self.assemble_story_video(
