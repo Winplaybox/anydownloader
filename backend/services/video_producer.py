@@ -1,7 +1,7 @@
 """
 4K Faceless Video Producer Service
 Integrates script parsing, neural voice generation, kinetic typography,
-multi-scene AI visual assembly (3D Pixar / Rail HUD / Analog Horror / Mythological),
+multi-scene AI visual assembly (3D Pixar / Rail HUD / Analog Horror / Mythological / Anime),
 and FFmpeg hardware-accelerated video rendering for 9:16 vertical Shorts/Reels
 and 16:9 4K landscape videos.
 """
@@ -44,7 +44,7 @@ class VideoProducerService:
 
     def _resolve_scene_image(self, scene: Dict[str, Any], temp_dir: str, idx: int) -> Optional[str]:
         """
-        Resolves or downloads a high-fidelity 9:16 portrait image for a scene:
+        Resolves or downloads a high-fidelity portrait image for a scene:
         1. Checks local asset filename in backend/assets/presets/
         2. Checks explicit image_path on disk
         3. Attempts Pollinations AI image generation from scene prompt
@@ -110,7 +110,7 @@ class VideoProducerService:
     ) -> Dict[str, Any]:
         """
         Compiles authentic multi-scene AI video with cinematic crossfade (xfade)
-        transitions between scene beats, neural audio synchronization, and branding.
+        transitions between scene beats, neural audio synchronization, and memory-safe limits.
         """
         self._ensure_ffmpeg_path()
         reel_id = uuid.uuid4().hex[:12]
@@ -122,24 +122,33 @@ class VideoProducerService:
         else:
             filename = os.path.basename(output_path)
 
+        # Parse and enforce cloud memory-safe resolution (max width 720 on cloud free tier)
         try:
-            w, h = [int(x) for x in resolution.split("x")]
+            raw_w, raw_h = [int(x) for x in resolution.split("x")]
+            if raw_w > 720:
+                scale_ratio = 720.0 / raw_w
+                w = 720
+                h = int(raw_h * scale_ratio)
+                if h % 2 != 0:
+                    h += 1
+            else:
+                w, h = raw_w, raw_h
         except Exception:
             w, h = 720, 1280
 
         temp_dir = tempfile.gettempdir()
         total_audio_duration = self._get_audio_duration(audio_path)
 
-        # Resolve scene images
+        # Resolve scene images (cap to max 4 scenes for cloud memory safety)
         resolved_images = []
-        for i, sc in enumerate(scenes):
+        for i, sc in enumerate(scenes[:4]):
             img = self._resolve_scene_image(sc, temp_dir, i)
             if img:
                 resolved_images.append(img)
 
         # Fallback to single-pass if no images resolved
         if not resolved_images:
-            return self.assemble_reel_video(audio_path=audio_path, resolution=resolution, output_path=output_path)
+            return self.assemble_reel_video(audio_path=audio_path, resolution=f"{w}x{h}", output_path=output_path)
 
         num_scenes = len(resolved_images)
         xfade_dur = 0.5
@@ -171,8 +180,10 @@ class VideoProducerService:
         filter_parts.append(f"[{vout}]null[vout]")
         filter_str = ";".join(filter_parts)
 
+        # Threads capped to 2 to eliminate OOM risks on container
         cmd = [
             "ffmpeg", "-y",
+            "-threads", "2",
             *inputs,
             "-filter_complex", filter_str,
             "-map", "[vout]",
@@ -180,6 +191,8 @@ class VideoProducerService:
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-pix_fmt", "yuv420p",
+            "-maxrate", "2500k",
+            "-bufsize", "3000k",
             "-c:a", "aac",
             "-b:a", "128k",
             "-shortest",
@@ -217,7 +230,7 @@ class VideoProducerService:
         subtitles_srt_path: Optional[str] = None,
         background_video_path: Optional[str] = None,
         output_path: Optional[str] = None,
-        resolution: str = "1080x1920",
+        resolution: str = "720x1280",
         color: str = "#0f172a",
         scenes: Optional[List[Dict[str, Any]]] = None,
         preset_id: Optional[str] = None,
@@ -228,7 +241,7 @@ class VideoProducerService:
         """
         Universal video assembler:
         If scenes or preset_id are provided, uses assemble_story_video for full multi-scene production.
-        Otherwise falls back to single-pass canvas.
+        Otherwise falls back to single-pass canvas with memory-safe threads.
         """
         self._ensure_ffmpeg_path()
         if preset_id and not scenes:
@@ -263,10 +276,17 @@ class VideoProducerService:
             filename = os.path.basename(output_path)
 
         try:
-            w, h = [int(x) for x in resolution.split("x")]
+            raw_w, raw_h = [int(x) for x in resolution.split("x")]
+            if raw_w > 720:
+                scale_ratio = 720.0 / raw_w
+                w = 720
+                h = int(raw_h * scale_ratio)
+                if h % 2 != 0:
+                    h += 1
+            else:
+                w, h = raw_w, raw_h
         except Exception:
-            w, h = 1080, 1920
-            resolution = "1080x1920"
+            w, h = 720, 1280
 
         if background_video_path and os.path.exists(background_video_path):
             video_input = ["-stream_loop", "-1", "-i", background_video_path]
@@ -275,6 +295,7 @@ class VideoProducerService:
 
         cmd = [
             "ffmpeg", "-y",
+            "-threads", "2",
             *video_input,
             "-i", audio_path,
             "-c:v", "libx264",
@@ -300,7 +321,7 @@ class VideoProducerService:
                     "video_path": output_path,
                     "file_size": os.path.getsize(output_path),
                     "duration": round(duration, 2),
-                    "resolution": resolution
+                    "resolution": f"{w}x{h}"
                 }
             else:
                 return {"ok": False, "error": "Generated video file is missing or corrupt."}
