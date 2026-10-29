@@ -3018,6 +3018,85 @@ async def gravityclaw_prompt_handler(request):
     result["estimated_retention"] = "94.2% (Master Catalog Algorithm Alignment)"
     return JSONResponse(result)
 
+
+async def gravityclaw_pipeline_handler(request):
+    """POST /api/v1/gravityclaw/pipeline [scope: prompt:generate | admin:all | workflow:execute]
+    Executes the complete 12-Stage Master AI Video Pipeline.
+    """
+    token = _extract_auth_token(request)
+    origin = _get_request_origin(request)
+    authorized, reason, payload = token_vault.verify_and_burn_token(token, "prompt:generate", origin)
+    if not authorized:
+        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+    if not authorized:
+        authorized, reason, payload = token_vault.verify_and_burn_token(token, "workflow:execute", origin)
+    if not authorized:
+        return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    brief = body.get("brief") or body.get("script") or body.get("topic") or body.get("prompt") or ""
+    art_style = body.get("art_style", "2d_flat_vector")
+    tone = body.get("tone", "Educational")
+    domain = body.get("domain", "Healthcare & Medicine")
+    platform = body.get("platform", "YouTube Shorts")
+    audience = body.get("audience", "General audience")
+    language = body.get("language", "Hindi")
+    duration_mode = body.get("duration", "auto")
+    agent_id = body.get("agent_id")
+
+    from backend.services.gravityclaw_agent import gravityclaw_service
+
+    result = gravityclaw_service.execute_master_pipeline(
+        brief_or_script=brief,
+        art_style=art_style,
+        tone=tone,
+        domain=domain,
+        platform=platform,
+        audience=audience,
+        language=language,
+        duration_mode=duration_mode,
+        agent_id=agent_id
+    )
+    return JSONResponse(result)
+
+async def gravityclaw_reroll_handler(request):
+    """POST /api/v1/gravityclaw/reroll [scope: prompt:generate | admin:all]
+    Stage 9: Targeted Regeneration of a single beat.
+    """
+    token = _extract_auth_token(request)
+    origin = _get_request_origin(request)
+    authorized, reason, payload = token_vault.verify_and_burn_token(token, "prompt:generate", origin)
+    if not authorized:
+        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+    if not authorized:
+        return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    scene = body.get("scene") or {}
+    prompt_tweak = body.get("prompt_tweak") or body.get("action") or ""
+    character_dna = body.get("character_dna")
+    style_key = body.get("art_style", "2d_flat_vector")
+    seed_offset = body.get("seed_offset", 100)
+
+    from backend.services.gravityclaw_agent import gravityclaw_service
+
+    refreshed_beat = gravityclaw_service.reroll_beat(
+        scene=scene,
+        prompt_tweak=prompt_tweak,
+        character_dna=character_dna,
+        style_key=style_key,
+        seed_offset=seed_offset
+    )
+    return JSONResponse({"ok": True, "refreshed_beat": refreshed_beat})
+
 async def omni_workflow_handler(request):
     """POST /api/v1/omni/workflow [scope: workflow:execute]
     Visual Workflow Generator & n8n Task Queue Viewer.
