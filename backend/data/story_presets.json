@@ -1,0 +1,138 @@
+{
+  "mindnest_chico": {
+    "id": "mindnest_chico",
+    "channel_id": "mindnest_tales",
+    "channel_name": "MindNest Tales",
+    "badge": "3D Pixar Animation",
+    "title": "Chico's Big Race Against Time! 3D Pixar Animation",
+    "niche": "Animation & Moral Tales",
+    "voice": "en-US-ChristopherNeural",
+    "characters": {
+      "hero": "Chico (Baby Cheetah with large expressive round eyes)",
+      "mentor": "Wise Tortoise Elder with round spectacles and grandfatherly smile"
+    },
+    "script": "Deep within the sun-drenched golden savanna lived Chico, the fastest little cheetah in the valley. But Chico was always late! When the Great Savannah Gathering arrived, Chico learned the greatest secret of all: speed without timing leads nowhere.",
+    "moral": "The fastest speed means nothing without the right timing. Be punctual, not just fast!",
+    "scenes": [
+      {
+        "beat": "Beat 1: The Fastest Boy in the Valley",
+        "prompt": "3D Pixar-style animated cheetah named Chico running at lightning speed through golden acacia savanna, Disney Pixar 8k lighting, portrait 9:16",
+        "asset": "mindnest_scene_1.jpg"
+      },
+      {
+        "beat": "Beat 2: The Gathering Begins",
+        "prompt": "3D Pixar animated cute savanna animal friends gathering under huge baobab tree waiting eagerly, warm Disney aesthetic, portrait 9:16",
+        "asset": "mindnest_scene_2.jpg"
+      },
+      {
+        "beat": "Beat 3: The Golden Lesson",
+        "prompt": "3D Pixar animated wise tortoise grandfather elder with round spectacles smiling warmly at Chico, teaching punctuality, portrait 9:16",
+        "asset": "mindnest_scene_3.jpg"
+      }
+    ],
+    "local_script_path": "channels/MindNestTales/video_producer.py",
+    "story_file": "channels/MindNestTales/stories/story_01_cheetah_1.json"
+  },
+  "train_scmaglev": {
+    "id": "train_scmaglev",
+    "channel_id": "alltrainreels",
+    "channel_name": "AllTrainReels",
+    "badge": "High-Speed Rail HUD",
+    "title": "SCMaglev 603 km/h: The Fastest Bullet Train on Earth!",
+    "niche": "Railways & Engineering",
+    "voice": "en-US-GuyNeural",
+    "characters": {
+      "train": "Japanese L0 Series Superconducting Maglev",
+      "location": "Yamanashi Maglev Test Track"
+    },
+    "script": "At six hundred and three kilometers per hour, the Japanese L Zero Series SCMaglev holds the undisputed world speed record for magnetic levitation trains. Hovering ten centimeters above the guideway, superconducting magnets defy friction itself.",
+    "moral": "Engineering excellence transforms impossibility into daily velocity.",
+    "scenes": [
+      {
+        "beat": "Beat 1: Magnetic Levitation Lift-Off",
+        "prompt": "Futuristic Japanese superconducting magnetic levitation train bulleting through mountain tunnel at 603 km/h, hyper-speed motion blur, 8k cinematic",
+        "asset": "train_scene_1.jpg"
+      },
+      {
+        "beat": "Beat 2: Breaking the 600 km/h Barrier",
+        "prompt": "Cockpit HUD telemetry showing speed counter skyrocketing past 600 km/h, digital railway dashboard, 8k uhd",
+        "asset": "train_scene_2.jpg"
+      },
+      {
+        "beat": "Beat 3: Viaduct Sonic Glide",
+        "prompt": "Aerodynamic streamlined train nose gliding over Yamanashi test line viaduct, dramatic sunlight reflection",
+        "asset": "train_scene_3.jpg"
+      }
+    ],
+    "local_script_path": "channels/AllTrainReels/video_producer.py",
+    "story_file": "channels/AllTrainReels/stories/story_01_01_scmaglev_603kmh.json"
+  },
+  "horror_bhangarh": {
+    "id": "horror_bhangarh",
+    "channel_id": "indianhorrortapes",
+    "channel_name": "IndianHorrorTapes",
+    "badge": "Analog VHS Horror",
+    "title": "The Midnight Curse of Bhangarh Fort",
+    "niche": "Creepypasta & Paranormal",
+    "voice": "en-US-ChristopherNeural",
+    "characters": {
+      "location": "Bhangarh Ruins, Rajasthan",
+      "entity": "Shadow of Tantrik Sinhai"
+    },
+    "script": "No one is allowed inside Bhangarh Fort after sunset. The Archaeological Survey of India has sealed the black gates. Legend speaks of Tantrik Sinhai's dying curse that trapped every soul in the ruins forever.",
+    "moral": "Some ancient gates are closed for a reason. Respect the forgotten warnings.",
+    "scenes": [
+      {
+        "beat": "Beat 1: The Sealed Gates at Twilight",
+        "prompt": "Ancient cursed stone ruins of Bhangarh Fort in dense midnight mist, eerie moonlight, analog VHS scanlines, dark haunting atmosphere",
+        "asset": "horror_scene_1.jpg"
+      },
+      {
+        "beat": "Beat 2: The Whispering Courtyard",
+        "prompt": "Mysterious shadowy silhouette standing in ancient arched palace doorway with glowing sinister eyes, 1990s VHS camcorder tape grain",
+        "asset": "horror_scene_2.jpg"
+      },
+      {
+        "beat": "Beat 3: The Broken Seal",
+        "prompt": "Weathered brass padlock on black iron fort gate with rusted warning sign, ominous foggy night",
+        "asset": "horror_scene_3.jpg"
+      }
+    ],
+    "local_script_path": "channels/IndianHorrorTapes/video_producer.py",
+    "story_file": "channels/IndianHorrorTapes/stories/story_01_bhangarh_fort.json"
+  },
+  "epic_shiva": {
+    "id": "epic_shiva",
+    "channel_id": "epicbharatsaga",
+    "channel_name": "EpicBharatSaga",
+    "badge": "Cosmic Mythology",
+    "title": "Origin of Neelkanth: The Cosmic Ocean Churning",
+    "niche": "Indian Mythology & Epics",
+    "voice": "hi-IN-MadhurNeural",
+    "characters": {
+      "deity": "Mahadeva Lord Shiva",
+      "event": "Samudra Manthan (Churning of the Cosmic Ocean)"
+    },
+    "script": "During the churning of the cosmic ocean, before the elixir of immortality could emerge, the primordial poison Halahala threatened to incinerate the universe. In an act of supreme sacrifice, Mahadeva swallowed the venom, holding it in his throat forever.",
+    "moral": "True power is not in conquering others, but in absorbing poison so the world may live.",
+    "scenes": [
+      {
+        "beat": "Beat 1: Samudra Manthan Churning",
+        "prompt": "Devas and Asuras churning the turbulent cosmic milk ocean with Mount Mandara and Vasuki the serpent king, celestial cosmic dust",
+        "asset": "epic_scene_1.jpg"
+      },
+      {
+        "beat": "Beat 2: The Rise of Halahala Venom",
+        "prompt": "Dark deadly purple-black primordial smoke of Halahala poison rising across celestial realms, terrifying cosmic storm",
+        "asset": "epic_scene_2.jpg"
+      },
+      {
+        "beat": "Beat 3: Lord Neelkanth's Sacrifice",
+        "prompt": "Lord Shiva with glowing radiant blue throat, crescent moon, and flowing matted locks in deep meditative transcendence, radiant divine aura",
+        "asset": "epic_scene_3.jpg"
+      }
+    ],
+    "local_script_path": "channels/EpicBharatSaga/video_producer.py",
+    "story_file": "channels/EpicBharatSaga/stories/story_001_shiva_01_neelkanth_origin.json"
+  }
+}
