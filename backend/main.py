@@ -3214,6 +3214,14 @@ async def diag_handler(request):
         'temp_dir': tempfile.gettempdir()
     })
 
+
+async def video_presets_handler(request):
+    try:
+        presets = video_producer.get_story_presets()
+        return JSONResponse({"ok": True, "presets": presets})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
 async def generate_reel_handler(request):
     try:
         token = _extract_auth_token(request)
@@ -3243,8 +3251,23 @@ async def generate_reel_handler(request):
 
         if not audio_path:
             return JSONResponse({"ok": False, "error": "Either script or audio_path is required."}, status_code=400)
+
+        preset_id = body.get("preset_id")
+        scenes = body.get("scenes")
+        title = body.get("title", "")
+        channel_name = body.get("channel_name", "")
+        moral = body.get("moral", "")
             
-        res = await asyncio.to_thread(video_producer.assemble_reel_video, audio_path=audio_path, resolution=resolution)
+        res = await asyncio.to_thread(
+            video_producer.assemble_reel_video,
+            audio_path=audio_path,
+            resolution=resolution,
+            scenes=scenes,
+            preset_id=preset_id,
+            title=title,
+            channel_name=channel_name,
+            moral=moral
+        )
         return JSONResponse(res)
     except Exception as e:
         import traceback
@@ -3256,6 +3279,7 @@ routes = [
     Route('/api/v1/auth/token', issue_token_handler, methods=['POST']),
     Route('/api/v1/media/audio', media_audio_handler, methods=['POST']),
     Route('/api/v1/visuals/search', visuals_search_handler, methods=['POST']),
+    Route('/api/v1/video/presets', video_presets_handler, methods=['GET']),
     Route('/api/v1/video/master', generate_reel_handler, methods=['POST']),
     Route('/api/v1/social/publish', channel_publish_handler, methods=['POST']),
     Route('/api/v1/gravityclaw/prompt', gravityclaw_prompt_handler, methods=['POST']),
