@@ -23,10 +23,11 @@ which reads the same Supabase tables (winplayboxsite/supabase/autopilot_schema.s
   GET  /admin/autopilot/accounts                connected social accounts + per-platform setup state
   POST /admin/autopilot/accounts/connect/{platform}   -> {url} to the platform's sign-in page
   POST /admin/autopilot/accounts/{id}/delete
+  POST /admin/autopilot/requests                {text} "which platform next?"
   GET  /oauth/autopilot/{platform}/callback     public OAuth redirect target (signed, expiring state)
 
 Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WPB_VAULT_SECRET (signs OAuth state).
-YouTube connect: YT_CLIENT_ID, YT_CLIENT_SECRET (Google OAuth client, type "Web application").
+Platform app credentials (set once by the site owner): see services/social_oauth.py.
 Tokens are stored encrypted in Supabase Vault (supabase/autopilot_accounts.sql), never returned to the browser.
 """
 
@@ -50,9 +51,11 @@ from starlette.routing import Route
 try:
     from backend.security.zero_trust import authenticate_admin, error, rate_limit
     from backend.services.llm_router import LLMError, llm_router
+    from backend.services import social_oauth as social
 except (ModuleNotFoundError, ImportError):
     from security.zero_trust import authenticate_admin, error, rate_limit  # type: ignore
     from services.llm_router import LLMError, llm_router  # type: ignore
+    from services import social_oauth as social  # type: ignore
 
 # Keep in sync with autopilot/styles.py in the AI Video Editor repo.
 STYLES = {
@@ -364,120 +367,62 @@ async def status(request: Request) -> Response:
 # --------------------------------------------------------------------------- connected accounts (OAuth)
 
 API_BASE = os.environ.get("AP_PUBLIC_API_BASE", "https://anydownloader-backend-vvbj.onrender.com").rstrip("/")
-DASHBOARD = os.environ.get("AP_DASHBOARD_URL", "https://winplaybox.in/autopilot")
+DASHBOARD = os.environ.get("AP_DASHBOARD_URL", "https://winplaybox.in/admin")
 
 
 def _redirect_uri(platform: str) -> str:
     return f"{API_BASE}/oauth/autopilot/{platform}/callback"
 
 
-def _env(*names: str) -> str:
-    for n in names:
-        v = os.environ.get(n, "").strip()
-        if v:
-            return v
-    return ""
-
-
-# What each platform needs. "connect" is True once its OAuth flow is implemented here.
-PLATFORM_SETUP: Dict[str, Dict[str, Any]] = {
-    "youtube": {
-        "label": "YouTube", "connect": True, "env": ["YT_CLIENT_ID", "YT_CLIENT_SECRET"],
-        "steps": [
-            "Google Cloud console: create a project and enable \"YouTube Data API v3\".",
-            "OAuth consent screen: External; add your Google account as a test user.",
-            "Credentials > Create OAuth client ID > Web application; add the redirect URI shown here.",
-            "Put the client ID and secret on Render as YT_CLIENT_ID and YT_CLIENT_SECRET.",
-        ],
-        "note": "About 6 uploads/day on the default quota. Uploads stay private until Google audits the project.",
-    },
-    "instagram": {
-        "label": "Instagram", "connect": False, "env": ["META_APP_ID", "META_APP_SECRET"],
-        "steps": ["Meta for Developers: create a Business app with the Instagram API (Instagram Login).",
-                  "Needs an Instagram Professional (Business or Creator) account.",
-                  "Add the redirect URI shown here, then put META_APP_ID / META_APP_SECRET on Render."],
-        "note": "Reels are published from a public video URL; the worker hosts it in Supabase Storage.",
-    },
-    "facebook": {
-        "label": "Facebook Page", "connect": False, "env": ["META_APP_ID", "META_APP_SECRET"],
-        "steps": ["Same Meta app as Instagram, with Facebook Login for Business.",
-                  "Posts go to a Facebook Page you manage (not a personal profile)."],
-        "note": "Your own Pages work in development mode without app review.",
-    },
-    "threads": {
-        "label": "Threads", "connect": False, "env": ["THREADS_APP_ID", "THREADS_APP_SECRET"],
-        "steps": ["Meta for Developers: add the Threads API use case to your app.",
-                  "Add the redirect URI shown here, then put THREADS_APP_ID / THREADS_APP_SECRET on Render."],
-        "note": "",
-    },
-    "tiktok": {
-        "label": "TikTok", "connect": False, "env": ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"],
-        "steps": ["TikTok for Developers: create an app with Login Kit + Content Posting API.",
-                  "Add the redirect URI shown here, then put TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET on Render."],
-        "note": "Until TikTok audits the app, posts can only be private.",
-    },
-    "x": {
-        "label": "X (Twitter)", "connect": False, "env": ["X_CLIENT_ID", "X_CLIENT_SECRET"],
-        "steps": ["developer.x.com: create a project and app with OAuth 2.0 (read + write).",
-                  "Add the redirect URI shown here, then put X_CLIENT_ID / X_CLIENT_SECRET on Render."],
-        "note": "The free X API tier is very limited for posting video.",
-    },
-}
-
-
 def _state_key() -> bytes:
-    return (_env("WPB_VAULT_SECRET", "WPB_ADMIN_KEY") or "dev-only-state-key").encode()
+    return (social.env("WPB_VAULT_SECRET", "WPB_ADMIN_KEY") or "dev-only-state-key").encode()
 
 
 def _sign(body: str) -> str:
     return base64.urlsafe_b64encode(hmac.new(_state_key(), body.encode(), hashlib.sha256).digest()).decode().rstrip("=")
 
 
-def _make_state(platform: str) -> str:
+def _make_state(platform: str, nonce: str) -> str:
     body = base64.urlsafe_b64encode(json.dumps(
-        {"p": platform, "exp": int(time.time()) + 600, "n": secrets.token_urlsafe(8)}).encode()).decode().rstrip("=")
+        {"p": platform, "exp": int(time.time()) + 600, "n": nonce}).encode()).decode().rstrip("=")
     return f"{body}.{_sign(body)}"
 
 
-def _check_state(state: str, platform: str) -> bool:
+def _read_state(state: str, platform: str) -> Dict[str, Any] | None:
     try:
         body, sig = state.split(".", 1)
         if not hmac.compare_digest(sig, _sign(body)):
-            return False
+            return None
         data = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
-        return data.get("p") == platform and data.get("exp", 0) > time.time()
+        return data if data.get("p") == platform and data.get("exp", 0) > time.time() else None
     except Exception:
-        return False
+        return None
 
 
 @admin_route
 async def accounts_list(request: Request) -> Response:
     rows = await db.select("ap_social_accounts", {
         "select": "id,platform,external_id,name,avatar,status,error,created_at,updated_at", "order": "created_at.asc"})
-    platforms = {}
-    for k, v in PLATFORM_SETUP.items():
-        platforms[k] = {"label": v["label"], "can_connect": v["connect"], "configured": all(_env(e) for e in v["env"]),
-                        "env": v["env"], "steps": v["steps"], "note": v["note"], "redirect_uri": _redirect_uri(k),
-                        "publishing": PLATFORMS.get(k) == "ready"}
+    platforms = {k: {"label": v["label"], "about": v["about"], "configured": social.configured(k), "env": v["env"],
+                     "steps": v["steps"], "note": v["note"], "redirect_uri": _redirect_uri(k),
+                     "publishing": PLATFORMS.get(k) == "ready"}
+                 for k, v in social.PLATFORMS.items()}
     return _ok({"accounts": rows, "platforms": platforms})
 
 
 @admin_route
 async def accounts_connect(request: Request) -> Response:
     platform = request.path_params["platform"]
-    setup = PLATFORM_SETUP.get(platform)
-    if not setup:
+    if platform not in social.PLATFORMS:
         return error(request, 404, "NotFound", "unknown platform")
-    if not setup["connect"]:
-        return error(request, 501, "NotAvailable", f"{setup['label']} connect is coming next")
-    if not all(_env(e) for e in setup["env"]):
-        return error(request, 503, "NotConfigured", f"Set {' and '.join(setup['env'])} on the backend first")
-    url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode({
-        "client_id": _env("YT_CLIENT_ID"), "redirect_uri": _redirect_uri("youtube"), "response_type": "code",
-        "scope": "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",
-        "access_type": "offline", "prompt": "consent select_account", "include_granted_scopes": "true",
-        "state": _make_state("youtube")})
-    return _ok({"url": url})
+    if not social.configured(platform):
+        names = " and ".join(social.PLATFORMS[platform]["env"])
+        return error(request, 503, "NotConfigured", f"{social.PLATFORMS[platform]['label']} is not set up yet: add {names} on the backend")
+    nonce, challenge = secrets.token_urlsafe(12), None
+    if social.PLATFORMS[platform]["pkce"]:
+        verifier, challenge = social.pkce_pair()
+        await db.insert("ap_oauth_states", {"nonce": nonce, "platform": platform, "verifier": verifier})
+    return _ok({"url": social.authorize_url(platform, _redirect_uri(platform), _make_state(platform, nonce), challenge)})
 
 
 @admin_route
@@ -486,45 +431,49 @@ async def accounts_delete(request: Request) -> Response:
     return _ok({"deleted": request.path_params["id"]})
 
 
+@admin_route
+async def platform_request(request: Request) -> Response:
+    text = str((await _body(request)).get("text") or "").strip()[:300]
+    if len(text) < 2:
+        raise ValueError("tell us which platform")
+    await db.insert("ap_platform_requests", {"text": text})
+    return _ok({"saved": True}, 201)
+
+
 def _back(platform: str, ok: bool, msg: str = "") -> Response:
     q = urlencode({"connected" if ok else "connect_error": platform, **({"msg": msg[:200]} if msg else {})})
-    return RedirectResponse(f"{DASHBOARD}?{q}#accounts", status_code=302)
+    return RedirectResponse(f"{DASHBOARD}?{q}#publish", status_code=302)
 
 
 async def oauth_callback(request: Request) -> Response:
-    """Public: the platform sends the admin's browser here after sign-in. Trust comes from the signed state."""
+    """Public: the platform sends the user's browser here after sign-in. Trust comes from the signed state."""
     platform = request.path_params["platform"]
     q = request.query_params
-    if not _check_state(q.get("state", ""), platform):
+    if platform not in social.PLATFORMS:
+        return _back(platform, False, "Unknown platform.")
+    state = _read_state(q.get("state", ""), platform)
+    if not state:
         return _back(platform, False, "Sign-in link expired or invalid. Try Connect again.")
     if q.get("error"):
-        return _back(platform, False, q.get("error_description") or q["error"])
-    if platform != "youtube":
-        return _back(platform, False, "not available yet")
+        return _back(platform, False, q.get("error_description") or q.get("error_reason") or q["error"])
     if not db.configured:
         return _back(platform, False, "Backend is missing Supabase settings.")
+    verifier = None
+    if social.PLATFORMS[platform]["pkce"]:
+        rows = await db.select("ap_oauth_states", {"nonce": f"eq.{state['n']}", "select": "verifier"})
+        if not rows:
+            return _back(platform, False, "Sign-in link already used. Try Connect again.")
+        verifier = rows[0]["verifier"]
+        await db.client().delete(f"{db.url}/rest/v1/ap_oauth_states", params={"nonce": f"eq.{state['n']}"})
     try:
-        async with httpx.AsyncClient(timeout=30) as c:
-            tok = (await c.post("https://oauth2.googleapis.com/token", data={
-                "code": q.get("code", ""), "client_id": _env("YT_CLIENT_ID"), "client_secret": _env("YT_CLIENT_SECRET"),
-                "redirect_uri": _redirect_uri("youtube"), "grant_type": "authorization_code"})).json()
-            if "access_token" not in tok:
-                return _back(platform, False, tok.get("error_description") or tok.get("error") or "token exchange failed")
-            me = (await c.get("https://www.googleapis.com/youtube/v3/channels", params={"part": "snippet", "mine": "true"},
-                              headers={"Authorization": f"Bearer {tok['access_token']}"})).json()
-        items = me.get("items") or []
-        if not items:
-            return _back(platform, False, "This Google account has no YouTube channel.")
-        ch = items[0]
-        # The worker refreshes access tokens itself, so it needs the client pair alongside the refresh token.
-        token = {"client_id": _env("YT_CLIENT_ID"), "client_secret": _env("YT_CLIENT_SECRET"),
-                 "token_uri": "https://oauth2.googleapis.com/token"}
-        if tok.get("refresh_token"):
-            token["refresh_token"] = tok["refresh_token"]
-        await db.rpc("ap_save_account", p_owner=None, p_platform="youtube", p_external_id=ch["id"],
-                     p_name=ch["snippet"].get("title", ch["id"]),
-                     p_avatar=ch["snippet"].get("thumbnails", {}).get("default", {}).get("url"), p_token=token)
-        return _back(platform, True)
+        accounts = await social.complete(platform, q.get("code", ""), _redirect_uri(platform), verifier)
+        for a in accounts:
+            await db.rpc("ap_save_account", p_owner=None, p_platform=a["platform"], p_external_id=a["external_id"],
+                         p_name=a["name"], p_avatar=a["avatar"], p_token=a["token"])
+        names = ", ".join(a["name"] for a in accounts)
+        return _back(platform, True, names)
+    except social.OAuthError as e:
+        return _back(platform, False, str(e))
     except httpx.HTTPError as e:
         return _back(platform, False, f"network error: {type(e).__name__}")
 
@@ -547,5 +496,6 @@ routes_autopilot = [
     Route("/admin/autopilot/accounts", accounts_list, methods=["GET"]),
     Route("/admin/autopilot/accounts/connect/{platform}", accounts_connect, methods=["POST"]),
     Route("/admin/autopilot/accounts/{id}/delete", accounts_delete, methods=["POST"]),
+    Route("/admin/autopilot/requests", platform_request, methods=["POST"]),
     Route("/oauth/autopilot/{platform}/callback", oauth_callback, methods=["GET"]),
 ]
