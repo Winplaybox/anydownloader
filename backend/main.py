@@ -2972,7 +2972,7 @@ async def gravityclaw_catalog_handler(request):
 
 async def gravityclaw_prompt_handler(request):
     """POST /api/v1/gravityclaw/prompt [scope: prompt:generate]
-    Universal Script & Storyboard Reasoning Agent powered by the AI Agent Universe Master Catalog.
+    Intelligent Script-Driven Animation Planning & Storyboard Reasoning Engine.
     """
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
@@ -2987,35 +2987,49 @@ async def gravityclaw_prompt_handler(request):
     except Exception:
         body = {}
 
-    brief = body.get("brief") or body.get("script") or body.get("topic") or body.get("prompt") or ""
+    brief = body.get("brief") or body.get("topic") or body.get("prompt") or ""
+    script = body.get("script") or body.get("full_script") or ""
+    script_mode = body.get("script_mode", "auto")
     art_style = body.get("art_style", "2d_flat_vector")
-    tone = body.get("tone", body.get("formula", "Informative"))
-    domain = body.get("domain", body.get("niche", "Healthcare & Medicine"))
-    platform = body.get("platform", "YouTube Shorts")
-    audience = body.get("audience", "General audience")
+    tone = body.get("tone", body.get("formula", "Educational"))
+    duration = body.get("duration", "auto")
+    target_duration_seconds = body.get("target_duration_seconds")
     language = body.get("language", "Hindi")
+    aspect_ratio = body.get("aspect_ratio", "9:16")
+    production_mode = body.get("production_mode", "quality_first")
+    animation_intensity = body.get("animation_intensity", "expressive")
+    character_consistency = body.get("character_consistency", "high")
+    camera_direction = body.get("camera_direction", "story_driven")
+    include_subtitles = body.get("include_subtitles", True)
+    generate_storyboard = body.get("generate_storyboard", True)
     agent_id = body.get("agent_id")
+    domain = body.get("domain", body.get("niche", "Healthcare & Medicine"))
+    audience = body.get("audience", "General audience")
+    platform = body.get("platform", "YouTube Shorts")
 
     from backend.services.gravityclaw_agent import gravityclaw_service
 
-    result = gravityclaw_service.deconstruct_script_to_storyboard(
-        brief_or_script=brief,
+    result = gravityclaw_service.generate_animation_plan(
+        brief=brief,
+        script=script,
+        script_mode=script_mode,
         art_style=art_style,
         tone=tone,
-        domain=domain,
-        platform=platform,
-        audience=audience,
+        duration=duration,
+        target_duration_seconds=target_duration_seconds,
         language=language,
-        agent_id=agent_id
+        aspect_ratio=aspect_ratio,
+        production_mode=production_mode,
+        animation_intensity=animation_intensity,
+        character_consistency=character_consistency,
+        camera_direction=camera_direction,
+        include_subtitles=include_subtitles,
+        generate_storyboard=generate_storyboard,
+        agent_id=agent_id,
+        domain=domain,
+        audience=audience,
+        platform=platform
     )
-
-    # Legacy compatibility fields
-    result["hook"] = result["retention_hook"]
-    result["script"] = brief or (result["scenes"][0]["narration"] if result["scenes"] else "")
-    result["scene_prompt"] = result["scenes"][0]["art_prompt"] if result["scenes"] else ""
-    clean_dom = re.sub(r'[^a-zA-Z0-9]', '', domain)
-    result["tags"] = [f"#{clean_dom or 'Viral'}", "#ViralShorts", "#Explainers", "#AIAnimation"]
-    result["estimated_retention"] = "94.2% (Master Catalog Algorithm Alignment)"
     return JSONResponse(result)
 
 
@@ -3038,28 +3052,48 @@ async def gravityclaw_pipeline_handler(request):
     except Exception:
         body = {}
 
-    brief = body.get("brief") or body.get("script") or body.get("topic") or body.get("prompt") or ""
+    brief = body.get("brief") or body.get("topic") or body.get("prompt") or ""
+    script = body.get("script") or body.get("full_script") or ""
+    script_mode = body.get("script_mode", "auto")
     art_style = body.get("art_style", "2d_flat_vector")
     tone = body.get("tone", "Educational")
-    domain = body.get("domain", "Healthcare & Medicine")
-    platform = body.get("platform", "YouTube Shorts")
-    audience = body.get("audience", "General audience")
+    duration = body.get("duration", "auto")
+    target_duration_seconds = body.get("target_duration_seconds")
     language = body.get("language", "Hindi")
-    duration_mode = body.get("duration", "auto")
+    aspect_ratio = body.get("aspect_ratio", "9:16")
+    production_mode = body.get("production_mode", "quality_first")
+    animation_intensity = body.get("animation_intensity", "expressive")
+    character_consistency = body.get("character_consistency", "high")
+    camera_direction = body.get("camera_direction", "story_driven")
+    include_subtitles = body.get("include_subtitles", True)
+    generate_storyboard = body.get("generate_storyboard", True)
     agent_id = body.get("agent_id")
+    domain = body.get("domain", body.get("niche", "Healthcare & Medicine"))
+    audience = body.get("audience", "General audience")
+    platform = body.get("platform", "YouTube Shorts")
 
     from backend.services.gravityclaw_agent import gravityclaw_service
 
-    result = gravityclaw_service.execute_master_pipeline(
-        brief_or_script=brief,
+    result = gravityclaw_service.generate_animation_plan(
+        brief=brief,
+        script=script,
+        script_mode=script_mode,
         art_style=art_style,
         tone=tone,
-        domain=domain,
-        platform=platform,
-        audience=audience,
+        duration=duration,
+        target_duration_seconds=target_duration_seconds,
         language=language,
-        duration_mode=duration_mode,
-        agent_id=agent_id
+        aspect_ratio=aspect_ratio,
+        production_mode=production_mode,
+        animation_intensity=animation_intensity,
+        character_consistency=character_consistency,
+        camera_direction=camera_direction,
+        include_subtitles=include_subtitles,
+        generate_storyboard=generate_storyboard,
+        agent_id=agent_id,
+        domain=domain,
+        audience=audience,
+        platform=platform
     )
     return JSONResponse(result)
 

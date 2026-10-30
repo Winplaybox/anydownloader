@@ -1,88 +1,32 @@
 """
-GravityClaw Master Architecture — 12-Stage Autonomous Studio Engine
--------------------------------------------------------------------
-Full implementation of the 12-Stage AI Video Pipeline:
-1. USER SCRIPT + STYLE SETTINGS
-2. GRAVITYCLAW (Creative Intent Interpreter)
-3. SCRIPT ANALYZER (Characters / Actions / Locations)
-4. VISUAL DESIGN SYSTEM (Characters / Environments / Props)
-5. STORYBOARD ENGINE (Sequenced Beats & Timestamps)
-6. MOTION PLANNER (Camera Vectors & Physical Dynamics)
-7. WORKFLOW ROUTER (ComfyUI Video DiT vs 2D Animation Rigs)
-8. SHOT VALIDATOR (Quality & Consistency Checks)
-9. TARGETED REGENERATION (Single-Shot Re-Roll Gate)
-10. AUDIO + COMPOSITION (TTS + Faster-Whisper + FFmpeg)
-11. FINAL REVIEW (Interactive Chassis Monitor)
-12. EXPORTED VIDEO (4K Master Deliverable)
+Winplaybox / GravityClaw Master Animation Planning Engine.
+Upgrades prompt generation into an intelligent, script-driven animation planning system
+with decoupled visual design, evidence-checked scripts, separate visual/motion prompts,
+and honest validation telemetry.
 """
 
 import os
 import json
 import re
+import uuid
+import time
 from typing import Dict, Any, List, Optional
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-BACKEND_DIR = os.path.dirname(SCRIPT_DIR)
-CATALOG_PATH = os.path.join(BACKEND_DIR, "data", "agent_universe_catalog.json")
+from backend.services.art_styles import ART_STYLES, get_art_style
+from backend.services.narrative_engine import narrative_engine
+from backend.services.character_bible import character_bible_manager
+from backend.services.storyboard_engine import storyboard_engine
+from backend.services.quality_validator import quality_validation_engine
 
-ART_STYLES = {
-    "2d_flat_vector": {
-        "id": "2d_flat_vector",
-        "name": "2D Flat Vector Minimalist",
-        "route_engine": "2D_ANIMATION_RIGS",
-        "description": "Kurzgesagt / @healthbyvipul aesthetic with clean geometric shapes, solid color fills, and warm pastel palette.",
-        "positive_tokens": "minimalist 2D flat vector illustration, clean lines, corporate flat design, Kurzgesagt aesthetic, health explainer cartoon, pastel beige background, solid flat color fills, simple geometric human character, cute minimal facial features, soft ambient shadows, no 3D rendering, no gradients, vector art style, high quality, 9:16 vertical",
-        "negative_tokens": "3D render, photorealistic, realistic human skin, shiny, glossy, gradients, detailed textures, anime, noisy background, cinematic lighting, sketch, ugly, deformed limbs",
-        "motion_style": "2D vector animation, smooth puppet joints, looping cycles, kinetic text popups, flat motion graphic"
-    },
-    "3d_pixar": {
-        "id": "3d_pixar",
-        "name": "3D Pixar & Disney Animation",
-        "route_engine": "COMFYUI_VIDEO_DIT",
-        "description": "Rich clay/subsurface scattering textures, expressive glass eyes, warm studio rim lighting, 3D depth.",
-        "positive_tokens": "Cute 3D Pixar Disney style character, big expressive glass eyes, smooth clay animation, Disney Pixar 8k lighting, subsurface scattering, warm volumetric rim light, rich color palette, cinematic render, portrait 9:16",
-        "negative_tokens": "flat 2D vector, anime, harsh outlines, photorealistic human skin, gloomy, noisy, low poly, distorted face",
-        "motion_style": "Fluid 3D character animation, expressive eye darts, squash and stretch, camera orbit, cinematic depth"
-    },
-    "3d_scientific_medical": {
-        "id": "3d_scientific_medical",
-        "name": "3D Medical & Engineering Cutaways",
-        "route_engine": "COMFYUI_VIDEO_DIT",
-        "description": "Semi-transparent glass anatomical organs, glowing fluid dynamics, and mechanical cross-sections.",
-        "positive_tokens": "3D medical animation, anatomical cutaway diagram, translucent frosted glass human anatomy, glowing internal fluid simulation, scientific volumetric particles, octane render, 8k ultra clarity, cinematic medical studio",
-        "negative_tokens": "flat cartoon, anime, drawing, rough sketch, low resolution, messy colors, ugly anatomy",
-        "motion_style": "3D camera push-in, volumetric particle flow, expanding cross-section, slow-motion fluid dynamics"
-    },
-    "anime_ghibli": {
-        "id": "anime_ghibli",
-        "name": "Anime & Studio Ghibli Watercolor",
-        "route_engine": "COMFYUI_VIDEO_DIT",
-        "description": "Hand-painted cel animation, watercolor skies, lush botanical nature, wind motion.",
-        "positive_tokens": "Studio Ghibli style, hand-drawn anime cel animation, lush watercolor background, vibrant painted nature, soft morning sunlight, Makoto Shinkai aesthetic, wind blowing through trees, painterly masterpiece",
-        "negative_tokens": "3D CGI, plastic, photorealistic, harsh CGI, ugly sketch, modern vector flat, noisy",
-        "motion_style": "Gentle anime wind rustling, hair swaying, hand-drawn cinematic panning, soft particle dust"
-    },
-    "hyper_realistic_cinematic": {
-        "id": "hyper_realistic_cinematic",
-        "name": "Cinematic 4K Photorealism",
-        "route_engine": "COMFYUI_VIDEO_DIT",
-        "description": "8K Unreal Engine 5 / Octane, shallow depth of field, natural skin pores, anamorphic lighting.",
-        "positive_tokens": "Hyper-realistic cinematic 8K, shot on 35mm Arri Alexa, anamorphic lens flare, shallow depth of field, photorealistic textures, volumetric lighting, Octane render, photoreal masterpiece",
-        "negative_tokens": "cartoon, 2D vector, anime, painting, CGI plastic look, fake, blur, low quality",
-        "motion_style": "Smooth Steadicam glide, slow tracking dolly, rack focus, natural human micro-movements"
-    },
-    "vhs_analog_horror": {
-        "id": "vhs_analog_horror",
-        "name": "Analog VHS & Midnight Lore",
-        "route_engine": "COMFYUI_VIDEO_DIT",
-        "description": "1990s magnetic tape scanlines, chromatic aberration, dense midnight fog, eerie silhouettes.",
-        "positive_tokens": "1990s analog VHS found footage, magnetic tape scanlines, tracking artifacts, eerie midnight atmosphere, dense volumetric fog, dark folklore shadows, grainy handheld camcorder, terrifying cinematic lore",
-        "negative_tokens": "bright colorful, 3D cartoon, vector art, glossy, clean digital render, sunny daylight",
-        "motion_style": "Subtle handheld jitter, flickering tape tracking distortion, creeping slow shadow approach"
-    }
-}
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+CATALOG_PATH = os.path.join(DATA_DIR, "agent_universe_catalog.json")
+
 
 class GravityClawAgentService:
+    """
+    Principal Multi-Platform Animation Planning & Reasoning Agent.
+    """
+
     def __init__(self):
         self._catalog: Dict[str, Any] = {}
         self._load_catalog()
@@ -105,7 +49,12 @@ class GravityClawAgentService:
             "script_agents": self._catalog.get("script_agents", []),
             "domains": self._catalog.get("domains", []),
             "art_styles": [
-                {"id": k, "name": v["name"], "route_engine": v["route_engine"], "description": v["description"]}
+                {
+                    "id": k,
+                    "name": v["name"],
+                    "route_engine": v["route_engine"],
+                    "description": v["description"]
+                }
                 for k, v in ART_STYLES.items()
             ],
             "tones": self._catalog.get("tones", []),
@@ -115,170 +64,240 @@ class GravityClawAgentService:
             "workflows": self._catalog.get("workflows", [])
         }
 
-    def execute_master_pipeline(
+    def generate_animation_plan(
         self,
-        brief_or_script: str,
+        brief: Optional[str] = None,
+        script: Optional[str] = None,
+        script_mode: str = "auto",
         art_style: str = "2d_flat_vector",
         tone: str = "Educational",
-        domain: str = "Healthcare & Medicine",
-        platform: str = "YouTube Shorts",
-        audience: str = "General audience",
+        duration: str = "auto",
+        target_duration_seconds: Optional[int] = None,
         language: str = "Hindi",
-        duration_mode: str = "auto",
-        agent_id: Optional[str] = None
+        aspect_ratio: str = "9:16",
+        production_mode: str = "quality_first",
+        animation_intensity: str = "expressive",
+        character_consistency: str = "high",
+        camera_direction: str = "story_driven",
+        include_subtitles: bool = True,
+        generate_storyboard: bool = True,
+        agent_id: Optional[str] = None,
+        domain: Optional[str] = None,
+        audience: Optional[str] = None,
+        platform: str = "YouTube Shorts",
+        **kwargs
     ) -> Dict[str, Any]:
         """
-        Executes the complete 12-Stage Master Video Pipeline.
+        Main entry point for intelligent, script-driven animation planning.
+        Supports arbitrary topics, user-authored scripts, structured shot hierarchy,
+        character-free diagrams, separated visual/motion prompts, and honest validation.
         """
-        raw_text = brief_or_script.strip()
-        if not raw_text:
-            raw_text = "Why AC air makes your head heavy in morning and how CO2 builds up in bedroom"
+        request_id = f"gc_req_{uuid.uuid4().hex[:10]}"
+        raw_brief = (brief or kwargs.get("topic") or kwargs.get("prompt") or "").strip()
+        raw_script = (script or kwargs.get("full_script") or "").strip()
 
-        style_key = art_style if art_style in ART_STYLES else "2d_flat_vector"
-        style_spec = ART_STYLES[style_key]
+        # Step 1: Resolve script mode (topic vs pre-authored script)
+        resolved_mode, effective_text = narrative_engine.classify_script_mode(
+            brief=raw_brief,
+            script=raw_script,
+            requested_mode=script_mode
+        )
 
-        words = raw_text.split()
-        word_count = len(words)
+        if not effective_text:
+            effective_text = "Why walking after dinner helps blunt postprandial glucose surges"
 
-        # -------------------------------------------------------------
-        # STAGE 1: USER SCRIPT + STYLE SETTINGS
-        # -------------------------------------------------------------
-        if duration_mode == "short" or (duration_mode == "auto" and word_count < 120):
-            target_duration = 50
-            target_beats = 4
-        elif duration_mode == "extended" or (duration_mode == "auto" and word_count < 350):
-            target_duration = 120
-            target_beats = 8
-        elif duration_mode == "longform" or (duration_mode == "auto" and word_count >= 350):
-            target_duration = max(180, int(word_count / 2.5))
-            target_beats = min(16, max(8, int(target_duration / 18)))
+        # Step 2: Resolve Art Style Specification
+        style_spec = get_art_style(art_style)
+
+        # Step 3: Script & Narrative Synthesis
+        if resolved_mode == "topic":
+            script_data = narrative_engine.develop_script_from_topic(
+                topic=effective_text,
+                language=language,
+                tone=tone,
+                target_beats=5
+            )
         else:
-            target_duration = 60
-            target_beats = 4
+            script_data = narrative_engine.process_user_supplied_script(
+                script_text=effective_text,
+                language=language,
+                target_beats=max(3, len(effective_text.splitlines()))
+            )
 
+        # Step 4: Timing & Duration Reconciliation
+        duration_report = narrative_engine.reconcile_timing(
+            requested_duration=target_duration_seconds,
+            duration_preset=duration,
+            script_duration=script_data["estimated_speech_duration_seconds"],
+            beats_count=len(script_data["segments"])
+        )
+        planned_duration = duration_report["planned_storyboard_duration_seconds"]
+
+        # Step 5: Character Bible & Environment Resolution
+        char_record = character_bible_manager.resolve_character(
+            topic_or_script=effective_text,
+            style_key=style_spec["id"]
+        )
+        env_bible = character_bible_manager.resolve_environment_bible(effective_text)
+
+        # Step 6: Hierarchical Storyboard & Motion Planning (Scenes -> Shots)
+        storyboard = storyboard_engine.build_storyboard(
+            script_data=script_data,
+            character_record=char_record,
+            environment_bible=env_bible,
+            art_style=style_spec,
+            target_duration=planned_duration,
+            aspect_ratio=aspect_ratio,
+            camera_direction_preset=camera_direction
+        )
+
+        # Step 7: Generation Plan Formulation
+        generation_jobs = []
+        for shot in storyboard["shots"]:
+            generation_jobs.append({
+                "job_id": f"job_{shot['shot_id']}",
+                "shot_id": shot["shot_id"],
+                "scene_id": shot["scene_id"],
+                "target_engine": shot["generation"]["workflow_id"],
+                "mode": shot["generation"]["mode"],
+                "duration_seconds": shot["planned_duration_seconds"],
+                "aspect_ratio": aspect_ratio,
+                "status": "planned",
+                "inputs": {
+                    "visual_prompt": shot["visual_prompt"],
+                    "video_motion_prompt": shot["video_motion_prompt"],
+                    "has_character": len(shot["characters"]) > 0,
+                    "character_id": shot["characters"][0]["character_id"] if shot["characters"] else None
+                }
+            })
+
+        generation_plan = {
+            "status": "planned",
+            "primary_engine": style_spec["route_engine"],
+            "fallback_engine": "COMFYUI_VIDEO_DIT" if style_spec["route_engine"] != "COMFYUI_VIDEO_DIT" else "2D_ANIMATION_RIGS",
+            "total_jobs": len(generation_jobs),
+            "jobs": generation_jobs
+        }
+
+        # Step 8: Quality Validation (Pre-flight evaluated, Runtime marked 'not_run')
+        validation_results = quality_validation_engine.validate_plan(
+            script_data=script_data,
+            character_bible=char_record,
+            storyboard=storyboard,
+            art_style=style_spec,
+            duration_report=duration_report
+        )
+
+        # Narrative profile
+        narrative_profile = {
+            "genre": "educational_explainer" if "educat" in tone.lower() or "story" in tone.lower() else "narrative_story",
+            "tone": tone,
+            "platform": platform,
+            "audience": audience or "General audience",
+            "language": script_data["language"],
+            "target_duration_seconds": planned_duration,
+            "total_beats": len(storyboard["scenes"]),
+            "pacing_seconds_per_beat": round(planned_duration / max(1, len(storyboard["scenes"])), 1)
+        }
+
+        # 0-3s Hook extraction
+        hook_text = script_data["segments"][0]["narration"] if script_data["segments"] else effective_text
+
+        # 12-Stage Pipeline Metadata
         stage_1_inputs = {
             "stage_id": 1,
             "stage_name": "User Script + Style Settings",
-            "raw_script": raw_text,
-            "word_count": word_count,
+            "raw_input": effective_text,
+            "script_mode": resolved_mode,
+            "word_count": script_data["word_count"],
             "art_style": style_spec["name"],
-            "art_style_id": style_key,
-            "target_duration_seconds": target_duration,
-            "target_beats": target_beats,
+            "art_style_id": style_spec["id"],
+            "target_duration_seconds": planned_duration,
+            "target_beats": len(storyboard["scenes"]),
             "platform": platform,
-            "language": language
+            "language": script_data["language"]
         }
 
-        # -------------------------------------------------------------
-        # STAGE 2: GRAVITYCLAW (Creative Intent Interpreter)
-        # -------------------------------------------------------------
-        hook_text = self._generate_retention_hook(raw_text, tone, language)
         stage_2_intent = {
             "stage_id": 2,
             "stage_name": "GravityClaw Creative Intent Interpreter",
             "retention_hook_0_3s": hook_text,
-            "retention_formula": "0-3s Pattern Interrupt + Curious Biological Gap",
+            "hook": hook_text,
+            "psychological_trigger": "Curiosity Gap + Relatable Friction",
             "narrative_tone": tone,
-            "rigor_level": "High (Scientific Facts / Retention Engineered)",
-            "estimated_retention": "94.6% (Tier 1 Algorithm Match)"
+            "rigor_level": "High (Evidence-Qualified)"
         }
 
-        # -------------------------------------------------------------
-        # STAGE 3: SCRIPT ANALYZER (Characters / Actions / Locations)
-        # -------------------------------------------------------------
-        entities = self._extract_entities(raw_text)
         stage_3_analysis = {
             "stage_id": 3,
             "stage_name": "Script Analyzer",
-            "detected_characters": entities["characters"],
-            "detected_actions": entities["actions"],
-            "detected_locations": entities["locations"],
-            "detected_props": entities["props"]
+            "detected_characters": [char_record["name"]],
+            "detected_actions": [s["motion"]["primary_action"] for s in storyboard["shots"][:3]],
+            "detected_locations": [env["name"] for env in env_bible["environments"]],
+            "detected_props": [p for env in env_bible["environments"] for p in env.get("key_props", [])][:6]
         }
-
-        # -------------------------------------------------------------
-        # STAGE 4: VISUAL DESIGN SYSTEM (Characters / Environments / Props)
-        # -------------------------------------------------------------
-        character_dna = self._synthesize_character_dna(raw_text, style_key)
-        environment_palette = self._synthesize_environment_palette(raw_text, style_key)
-        props_registry = entities["props"]
 
         stage_4_vds = {
             "stage_id": 4,
             "stage_name": "Visual Design System",
-            "character_dna": character_dna,
-            "environment_palette": environment_palette,
-            "props_registry": props_registry,
+            "character_dna": char_record,
+            "environment_palette": env_bible,
             "style_tokens": {
                 "positive": style_spec["positive_tokens"],
                 "negative": style_spec["negative_tokens"]
             }
         }
 
-        # -------------------------------------------------------------
-        # STAGE 5: STORYBOARD ENGINE (Sequenced Beats & Timestamps)
-        # -------------------------------------------------------------
-        # STAGE 6: MOTION PLANNER (Camera Vectors & Physical Dynamics)
-        # -------------------------------------------------------------
-        scenes = self._synthesize_storyboard_and_motion(
-            raw_text, target_beats, character_dna, environment_palette, props_registry, style_spec, language
-        )
-
         stage_5_storyboard = {
             "stage_id": 5,
             "stage_name": "Storyboard Engine",
-            "total_beats": len(scenes),
-            "beats": scenes
+            "total_beats": len(storyboard["scenes"]),
+            "beats": storyboard["scenes"],
+            "pacing_seconds_per_beat": narrative_profile["pacing_seconds_per_beat"]
         }
 
         stage_6_motion = {
             "stage_id": 6,
             "stage_name": "Motion Planner",
+            "camera_vectors": [s["camera"]["movement"] for s in storyboard["shots"]],
+            "vfx_overlays": [s["environmental_movement"] for s in storyboard["shots"]],
             "motion_vectors": [
                 {
-                    "beat_id": s["beat_number"],
-                    "camera_vector": s["camera_vector"],
-                    "character_physics": s["character_physics"],
-                    "vfx_overlay": s["vfx_overlay"]
+                    "shot_id": s["shot_id"],
+                    "camera_vector": s["camera"]["movement"],
+                    "primary_action": s["motion"]["primary_action"],
+                    "secondary_actions": s["motion"]["secondary_actions"]
                 }
-                for s in scenes
+                for s in storyboard["shots"]
             ]
         }
 
-        # -------------------------------------------------------------
-        # STAGE 7: WORKFLOW ROUTER (ComfyUI vs 2D Animation Rigs)
-        # -------------------------------------------------------------
-        route_engine = style_spec["route_engine"]
         stage_7_router = {
             "stage_id": 7,
             "stage_name": "Workflow Router",
-            "selected_route": route_engine,
+            "selected_engine": style_spec["route_engine"],
+            "fallback_engine": generation_plan["fallback_engine"],
             "route_description": (
                 "HyperFrames / Remotion Vector Puppet Rigging (Kurzgesagt aesthetic)"
-                if route_engine == "2D_ANIMATION_RIGS"
+                if style_spec["route_engine"] == "2D_ANIMATION_RIGS"
                 else "ComfyUI Video DiT (Wan 2.1 I2V / LTX-Video / AnimateDiff)"
-            ),
-            "hardware_acceleration": "Cloud GPU + Fast-Bilinear FFmpeg"
+            )
         }
 
-        # -------------------------------------------------------------
-        # STAGE 8: SHOT VALIDATOR (Quality & Consistency Checks)
-        # -------------------------------------------------------------
         stage_8_validator = {
             "stage_id": 8,
             "stage_name": "Shot Validator",
-            "rules": [
-                {"check": "Character Face/Outfit Consistency", "threshold": "cosine > 0.88", "status": "PASS"},
-                {"check": "Zero Freeze-Frame / Physical Motion", "threshold": "motion_vectors > 0.85", "status": "PASS"},
-                {"check": "Resolution & Bitrate Safety", "threshold": "720x1280 @ 2500k", "status": "PASS"},
-                {"check": "Audio Timestamp Alignment", "threshold": "±0.1s drift", "status": "PASS"}
-            ],
-            "overall_qa": "VALIDATED (Ready for Compilation)"
+            "status": validation_results["status"],
+            "metrics": {
+                "plan_soundness": 1.0 if validation_results["preflight_passed"] else 0.7,
+                "character_spec_locked": True,
+                "optical_motion_flow": "Pending video generation (status: not_run)",
+                "face_cosine_similarity": "Pending video generation (status: not_run)",
+                "verdict": "PLAN_VALIDATED" if validation_results["preflight_passed"] else "NEEDS_REVIEW"
+            },
+            "checks": validation_results["checks"]
         }
 
-        # -------------------------------------------------------------
-        # STAGE 9: TARGETED REGENERATION (Single-Shot Re-Roll Gate)
-        # -------------------------------------------------------------
         stage_9_regeneration = {
             "stage_id": 9,
             "stage_name": "Targeted Regeneration",
@@ -287,9 +306,6 @@ class GravityClawAgentService:
             "description": "Any single beat can be re-rolled on demand using modified seed/motion prompt without re-rendering untouched scenes."
         }
 
-        # -------------------------------------------------------------
-        # STAGE 10: AUDIO + COMPOSITION (TTS + Faster-Whisper + FFmpeg)
-        # -------------------------------------------------------------
         stage_10_audio_comp = {
             "stage_id": 10,
             "stage_name": "Audio + Composition",
@@ -299,9 +315,6 @@ class GravityClawAgentService:
             "output_format": "MP4 (H.264 / AAC)"
         }
 
-        # -------------------------------------------------------------
-        # STAGE 11: FINAL REVIEW (Interactive Chassis Monitor)
-        # -------------------------------------------------------------
         stage_11_review = {
             "stage_id": 11,
             "stage_name": "Final Review",
@@ -309,9 +322,6 @@ class GravityClawAgentService:
             "features": ["Play/Pause", "Scrubbing", "Looping", "Single-Beat Inspector"]
         }
 
-        # -------------------------------------------------------------
-        # STAGE 12: EXPORTED VIDEO (4K Master Deliverable)
-        # -------------------------------------------------------------
         stage_12_export = {
             "stage_id": 12,
             "stage_name": "Exported Video",
@@ -322,208 +332,65 @@ class GravityClawAgentService:
             ]
         }
 
-        # Compile Master Response
-        return {
+        stages = [
+            stage_1_inputs,
+            stage_2_intent,
+            stage_3_analysis,
+            stage_4_vds,
+            stage_5_storyboard,
+            stage_6_motion,
+            stage_7_router,
+            stage_8_validator,
+            stage_9_regeneration,
+            stage_10_audio_comp,
+            stage_11_review,
+            stage_12_export
+        ]
+
+        # Compile Master Unified Response
+        response = {
             "ok": True,
-            "pipeline_name": "Winplaybox Master AI Video Pipeline (12 Stages)",
-            "version": "2.0.0",
-            "stages": [
-                stage_1_inputs,
-                stage_2_intent,
-                stage_3_analysis,
-                stage_4_vds,
-                stage_5_storyboard,
-                stage_6_motion,
-                stage_7_router,
-                stage_8_validator,
-                stage_9_regeneration,
-                stage_10_audio_comp,
-                stage_11_review,
-                stage_12_export
-            ],
-            # Legacy fields for backward compatibility with 4K Studio
-            "brief": raw_text,
+            "request_id": request_id,
+            "brief": raw_brief or effective_text,
+            "creative_brief": {
+                "topic": effective_text,
+                "script_mode": resolved_mode,
+                "tone": tone,
+                "domain": domain or "Healthcare & Medicine",
+                "audience": audience or "General audience",
+                "platform": platform,
+                "language": script_data["language"],
+                "production_mode": production_mode
+            },
+            "narrative_profile": narrative_profile,
+            "script": script_data,
+            "character_bible": char_record,
+            "environment_bible": env_bible,
+            "storyboard": storyboard,
+            "generation_plan": generation_plan,
+            "validation": validation_results,
+            "duration_report": duration_report,
+            "warnings": script_data.get("warnings", []),
+            "errors": [],
+
+            # --- Backward Compatibility for existing Studio UI & tests ---
             "hook": hook_text,
             "retention_hook": hook_text,
-            "character_dna": character_dna,
+            "character_dna": char_record,
             "art_style": style_spec,
-            "scenes": scenes,
-            "estimated_retention": "94.6% (Master Catalog Alignment)",
-            "narrative_profile": {
-                "tone": tone,
-                "platform": platform,
-                "audience": audience,
-                "language": language,
-                "target_duration_seconds": target_duration,
-                "beats_count": len(scenes)
-            }
+            "scenes": storyboard["scenes"],
+            "scene_prompt": storyboard["scenes"][0]["art_prompt"] if storyboard["scenes"] else "",
+            "tags": [
+                f"#{re.sub(r'[^a-zA-Z0-9]', '', domain or 'Explainer')}",
+                "#WinplayboxAI",
+                "#AnimationPlanning",
+                "#HealthFacts" if "health" in (domain or "").lower() or "sugar" in effective_text.lower() else "#Explainer"
+            ],
+            "estimated_retention": "Calibrated retention model offline; heuristic estimates omitted for verification integrity.",
+            "stages": stages
         }
 
-    # Helper methods for entity extraction and synthesis
-    def _extract_entities(self, text: str) -> Dict[str, List[str]]:
-        lower = text.lower()
-        characters = []
-        actions = []
-        locations = []
-        props = []
-
-        if any(w in lower for w in ["ac", "bedroom", "sleep", "headache", "head"]):
-            characters.append("Person in comfortable pajamas")
-            actions.extend(["Waking up groggy", "Rubbing aching temples", "Opening bedroom window"])
-            locations.extend(["Quiet bedroom at night", "Window with morning sky"])
-            props.extend(["Split AC unit with air louvers", "Bed with blue blanket", "CO2 digital meter", "Alarm clock"])
-        elif any(w in lower for w in ["gym", "workout", "water", "exercise", "cramp"]):
-            characters.append("Athletic person in workout gear")
-            actions.extend(["Lifting barbell", "Sweating heavily on treadmill", "Drinking from water bottle"])
-            locations.extend(["Bright modern gym", "Dumbbell rack area"])
-            props.extend(["Heavy barbell", "Water bottle with ice cubes", "Treadmill console", "Wall fan"])
-        elif any(w in lower for w in ["cheetah", "race", "tortoise", "lion", "animal"]):
-            characters.extend(["Chico the baby cheetah", "Elder tortoise with spectacles", "Lion king"])
-            actions.extend(["Sprinting at lightning speed", "Resting under baobab tree", "Listening to moral advice"])
-            locations.extend(["Golden African savanna", "Great Baobab meeting clearing"])
-            props.extend(["Finish line ribbon", "Fruit feast baskets"])
-        else:
-            characters.append("Main relatable character")
-            actions.extend(["Experiencing primary problem", "Examining cause", "Demonstrating the solution"])
-            locations.extend(["Interior room", "Bright outdoor area"])
-            props.extend(["Key relevant object", "Infographic diagram"])
-
-        return {
-            "characters": characters,
-            "actions": actions,
-            "locations": locations,
-            "props": props
-        }
-
-    def _synthesize_character_dna(self, text: str, style_key: str) -> Dict[str, Any]:
-        lower = text.lower()
-        if any(w in lower for w in ["student", "study", "exam", "college"]):
-            archetype = "Young Student"
-            name = "Aarav"
-            outfit = "yellow hoodie, round black spectacles, dark denim"
-            traits = "messy dark hair, expressive round eyes, tired brow"
-        elif any(w in lower for w in ["gym", "workout", "muscle", "run", "fitness", "water"]):
-            archetype = "Fitness Athlete"
-            name = "Arjun"
-            outfit = "orange athletic tank top, navy training shorts, white wristband"
-            traits = "short parted black hair, sweat beads, determined expression"
-        elif any(w in lower for w in ["doctor", "medicine", "health", "hospital", "ac", "headache", "eye"]):
-            archetype = "Health Explainer / Patient"
-            name = "Dr. Kabir / Patient"
-            outfit = "teal medical scrub top, dark trousers, clean styling"
-            traits = "neatly groomed black hair, calm approachable face, expressive brow"
-        elif any(w in lower for w in ["cheetah", "lion", "animal", "forest", "jungle"]):
-            archetype = "Playful Animal Hero"
-            name = "Chico"
-            outfit = "golden fur with black spots, cute expressive features"
-            traits = "huge round glass eyes, fluffy tail, swift athletic build"
-        else:
-            archetype = "Relatable Protagonist"
-            name = "Rohan"
-            outfit = "teal casual crewneck, dark blue trousers, minimalist sneakers"
-            traits = "classic parted dark hair, friendly round face, curious expression"
-
-        return {
-            "name": name,
-            "archetype": archetype,
-            "outfit": outfit,
-            "traits": traits,
-            "seed_anchor": 42091,
-            "prompt_anchor": f"{archetype} named {name}, {traits}, wearing {outfit}"
-        }
-
-    def _synthesize_environment_palette(self, text: str, style_key: str) -> Dict[str, Any]:
-        return {
-            "background_tone": "Warm pastel beige (#FBF3EA) with subtle ambient light",
-            "accent_colors": ["#14B8A6 (Teal)", "#F97316 (Orange)", "#38BDF8 (Light Blue)"],
-            "lighting_style": "Soft diffused studio lighting, zero harsh glare",
-            "aesthetic": "Kurzgesagt-inspired clean geometric interiors"
-        }
-
-    def _synthesize_storyboard_and_motion(
-        self,
-        text: str,
-        target_beats: int,
-        character_dna: Dict[str, Any],
-        env_palette: Dict[str, Any],
-        props: List[str],
-        style_spec: Dict[str, Any],
-        language: str
-    ) -> List[Dict[str, Any]]:
-        sentences = [s.strip() for s in re.split(r'[.!?।\n]+', text) if len(s.strip()) > 5]
-        if not sentences:
-            sentences = [
-                "When you wake up feeling heavy and exhausted, your room is secretly telling you something.",
-                "In a sealed bedroom, a split AC recirculates the same stale air while carbon dioxide spikes.",
-                "High CO2 levels deprive your morning brain of oxygen, causing sluggishness and dull headaches.",
-                "Leaving your bedroom door cracked 2 inches resets oxygen levels and restores crisp morning energy."
-            ]
-
-        scenes = []
-        step_len = max(1, len(sentences) // target_beats) if len(sentences) >= target_beats else 1
-
-        for i in range(target_beats):
-            idx = min(i * step_len, len(sentences) - 1)
-            narration_chunk = sentences[idx]
-
-            if i == 0:
-                beat_title = "Beat 1: The Inciting Hook & Relatable Pain"
-                action = f"{character_dna['name']} reacting in discomfort to immediate symptoms"
-                location = "minimalist room interior, warm soft lighting"
-                camera = "Slow push-in dolly (0-8s)"
-                physics = "Character rubbing forehead in fatigue, eyes blinking with tired expression"
-                vfx = "Pulsing red lightning bolts near temples, subtle heat haze"
-            elif i == target_beats - 1:
-                beat_title = f"Beat {i+1}: The Golden Solution & High-Energy Payoff"
-                action = f"{character_dna['name']} smiling with vibrant energy, demonstrating the fix"
-                location = "bright airy window, morning sunlight streaming"
-                camera = "Smooth wide pan with gentle upward tilt"
-                physics = "Character taking a deep breath of fresh air with relief, natural posture"
-                vfx = "Soft sunbeam particles, crisp clean breeze lines"
-            elif i % 2 == 1:
-                beat_title = f"Beat {i+1}: The Hidden Mechanism & Cause"
-                action = "Cutaway diagram showing dynamic visual process"
-                location = "clean infographic cutaway background"
-                camera = "Centrally locked static tracking"
-                physics = "Fluid particle loop, expanding mechanical cross-section"
-                vfx = "Glowing dashed arrows, digital concentration meter spiking"
-            else:
-                beat_title = f"Beat {i+1}: The Biological Impact"
-                action = f"{character_dna['name']} examining the phenomenon with growing curiosity"
-                location = "interior environment with narrative props"
-                camera = "Subtle 15-degree orbital sweep"
-                physics = "Subtle chest breathing, prop interaction"
-                vfx = "Subtle warning callout badge, floating information label"
-
-            art_prompt = (
-                f"{style_spec['positive_tokens']}, "
-                f"{character_dna['prompt_anchor']}, "
-                f"{action}, in {location}, highly detailed clean composition"
-            )
-
-            scenes.append({
-                "beat_number": i + 1,
-                "beat": beat_title,
-                "narration": narration_chunk,
-                "character_action": action,
-                "environment": location,
-                "camera_vector": camera,
-                "character_physics": physics,
-                "vfx_overlay": vfx,
-                "motion_direction": f"{physics}, {camera}, {style_spec['motion_style']}",
-                "art_prompt": art_prompt,
-                "prompt": art_prompt,  # backward compatibility
-                "estimated_duration_sec": 8.0
-            })
-
-        return scenes
-
-    def _generate_retention_hook(self, text: str, tone: str, language: str) -> str:
-        first_sentence = text.split(".")[0] if "." in text else text[:80]
-        if language.lower() in ["hindi", "hinglish"]:
-            return f"अगर आप भी ये ग़लती रोज़ कर रहे हैं—तो रुकिए, सच जानकर होश उड़ जाएंगे: {first_sentence}..."
-        return f"If you do this every single day, stop right now—here is the hidden truth: {first_sentence}..."
-
+        return response
 
     def reroll_beat(
         self,
@@ -537,11 +404,10 @@ class GravityClawAgentService:
         Stage 9: Targeted Regeneration.
         Regenerates a single beat's visual prompt, motion prompt, and seed while preserving Character DNA and sequence continuity.
         """
-        import time, urllib.parse
+        import urllib.parse
         updated = dict(scene)
-        base_prompt = updated.get("art_prompt", updated.get("prompt", ""))
-        style_spec = ART_STYLES.get(style_key, ART_STYLES["2d_flat_vector"])
-        
+        style_spec = get_art_style(style_key)
+
         dna_anchor = ""
         if character_dna and "prompt_anchor" in character_dna:
             dna_anchor = character_dna["prompt_anchor"]
@@ -557,20 +423,23 @@ class GravityClawAgentService:
 
         new_seed = int(time.time() * 1000) % 999999 + seed_offset
         updated["seed"] = new_seed
-        encoded_prompt = urllib.parse.quote(updated["art_prompt"][:240])
+        encoded_prompt = urllib.parse.quote(updated.get("art_prompt", "")[:240])
         updated["image_url"] = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&seed={new_seed}"
         updated["regenerated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         updated["status"] = "RE_ROLLED"
         updated["validation_scores"] = {
-            "face_cosine_similarity": 0.94,
-            "motion_vector_flow": 0.89,
-            "style_fidelity": 0.96,
-            "verdict": "PASSED"
+            "plan_consistency": "verified",
+            "seed_isolated": True,
+            "status": "ready_for_regeneration"
         }
         return updated
 
-    # Backward compatibility with existing route
+    # Backward compatibility entry points
     def deconstruct_script_to_storyboard(self, **kwargs) -> Dict[str, Any]:
-        return self.execute_master_pipeline(**kwargs)
+        return self.generate_animation_plan(**kwargs)
+
+    def execute_master_pipeline(self, **kwargs) -> Dict[str, Any]:
+        return self.generate_animation_plan(**kwargs)
+
 
 gravityclaw_service = GravityClawAgentService()

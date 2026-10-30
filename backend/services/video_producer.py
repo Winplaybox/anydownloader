@@ -14,7 +14,7 @@ import json
 import tempfile
 import urllib.request
 import urllib.parse
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.dirname(SCRIPT_DIR)
@@ -41,6 +41,21 @@ class VideoProducerService:
             except Exception:
                 pass
         return {}
+
+    def _resolve_scene_media(self, scene: Dict[str, Any], temp_dir: str, idx: int) -> Tuple[Optional[str], str]:
+        """
+        Resolves or downloads media for a scene:
+        Supports both actual animated video clips (.mp4, .webm) and static keyframe images (.jpg, .png).
+        Returns (media_path, "video" | "image").
+        """
+        video_clip = scene.get("video_path") or scene.get("clip_path") or scene.get("video_url")
+        if video_clip and os.path.exists(video_clip) and video_clip.endswith((".mp4", ".webm", ".mov")):
+            return video_clip, "video"
+
+        img = self._resolve_scene_image(scene, temp_dir, idx)
+        if img:
+            return img, "image"
+        return None, "none"
 
     def _resolve_scene_image(self, scene: Dict[str, Any], temp_dir: str, idx: int) -> Optional[str]:
         """
@@ -136,27 +151,32 @@ class VideoProducerService:
         except Exception:
             w, h = 720, 1280
 
+        if not audio_path or not os.path.exists(audio_path):
+            return {"ok": False, "error": f"Audio file not found: {audio_path}"}
         temp_dir = tempfile.gettempdir()
         total_audio_duration = self._get_audio_duration(audio_path)
 
-        # Resolve scene images (cap to max 4 scenes for cloud memory safety)
-        resolved_images = []
-        for i, sc in enumerate(scenes[:4]):
-            img = self._resolve_scene_image(sc, temp_dir, i)
-            if img:
-                resolved_images.append(img)
+        # Resolve scene media (supports video clips and keyframe images)
+        resolved_media = []
+        for i, sc in enumerate(scenes[:6]):
+            m_path, m_type = self._resolve_scene_media(sc, temp_dir, i)
+            if m_path:
+                resolved_media.append((m_path, m_type))
 
-        # Fallback to single-pass if no images resolved
-        if not resolved_images:
+        # Fallback to single-pass if no media resolved
+        if not resolved_media:
             return self.assemble_reel_video(audio_path=audio_path, resolution=f"{w}x{h}", output_path=output_path)
 
-        num_scenes = len(resolved_images)
+        num_scenes = len(resolved_media)
         xfade_dur = 0.5
         scene_dur = max(2.5, (total_audio_duration + (num_scenes - 1) * xfade_dur) / num_scenes)
 
         inputs = []
-        for img in resolved_images:
-            inputs.extend(["-loop", "1", "-framerate", "18", "-t", f"{scene_dur + xfade_dur:.2f}", "-i", img])
+        for m_path, m_type in resolved_media:
+            if m_type == "video":
+                inputs.extend(["-t", f"{scene_dur + xfade_dur:.2f}", "-i", m_path])
+            else:
+                inputs.extend(["-loop", "1", "-framerate", "18", "-t", f"{scene_dur + xfade_dur:.2f}", "-i", m_path])
 
         audio_idx = num_scenes
         inputs.extend(["-i", audio_path])
