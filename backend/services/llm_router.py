@@ -126,7 +126,11 @@ class LLMRouter:
                     "systemInstruction": {"parts": [{"text": system}]},
                     "contents": [{"role": "user", "parts": [{"text": user}]}],
                     "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens,
-                                         "responseMimeType": "application/json"},
+                                         "responseMimeType": "application/json",
+                                         # 2.5 models count hidden thinking against maxOutputTokens; cap it so
+                                         # the JSON answer itself isn't cut off.
+                                         **({"thinkingConfig": {"thinkingBudget": min(1024, max_tokens // 4)}}
+                                            if "2.5" in p.model else {})},
                     "safetySettings": [{"category": c, "threshold": "BLOCK_MEDIUM_AND_ABOVE"} for c in (
                         "HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH",
                         "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT")],
@@ -153,7 +157,12 @@ class LLMRouter:
         }
         if p.json_mode:
             body["response_format"] = {"type": "json_object"}
-        r = await self.client.post(p.url, headers=headers, json=body)
+        timeout = None
+        if p.name == "pollinations":
+            # The keyless model is a slow reasoning model: think less, and allow it longer than the 30 s default.
+            body["reasoning_effort"] = "low"
+            timeout = httpx.Timeout(90.0, connect=5.0)
+        r = await self.client.post(p.url, headers=headers, json=body, **({"timeout": timeout} if timeout else {}))
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"] or ""
 

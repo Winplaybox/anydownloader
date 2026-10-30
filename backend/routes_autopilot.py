@@ -202,7 +202,7 @@ async def ideas(request: Request) -> Response:
         IDEAS_SYSTEM,
         f"Niche: {niche}\nAudience language: {lang}\nGive {n} fresh video ideas. Write title and hook in {lang}.\n"
         'Return {"ideas": [{"title": "...", "hook": "first spoken line", "why": "why it will get views"}]}',
-        temperature=0.9, max_tokens=2500)
+        temperature=0.9, max_tokens=3000, budget_s=110.0)
     return _ok({"ideas": obj.get("ideas", [])[:n], "provider": res.provider})
 
 
@@ -227,7 +227,7 @@ async def script(request: Request) -> Response:
         f"Topic: {topic}\nNiche: {b.get('niche') or 'general'}\nLanguage: {note}\n"
         f"Length: about {seconds} seconds ({max(4, round(seconds / 6.5))} lines).\n"
         'Return {"title": "...", "lines": ["...", "..."], "description": "...", "hashtags": ["#..."]}',
-        temperature=0.85, max_tokens=4000)
+        temperature=0.85, max_tokens=6000, budget_s=110.0)
     return _ok({**obj, "provider": res.provider})
 
 
