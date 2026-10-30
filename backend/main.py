@@ -2329,6 +2329,9 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
         if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs") or request.url.path.startswith("/api/jobs") or request.url.path.startswith(("/api/v1", "/api/v2")) or request.url.path.startswith("/admin/"):
             return await call_next(request)
+        # OAuth sign-in redirects come from the platform (no allowed origin); the route checks its own signed state.
+        if request.method == "GET" and request.url.path.startswith("/oauth/autopilot/"):
+            return await call_next(request)
 
         # 3. Verify origin, referer, or extension secret key
         origin = request.headers.get("origin", "")
