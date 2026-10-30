@@ -3,8 +3,8 @@ LLM Router - free-tier-first, multi-provider, circuit-broken.
 
 Order (override with LLM_PROVIDER_ORDER="gemini,groq,openrouter,cerebras,pollinations"):
   gemini      GEMINI_API_KEY        (model: GEMINI_MODEL, default gemini-2.5-flash)
-  groq        GROQ_API_KEY          (GROQ_MODEL, default llama-3.3-70b-versatile)
-  openrouter  OPENROUTER_API_KEY    (OPENROUTER_MODEL, default meta-llama/llama-3.3-70b-instruct:free)
+  groq        GROQ_API_KEY          (GROQ_MODEL, default openai/gpt-oss-120b)
+  openrouter  OPENROUTER_API_KEY    (OPENROUTER_MODEL, default google/gemma-4-31b-it:free)
   cerebras    CEREBRAS_API_KEY      (CEREBRAS_MODEL, default llama-3.3-70b)
   pollinations (no key, last-resort; disable with LLM_DISABLE_POLLINATIONS=1)
 
@@ -65,9 +65,9 @@ def _providers() -> Dict[str, _Provider]:
                             "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
                             e("GEMINI_MODEL", "gemini-2.5-flash"), "GEMINI_API_KEY"),
         "groq": _Provider("groq", "openai", "https://api.groq.com/openai/v1/chat/completions",
-                          e("GROQ_MODEL", "llama-3.3-70b-versatile"), "GROQ_API_KEY"),
+                          e("GROQ_MODEL", "openai/gpt-oss-120b"), "GROQ_API_KEY"),
         "openrouter": _Provider("openrouter", "openai", "https://openrouter.ai/api/v1/chat/completions",
-                                e("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free"), "OPENROUTER_API_KEY"),
+                                e("OPENROUTER_MODEL", "google/gemma-4-31b-it:free"), "OPENROUTER_API_KEY"),
         "cerebras": _Provider("cerebras", "openai", "https://api.cerebras.ai/v1/chat/completions",
                               e("CEREBRAS_MODEL", "llama-3.3-70b"), "CEREBRAS_API_KEY"),
         "pollinations": _Provider("pollinations", "openai", "https://text.pollinations.ai/openai",
