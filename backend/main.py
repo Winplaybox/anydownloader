@@ -2963,14 +2963,21 @@ async def gravityclaw_catalog_handler(request):
     Exposes all 200 script agents, 100 domains, art styles, tones, audiences from Master Catalog.
     """
     from backend.services.gravityclaw_agent import gravityclaw_service
-    return JSONResponse(gravityclaw_service.get_catalog_metadata())
+    from backend.services.gravityclaw.agent_universe import universe
+    meta = gravityclaw_service.get_catalog_metadata()
+    meta["agent_universe"] = universe().facets()  # 1,000 agents + 200 script agents; search via /api/v2/gravityclaw/agents
+    return JSONResponse(meta)
 
 async def gravityclaw_prompt_handler(request):
-    """POST /api/v1/gravityclaw/prompt [scope: prompt:generate]
-    Intelligent Script-Driven Animation Planning & Storyboard Reasoning Engine.
+    """POST /api/v1/gravityclaw/prompt [scope: prompt:generate | admin:all]
+
+    Two modes, both driven by the AI Agent Universe (1,000 agents + 200 script agents):
+      A) Prompt agent  - when body has `target`, `preset_id` or engine="prompt":
+         returns the GravityClaw v2 prompt result (same shape as /api/v2/gravityclaw/generate).
+      B) Animation plan (default) - topic -> AI script written by the selected agent
+         (agent_id, else best match for domain/platform) -> storyboard/scenes pipeline.
+         A user-supplied script is used as-is. Falls back to the template script if AI is down.
     """
-    token = _extract_auth_token(request)
-    origin = _get_request_origin(request)
     authorized, reason, payload = await legacy_verify(request, "prompt:generate", "admin:all")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
@@ -2979,50 +2986,97 @@ async def gravityclaw_prompt_handler(request):
         body = await request.json()
     except Exception:
         body = {}
+    if not isinstance(body, dict):
+        body = {}
 
-    brief = body.get("brief") or body.get("topic") or body.get("prompt") or ""
-    script = body.get("script") or body.get("full_script") or ""
-    script_mode = body.get("script_mode", "auto")
-    art_style = body.get("art_style", "2d_flat_vector")
-    tone = body.get("tone", body.get("formula", "Educational"))
-    duration = body.get("duration", "auto")
-    target_duration_seconds = body.get("target_duration_seconds")
-    language = body.get("language", "Hindi")
-    aspect_ratio = body.get("aspect_ratio", "9:16")
-    production_mode = body.get("production_mode", "quality_first")
-    animation_intensity = body.get("animation_intensity", "expressive")
-    character_consistency = body.get("character_consistency", "high")
-    camera_direction = body.get("camera_direction", "story_driven")
-    include_subtitles = body.get("include_subtitles", True)
-    generate_storyboard = body.get("generate_storyboard", True)
-    agent_id = body.get("agent_id")
-    domain = body.get("domain", body.get("niche", "Healthcare & Medicine"))
-    audience = body.get("audience", "General audience")
-    platform = body.get("platform", "YouTube Shorts")
-
+    from backend.services.gravityclaw import GCError, gravityclaw_engine
+    from backend.services.gravityclaw.script_agent import resolve_agent, write_script
     from backend.services.gravityclaw_agent import gravityclaw_service
+    from backend.services.narrative_engine import narrative_engine
 
-    result = gravityclaw_service.generate_animation_plan(
+    brief = str(body.get("brief") or body.get("topic") or body.get("prompt") or "")[:4000]
+    script = str(body.get("script") or body.get("full_script") or "")[:20000]
+
+    # ---- Mode A: pure prompt agent ------------------------------------------------
+    if str(body.get("engine") or "").lower() in ("prompt", "v2") or body.get("target") or body.get("preset_id"):
+        req = dict(body)
+        req.setdefault("requirement", brief or script)
+        try:
+            out = await gravityclaw_engine.generate(req)
+        except GCError as e:
+            return JSONResponse({"ok": False, "error": e.code, "reason": e.message}, status_code=e.status)
+        out["hook"] = out["prompt"].split("\n")[0][:200]
+        out["script"] = out["prompt"]
+        out["scene_prompt"] = out["copy_ready"]
+        out["tags"] = []
+        return JSONResponse(out)
+
+    # ---- Mode B: animation plan with AI script ----------------------------------------
+    script_mode = body.get("script_mode", "auto")
+    language = body.get("language", "Hindi")
+    tone = body.get("tone", body.get("formula", "Educational"))
+    platform = body.get("platform", "YouTube Shorts")
+    audience = body.get("audience", "General audience")
+    agent_id = body.get("agent_id")
+    domain_hint = body.get("domain") or body.get("niche")
+    target_duration_seconds = body.get("target_duration_seconds")
+
+    try:
+        profile = resolve_agent(agent_id, domain_hint, platform)
+    except GCError as e:
+        return JSONResponse({"ok": False, "error": e.code, "reason": e.message}, status_code=e.status)
+
+    ai = None
+    resolved_mode, _ = narrative_engine.classify_script_mode(brief=brief, script=script, requested_mode=script_mode)
+    if resolved_mode == "topic" and body.get("ai_script", True) is not False and brief.strip():
+        try:
+            ai = await write_script(brief, agent_id=profile["id"], language=language, tone=tone, platform=platform,
+                                    audience=audience, seconds=target_duration_seconds)
+        except GCError as e:
+            return JSONResponse({"ok": False, "error": e.code, "reason": e.message}, status_code=e.status)
+
+    plan_kwargs = dict(
         brief=brief,
         script=script,
         script_mode=script_mode,
-        art_style=art_style,
+        art_style=body.get("art_style", "2d_flat_vector"),
         tone=tone,
-        duration=duration,
+        duration=body.get("duration", "auto"),
         target_duration_seconds=target_duration_seconds,
         language=language,
-        aspect_ratio=aspect_ratio,
-        production_mode=production_mode,
-        animation_intensity=animation_intensity,
-        character_consistency=character_consistency,
-        camera_direction=camera_direction,
-        include_subtitles=include_subtitles,
-        generate_storyboard=generate_storyboard,
-        agent_id=agent_id,
-        domain=domain,
+        aspect_ratio=body.get("aspect_ratio", "9:16"),
+        production_mode=body.get("production_mode", "quality_first"),
+        animation_intensity=body.get("animation_intensity", "expressive"),
+        character_consistency=body.get("character_consistency", "high"),
+        camera_direction=body.get("camera_direction", "story_driven"),
+        include_subtitles=body.get("include_subtitles", True),
+        generate_storyboard=body.get("generate_storyboard", True),
+        agent_id=profile["id"],
+        domain=domain_hint or profile.get("domain") or profile.get("family") or "General",
         audience=audience,
-        platform=platform
+        platform=platform,
     )
+    if ai:
+        plan_kwargs.update(script="\n".join(ai["lines"]), script_mode="script")
+
+    result = await asyncio.to_thread(gravityclaw_service.generate_animation_plan, **plan_kwargs)
+
+    result["agent"] = {k: profile.get(k) for k in ("id", "kind", "name", "role", "domain", "family", "function")}
+    result["script_engine"] = ({"mode": "ai", **ai["engine"]} if ai else
+                               {"mode": "user_script" if resolved_mode == "script" else "template"})
+    if ai:
+        result["ai_script"] = ai
+        result["hook"] = ai["hook"]
+        result["retention_hook"] = ai["hook"]
+        result["tags"] = ai["hashtags"] or result.get("tags", [])
+        if isinstance(result.get("script"), dict):
+            result["script"]["topic"] = brief
+            result["script"]["script_mode"] = "ai_generated_by_agent"
+        if isinstance(result.get("creative_brief"), dict):
+            result["creative_brief"]["topic"] = brief
+            result["creative_brief"]["script_mode"] = "topic"
+        if ai["fact_check_notes"]:
+            result.setdefault("warnings", []).extend(f"Verify: {n}" for n in ai["fact_check_notes"])
     return JSONResponse(result)
 
 

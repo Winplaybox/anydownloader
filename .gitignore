@@ -1,4 +1,4 @@
-﻿node_modules
+node_modules
 dist
 dist-ssr
 *.local
@@ -24,3 +24,8 @@ backend/data/*.json
 backend/data/*.json
 
 !backend/data/channels_manifest.json
+
+# Static reference data that must ship with the backend
+!backend/data/agent_universe_v3.json
+!backend/data/agent_universe_catalog.json
+!backend/data/story_presets.json

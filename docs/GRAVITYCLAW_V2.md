@@ -84,3 +84,14 @@ Errors are always `{ "ok": false, "error": { "code", "message" }, "request_id" }
 - Old `wpb_` tokens are no longer accepted (new prefix `wpb2_`).
 - `/admin/*` and `/api/v1/system/diag` need `X-Admin-Key`.
 - CORS no longer `*`.
+
+## 6. AI Agent Universe (added 2026-10-30)
+Source: `AI_Agent_Universe_Master_Catalog.xlsx` → `python backend/scripts/build_agent_universe.py <xlsx>` → `backend/data/agent_universe_v3.json` (1,000 domain agents = 100 domains × 10 functions, 200 script agents in 22 families, 100 domains, 30 output types, workflows, config lists).
+Expertise comes from playbooks in `services/gravityclaw/agent_universe.py` (10 function playbooks, 22 script-family craft rules, regulated-domain guardrails for Healthcare/Wellness/Finance/Legal/Public Services, output-type → target mapping).
+
+- `GET /api/v2/gravityclaw/agents?q=&kind=agent|script&domain=&family=&function=&group=&limit<=50&offset=` (public, 120/min/IP)
+- `GET /api/v2/gravityclaw/agents/facets`, `GET /api/v2/gravityclaw/agents/{id}` (summary + full profile)
+- `POST /api/v2/gravityclaw/generate|refine` accept `agent_id`, `output_type`, `workflow`, `platform`, `audience`; with `target: "auto"` the agent's default tool is used and its profile is injected into the system prompt.
+- `POST /api/v1/gravityclaw/prompt`:
+  - Mode A (`target` / `preset_id` / `engine: "prompt"`): returns the v2 prompt result + legacy fields.
+  - Mode B (default): topic → AI script written by the chosen agent (`agent_id`, else best match for `domain`, else SCR-0002 Shorts writer) → Antigravity storyboard pipeline. Adds `agent`, `ai_script`, `script_engine` (`ai | user_script | template`), AI hook + hashtags, fact-check warnings.

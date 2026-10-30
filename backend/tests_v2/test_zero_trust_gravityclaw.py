@@ -29,6 +29,15 @@ FAKE = {
 }
 
 
+SEEN = {}
+SCRIPT = {"title": "Hanuman ki Udaan", "hook": "Kya aap jaante hain Hanuman ji ne samudra kaise langha?",
+          "lines": ["Kya aap jaante hain Hanuman ji ne samudra kaise langha?", "Jambavan ne unhe unki shakti yaad dilayi.",
+                    "Mahendra parvat se unhone Ram naam lekar chhalang lagayi.", "Raste mein Mainak parvat ne unhe vishram dena chaha.",
+                    "Par Hanuman ji ruke nahi, seva pehle thi.", "Follow karo aur agla bhaag dekho."],
+          "cta": "Follow karo aur agla bhaag dekho.", "hashtags": ["#Hanuman", "Ramayana"], "fact_check_notes": ["Valmiki Ramayana Sundar Kand"],
+          "refused": False, "refusal_reason": ""}
+
+
 @pytest.fixture(autouse=True)
 def fresh(monkeypatch):
     mem = tv._MemoryStore()
@@ -38,8 +47,11 @@ def fresh(monkeypatch):
     eng.gravityclaw_engine._cache.clear()
 
     async def fake(system, user, **kw):
+        SEEN["system"] = system
         if "NOLLM" in user:
             raise lr.LLMError("down")
+        if "GravityClaw Script Agent" in system:
+            return dict(SCRIPT), lr.LLMResult("{}", "fake", "fake-1", 5)
         return json.loads(json.dumps(FAKE)), lr.LLMResult("{}", "fake", "fake-1", 5)
     monkeypatch.setattr(lr.llm_router, "complete_json", fake)
     yield
@@ -138,12 +150,13 @@ def test_admin_routes_locked(c):
     assert c.get("/admin/blog/settings", headers={"X-Admin-Key": ADMIN}).status_code == 200
 
 
-def test_legacy_v1_gravityclaw_uses_new_vault(c):
-    t = tok(c, scope="prompt:generate").json()["token"]
+def test_legacy_v1_endpoint_uses_new_vault(c):
+    # privileged v1 endpoint: anon token impossible, admin token single-use
+    assert tok(c, scope="workflow:execute").status_code == 401
+    t = tok(c, scope="workflow:execute", headers={"X-Admin-Key": ADMIN}).json()["token"]
     h = {"Origin": ORIGIN, "Authorization": f"Bearer {t}"}
-    r1 = c.post("/api/v1/gravityclaw/prompt", json={"brief": "story of a brave cheetah"}, headers=h)
-    assert r1.status_code == 200, r1.text
-    assert c.post("/api/v1/gravityclaw/prompt", json={"brief": "again"}, headers=h).status_code == 401
+    assert c.post("/api/v1/omni/workflow", json={"action": "status"}, headers=h).status_code == 200
+    assert c.post("/api/v1/omni/workflow", json={"action": "status"}, headers=h).status_code == 401
 
 
 def test_rate_limit(c):
@@ -224,3 +237,62 @@ def test_refine(c):
 
 def test_extract_json_escapes():
     assert lr.extract_json('noise ```json\n{"a": "he said \\"}\\" ok", "b": 1}\n``` tail') == {"a": 'he said "}" ok', "b": 1}
+
+
+# ---------------------------------------------------------------- agent universe
+def test_agent_search_and_detail(c):
+    d = c.get("/api/v2/gravityclaw/agents", params={"q": "mythology", "kind": "script", "limit": 5}).json()
+    assert d["ok"] and d["total"] >= 1 and d["items"][0]["kind"] == "script"
+    assert any("mythology" in x["name"].lower() for x in d["items"])
+    assert c.get("/api/v2/gravityclaw/agents", params={"kind": "agent"}).json()["total"] == 1000
+    f = c.get("/api/v2/gravityclaw/agents/facets").json()
+    assert f["counts"] == {"agents": 1000, "script_agents": 200, "domains": 100}
+    det = c.get("/api/v2/gravityclaw/agents/AG-001-01").json()
+    assert det["profile"]["function"] == "Researcher" and det["profile"]["method"]
+    assert c.get("/api/v2/gravityclaw/agents/NOPE").status_code == 404
+
+
+def test_generate_with_agent_injects_profile(c):
+    hc = c.get("/api/v2/gravityclaw/agents", params={"q": "healthcare analyst", "kind": "agent", "limit": 1}).json()["items"][0]
+    d = call(c, tok(c).json()["token"], body={"requirement": "analyse diabetes app churn", "agent_id": hc["id"]}).json()
+    assert d["ok"] and d["agent"]["id"] == hc["id"] and d["target"]["id"] == "llm_task"
+    assert "EXPERT AGENT PROFILE" in SEEN["system"] and "no diagnosis" in SEEN["system"]
+    r = call(c, tok(c).json()["token"], body={"requirement": "x y z", "agent_id": "AG-999-99"})
+    assert r.status_code == 400 and r.json()["error"]["code"] == "UnknownAgent"
+
+
+def test_script_agent_default_targets():
+    from backend.services.gravityclaw.agent_universe import universe
+    u = universe()
+    assert u.default_target(u.get("SCR-0002")) == "short_video_script"
+    assert u.default_target(u.get("SCR-0001")) == "youtube_long"
+    wf = [a for a in u.data["agents"] if a["function"] == "Workflow Automator"][0]
+    assert u.default_target(wf) == "n8n_workflow"
+
+
+def _v1(c, body):
+    t = tok(c, scope="prompt:generate").json()["token"]
+    return c.post("/api/v1/gravityclaw/prompt", json=body, headers={"Origin": ORIGIN, "Authorization": f"Bearer {t}"})
+
+
+def test_v1_prompt_animation_plan_uses_ai_script(c):
+    r = _v1(c, {"brief": "Hanuman ji ki samudra langhan katha", "domain": "mythology", "language": "Hinglish"})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["script_engine"]["mode"] == "ai" and d["ai_script"]["lines"][0].startswith("Kya aap")
+    assert d["hook"] == SCRIPT["hook"] and "#Ramayana" in d["tags"]
+    assert d["agent"]["kind"] == "script" and "mythology" in (d["agent"]["name"] + str(d["agent"]["family"])).lower()
+    assert d["scenes"] and d["script"]["script_mode"] == "ai_generated_by_agent"
+    assert "Valmiki" in SEEN["system"] or "scripture" in SEEN["system"]
+
+
+def test_v1_prompt_fallback_and_user_script(c):
+    d = _v1(c, {"brief": "NOLLM why walk after dinner"}).json()
+    assert d["ok"] and d["script_engine"]["mode"] == "template"
+    d = _v1(c, {"script": "Line one is here for the video. Line two continues the story. Line three ends it with a twist."}).json()
+    assert d["script_engine"]["mode"] == "user_script" and "ai_script" not in d
+
+
+def test_v1_prompt_mode_a_prompt_agent(c):
+    d = _v1(c, {"brief": "neon samurai", "target": "midjourney"}).json()
+    assert d["ok"] and "--v 7" in d["copy_ready"] and d["scene_prompt"] == d["copy_ready"]
