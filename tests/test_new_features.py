@@ -1,3 +1,4 @@
+import os
 import pytest
 from starlette.testclient import TestClient
 from backend.main import app
@@ -23,6 +24,11 @@ def test_blogs_list():
 
 def test_blog_settings():
     client = TestClient(app)
-    res = client.get('/admin/blog/settings')
+    # Unauthenticated must be blocked (S3 fix)
+    res_unauth = client.get('/admin/blog/settings')
+    assert res_unauth.status_code == 401
+
+    # Authenticated with admin key must succeed
+    res = client.get('/admin/blog/settings', headers={'X-Admin-Key': os.environ.get('WPB_ADMIN_KEY', 'admin_key_for_tests_' + 'y' * 30)})
     assert res.status_code == 200
     assert res.json().get('ok') is True

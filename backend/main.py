@@ -76,6 +76,14 @@ from starlette.routing import Route
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
+try:
+    from backend.security.zero_trust import (
+        ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify,
+    )
+    from backend.routes_v2 import routes_v2
+except (ModuleNotFoundError, ImportError):
+    from security.zero_trust import ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify
+    from routes_v2 import routes_v2
 
 # Security & Origin Configuration
 ALLOWED_ORIGINS = [
@@ -2317,7 +2325,7 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
-        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs") or request.url.path.startswith("/api/jobs") or request.url.path.startswith("/api/v1") or request.url.path.startswith("/admin/"):
+        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs") or request.url.path.startswith("/api/jobs") or request.url.path.startswith(("/api/v1", "/api/v2")) or request.url.path.startswith("/admin/"):
             return await call_next(request)
 
         # 3. Verify origin, referer, or extension secret key
@@ -2680,7 +2688,9 @@ async def proxy_image_handler(request):
     if not payload:
         return JSONResponse({"error": "invalid token"}, status_code=403)
     target_url = payload["variant_url"]
-    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+    if not is_safe_cdn_url(target_url):
+        return JSONResponse({"error": "target host not allowed"}, status_code=403)
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
         resp = await client.get(target_url, headers={"User-Agent": "Mozilla/5.0"})
         if resp.status_code != 200:
             return JSONResponse({"error": "upstream image error"}, status_code=502)
@@ -2771,24 +2781,13 @@ def _get_request_origin(request) -> str:
     return request.headers.get("origin") or request.headers.get("referer") or ""
 
 async def issue_token_handler(request):
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    origin = body.get("origin") or _get_request_origin(request)
-    scope = body.get("scope") or "subtitles:generate"
-    client_ip = request.client.host if request.client else "unknown"
-    ok, res = token_vault.issue_token(origin=origin, scope=scope, client_ip=client_ip)
-    if not ok:
-        return JSONResponse(res, status_code=403)
-    return JSONResponse(res)
+    """Secure issuance - see security/zero_trust.issue_token_endpoint."""
+    return await issue_token_endpoint(request)
 
 async def subtitles_handler(request):
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "subtitles:generate", origin)
-    if not authorized:
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+    authorized, reason, payload = await legacy_verify(request, "subtitles:generate", "admin:all")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
     
@@ -2826,7 +2825,7 @@ async def voice_list_handler(request):
 async def voice_synthesize_handler(request):
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "voice:tts", origin)
+    authorized, reason, payload = await legacy_verify(request, "voice:tts")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
         
@@ -2849,7 +2848,7 @@ async def channels_list_handler(request):
 async def channel_publish_handler(request):
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "social:publish", origin)
+    authorized, reason, payload = await legacy_verify(request, "social:publish")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
         
@@ -2915,9 +2914,7 @@ async def media_audio_handler(request):
     """
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "audio:extract", origin)
-    if not authorized:
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+    authorized, reason, payload = await legacy_verify(request, "audio:extract", "admin:all")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
 
@@ -2944,9 +2941,7 @@ async def visuals_search_handler(request):
     """
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "visuals:generate", origin)
-    if not authorized:
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+    authorized, reason, payload = await legacy_verify(request, "visuals:generate", "admin:all")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
 
@@ -2976,9 +2971,7 @@ async def gravityclaw_prompt_handler(request):
     """
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "prompt:generate", origin)
-    if not authorized:
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+    authorized, reason, payload = await legacy_verify(request, "prompt:generate", "admin:all")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
 
@@ -3039,11 +3032,7 @@ async def gravityclaw_pipeline_handler(request):
     """
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "prompt:generate", origin)
-    if not authorized:
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
-    if not authorized:
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "workflow:execute", origin)
+    authorized, reason, payload = await legacy_verify(request, "prompt:generate", "admin:all", "workflow:execute")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
 
@@ -3103,9 +3092,7 @@ async def gravityclaw_reroll_handler(request):
     """
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "prompt:generate", origin)
-    if not authorized:
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+    authorized, reason, payload = await legacy_verify(request, "prompt:generate", "admin:all")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
 
@@ -3137,9 +3124,7 @@ async def omni_workflow_handler(request):
     """
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "workflow:execute", origin)
-    if not authorized:
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+    authorized, reason, payload = await legacy_verify(request, "workflow:execute", "admin:all")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
 
@@ -3169,9 +3154,7 @@ async def pricewatch_track_handler(request):
     """
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "price:read", origin)
-    if not authorized:
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+    authorized, reason, payload = await legacy_verify(request, "price:read", "admin:all")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
 
@@ -3202,9 +3185,7 @@ async def blog_generate_handler(request):
     """
     token = _extract_auth_token(request)
     origin = _get_request_origin(request)
-    authorized, reason, payload = token_vault.verify_and_burn_token(token, "blog:cron", origin)
-    if not authorized:
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+    authorized, reason, payload = await legacy_verify(request, "blog:cron", "admin:all")
     if not authorized:
         return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
 
@@ -3382,9 +3363,7 @@ async def generate_reel_handler(request):
     try:
         token = _extract_auth_token(request)
         origin = _get_request_origin(request)
-        authorized, reason, payload = token_vault.verify_and_burn_token(token, "video:master", origin)
-        if not authorized:
-            authorized, reason, payload = token_vault.verify_and_burn_token(token, "admin:all", origin)
+        authorized, reason, payload = await legacy_verify(request, "video:master", "admin:all")
         if not authorized:
             return JSONResponse({"ok": False, "error": "Unauthorized", "reason": reason}, status_code=401)
             
@@ -3490,14 +3469,13 @@ routes = [
     Route("/api/download_audio", download_audio_handler, methods=["GET"])
 ]
 
+routes = routes_v2 + routes
+
+# Order = outermost first: CORS -> Zero-Trust guard -> origin/extension gate
 middleware = [
+    Middleware(CORSMiddleware, **cors_kwargs()),
+    Middleware(ZeroTrustMiddleware),
     Middleware(ClientAccessAuthMiddleware),
-    Middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"]
-    )
 ]
 
 
