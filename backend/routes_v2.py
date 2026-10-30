@@ -23,13 +23,15 @@ from starlette.routing import Route
 
 try:
     from backend.security.token_vault import store
-    from backend.security.zero_trust import error, issue_token_endpoint, request_id, require_token
+    from backend.security.zero_trust import client_ip, error, issue_token_endpoint, rate_limit, request_id, require_token
     from backend.services.gravityclaw import GCError, gravityclaw_engine, public_catalog
+    from backend.services.gravityclaw.agent_universe import universe
     from backend.services.llm_router import llm_router
 except (ModuleNotFoundError, ImportError):
     from security.token_vault import store  # type: ignore
-    from security.zero_trust import error, issue_token_endpoint, request_id, require_token  # type: ignore
+    from security.zero_trust import client_ip, error, issue_token_endpoint, rate_limit, request_id, require_token  # type: ignore
     from services.gravityclaw import GCError, gravityclaw_engine, public_catalog  # type: ignore
+    from services.gravityclaw.agent_universe import universe  # type: ignore
     from services.llm_router import llm_router  # type: ignore
 
 GC_SCOPES = {"gravityclaw:generate", "prompt:generate"}
@@ -44,6 +46,45 @@ async def gc_catalog(request: Request) -> Response:
     if request.headers.get("if-none-match") == _CATALOG_ETAG:
         return Response(status_code=304, headers=headers)
     return Response(_CATALOG_BYTES, media_type="application/json", headers=headers)
+
+
+_PUBLIC_CACHE = {"Cache-Control": "public, max-age=300, stale-while-revalidate=3600"}
+
+
+def _public_limited(request: Request) -> bool:
+    ok, _ = rate_limit("gcpub", client_ip(request), 120, 60)
+    return ok
+
+
+async def gc_agents(request: Request) -> Response:
+    """GET /api/v2/gravityclaw/agents?q=&kind=agent|script&domain=&family=&function=&group=&limit=&offset="""
+    if not _public_limited(request):
+        return error(request, 429, "RateLimited", "Too many requests.")
+    qp = request.query_params
+    try:
+        limit = max(1, min(int(qp.get("limit", 20)), 50))
+        offset = max(0, min(int(qp.get("offset", 0)), 5000))
+    except ValueError:
+        return error(request, 400, "InvalidField", "limit/offset must be integers.")
+    kind = qp.get("kind") or None
+    if kind not in (None, "agent", "script"):
+        return error(request, 400, "InvalidField", "kind must be 'agent' or 'script'.")
+    res = universe().search((qp.get("q") or "")[:120], kind=kind, domain=qp.get("domain") or None,
+                            family=qp.get("family") or None, function=qp.get("function") or None,
+                            group=qp.get("group") or None, limit=limit, offset=offset)
+    return JSONResponse({"ok": True, **res}, headers=_PUBLIC_CACHE)
+
+
+async def gc_agent_facets(request: Request) -> Response:
+    return JSONResponse({"ok": True, **universe().facets()}, headers=_PUBLIC_CACHE)
+
+
+async def gc_agent_detail(request: Request) -> Response:
+    u = universe()
+    a = u.get(request.path_params["agent_id"][:20])
+    if not a:
+        return error(request, 404, "UnknownAgent", "Agent not found.")
+    return JSONResponse({"ok": True, "agent": u.summary(a), "profile": u.profile(a)}, headers=_PUBLIC_CACHE)
 
 
 async def gc_health(request: Request) -> Response:
@@ -96,6 +137,9 @@ routes_v2 = [
     Route("/api/v2/auth/token", issue_token_endpoint, methods=["POST"]),
     Route("/api/v2/gravityclaw/catalog", gc_catalog, methods=["GET"]),
     Route("/api/v2/gravityclaw/health", gc_health, methods=["GET"]),
+    Route("/api/v2/gravityclaw/agents", gc_agents, methods=["GET"]),
+    Route("/api/v2/gravityclaw/agents/facets", gc_agent_facets, methods=["GET"]),
+    Route("/api/v2/gravityclaw/agents/{agent_id}", gc_agent_detail, methods=["GET"]),
     Route("/api/v2/gravityclaw/generate", gc_generate, methods=["POST"]),
     Route("/api/v2/gravityclaw/refine", gc_refine, methods=["POST"]),
     Route("/api/v2/gravityclaw/score", gc_score, methods=["POST"]),

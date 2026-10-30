@@ -22,6 +22,7 @@ import time
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 
+from .agent_universe import universe
 from .catalog import ASPECT_RATIOS, PRESETS_BY_ID, TARGETS
 from .scoring import score_prompt
 
@@ -122,9 +123,21 @@ def normalize_request(body: Dict[str, Any]) -> Dict[str, Any]:
     if mode not in ("generate", "enhance"):
         raise GCError("InvalidField", "mode must be 'generate' or 'enhance'.")
 
+    agent = None
+    if body.get("agent_id"):
+        agent = universe().get(_s(body["agent_id"], 20))
+        if not agent:
+            raise GCError("UnknownAgent", "agent_id not found in the Agent Universe catalog.")
+    output_type = _s(body.get("output_type"), 40) or None
+    if output_type and output_type not in universe().output_types:
+        raise GCError("InvalidField", "Unknown output_type.")
+    workflow = _s(body.get("workflow"), 40) or None
+    if workflow and workflow not in universe().workflows:
+        raise GCError("InvalidField", "Unknown workflow.")
+
     target = _s(body.get("target") or (preset or {}).get("target") or "auto", 40)
     if target == "auto":
-        target = detect_target(requirement)
+        target = universe().default_target(agent, output_type, requirement) if agent else detect_target(requirement)
     if target not in TARGETS:
         raise GCError("UnknownTarget", f"Unknown target '{target}'.")
 
@@ -165,6 +178,11 @@ def normalize_request(body: Dict[str, Any]) -> Dict[str, Any]:
         "params": params,
         "seed": seed,
         "nocache": bool(body.get("nocache")),
+        "agent_id": agent["id"] if agent else None,
+        "output_type": output_type,
+        "workflow": workflow,
+        "platform": _s(body.get("platform"), 40),
+        "audience": _s(body.get("audience"), 60),
     }
 
 
@@ -298,6 +316,7 @@ MAIN PROMPT LENGTH: {lo}-{hi} words.
 {mode_rule}
 Any value written as [auto] in the requirement means: choose the best option for the goal yourself.
 Preferred style: {n['style'] or 'choose the best fit'}. Tone: {n['tone'] or 'fit to purpose'}.
+{_agent_block(n)}
 Allowed parameters (only these keys, valid values within ranges): {json.dumps(params_spec, ensure_ascii=False)}
 
 JSON SCHEMA (all keys required):
@@ -324,6 +343,16 @@ SECURITY & POLICY:
 - Do not name living artists as style references; describe the style instead. Avoid trademarked characters/logos unless the user states they own them.
 - Never invent facts presented as real statistics; prompts may be creative.
 """
+
+
+def _agent_block(n: Dict[str, Any]) -> str:
+    u = universe()
+    a = u.get(n.get("agent_id"))
+    if not a:
+        extra = [f"Platform: {n['platform']}." if n.get("platform") else "", f"Audience: {n['audience']}." if n.get("audience") else ""]
+        return " ".join(x for x in extra if x)
+    return u.system_block(u.profile(a), workflow=n.get("workflow"), output_type=n.get("output_type"),
+                          platform=n.get("platform") or None, audience=n.get("audience") or None)
 
 
 def build_user_prompt(n: Dict[str, Any]) -> str:
@@ -462,6 +491,7 @@ class GravityClawEngine:
             "target": {"id": tid, "name": t["name"], "category": t["category"], "tool_url": t["tool_url"]},
             "mode": n["mode"],
             "preset_id": n["preset_id"],
+            "agent": universe().summary(universe().get(n["agent_id"])) if n.get("agent_id") else None,
             "prompt": prompt,
             "negative_prompt": negative,
             "lyrics": lyrics,
@@ -517,6 +547,7 @@ class GravityClawEngine:
             "detail": body.get("detail"), "style": body.get("style"), "tone": body.get("tone"),
             "language": body.get("language"), "explain_language": body.get("explain_language"),
             "params": body.get("params") or {}, "seed": body.get("seed"), "creativity": body.get("creativity", 0.5),
+            "agent_id": body.get("agent_id"), "platform": body.get("platform"), "audience": body.get("audience"),
         })
         for pat in _BLOCK:
             if pat.search(instruction):
