@@ -307,6 +307,30 @@ async def _refresh(c: httpx.AsyncClient, platform: str, token: Dict[str, Any]) -
     return None
 
 
+async def revoke(platform: str, token: Dict[str, Any]) -> bool:
+    """Best effort: tell the platform to drop our access when a user disconnects. Instagram, Threads and Facebook
+    pages have no token-revocation endpoint for these tokens (the user removes the app in their settings)."""
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            if platform == "youtube" and (token.get("refresh_token") or token.get("token")):
+                r = await c.post("https://oauth2.googleapis.com/revoke", data={"token": token.get("refresh_token") or token["token"]})
+            elif platform == "tiktok" and token.get("access_token"):
+                r = await c.post("https://open.tiktokapis.com/v2/oauth/revoke/", data={
+                    "client_key": token.get("client_key") or env("TIKTOK_CLIENT_KEY"),
+                    "client_secret": token.get("client_secret") or env("TIKTOK_CLIENT_SECRET"), "token": token["access_token"]})
+            elif platform == "x" and (token.get("refresh_token") or token.get("access_token")):
+                cid, sec = token.get("client_id") or env("X_CLIENT_ID"), token.get("client_secret") or env("X_CLIENT_SECRET")
+                basic = base64.b64encode(f"{cid}:{sec}".encode()).decode()
+                hint = "refresh_token" if token.get("refresh_token") else "access_token"
+                r = await c.post("https://api.x.com/2/oauth2/revoke", headers={"Authorization": f"Basic {basic}"},
+                                 data={"token": token.get(hint), "token_type_hint": hint, "client_id": cid})
+            else:
+                return False
+            return r.status_code < 400
+    except httpx.HTTPError:
+        return False
+
+
 def _auth_failed(r: httpx.Response) -> bool:
     return r.status_code in (401, 403) or "OAuthException" in r.text[:500]
 
