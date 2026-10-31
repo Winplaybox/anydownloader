@@ -59,12 +59,14 @@ try:
     from backend.services import social_oauth as social
     from backend.services.studio_catalog import CATALOG
     from backend.services import dodo
+    from backend.security.token_vault import body_sha256, token_vault
 except (ModuleNotFoundError, ImportError):
     from security.zero_trust import authenticate_admin, client_ip, error, rate_limit  # type: ignore
     from services.llm_router import LLMError, llm_router  # type: ignore
     from services import social_oauth as social  # type: ignore
     from services.studio_catalog import CATALOG  # type: ignore
     from services import dodo  # type: ignore
+    from security.token_vault import body_sha256, token_vault  # type: ignore
 
 AUTOPILOT_FIELDS = {"name", "active", "niche", "topics", "style", "language", "voice", "rate", "seconds", "captions",
                     "caption_style", "caption_position", "watermark", "music", "quality", "aspect", "platforms",
@@ -1167,6 +1169,54 @@ async def admin_platform_test(request: Request, me: Dict[str, Any]) -> Response:
     return _ok({"ok": ok, "message": msg})
 
 
+# Mission Control (old admin tools, now a super-admin page in the Studio): the Studio relays each tool call here.
+# The call is checked like every Studio call (signature + super admin), then run in-process against the old
+# endpoint with a normal single-use admin token bound to that endpoint and that exact body.
+MISSION_TOOLS = {
+    "/api/v1/blog/generate": "POST", "/admin/blog/generate": "POST", "/api/v1/voice/list": "GET", "/api/v1/voice/synthesize": "POST",
+    "/api/v1/video/master": "POST", "/api/v1/video/generate-reel": "POST", "/api/v1/omni/workflow": "POST",
+    "/api/v1/gravityclaw/prompt": "POST", "/api/v1/channels/list": "GET", "/api/v1/channels/publish": "POST",
+    "/api/v1/social/publish": "POST", "/api/v1/visuals/search": "POST", "/api/v1/pricewatch/track": "POST",
+    "/api/v1/media/subtitles": "POST", "/api/v1/media/audio": "POST",
+}
+
+
+@route(admin_only=True, needs_db=False)
+async def admin_tool(request: Request, me: Dict[str, Any]) -> Response:
+    b = await _body(request)
+    path, method = str(b.get("path") or ""), str(b.get("method") or "GET").upper()
+    if MISSION_TOOLS.get(path) != method:
+        raise ValueError("This tool is not available")
+    endpoint = next((r.endpoint for r in request.app.routes if getattr(r, "path", None) == path and method in (getattr(r, "methods", None) or ())), None)
+    if not endpoint:
+        raise ValueError("This tool is not available on this server")
+    raw = b"" if method == "GET" else json.dumps(b.get("body") or {}).encode()
+    ok, tok = token_vault.issue(origin="", scopes=["admin:all"], client_ip=client_ip(request), subject=f"admin:{me['email'] or 'key'}",
+                                is_admin=True, aud=path, body_hash=body_sha256(raw) if raw else None, ttl=60)
+    if not ok:
+        raise ValueError(tok.get("message", "Could not authorize the tool"))
+    query = urlencode({k: str(v) for k, v in (b.get("query") or {}).items()}).encode()
+    headers = [(k, v) for k, v in request.scope["headers"] if k not in (b"authorization", b"content-type", b"content-length", b"origin", b"referer")
+               and not k.startswith(b"x-studio-")]
+    headers += [(b"authorization", f"Bearer {tok['token']}".encode()), (b"content-type", b"application/json"),
+                (b"content-length", str(len(raw)).encode())]
+    scope = {**request.scope, "method": method, "path": path, "raw_path": path.encode(), "query_string": query, "headers": headers}
+    sent = {"done": False}
+
+    async def receive():
+        if sent["done"]:
+            return {"type": "http.disconnect"}
+        sent["done"] = True
+        return {"type": "http.request", "body": raw, "more_body": False}
+
+    resp = await endpoint(Request(scope, receive))
+    await log(request, me, "admin.tool", path, {"status": resp.status_code})
+    if not hasattr(resp, "body"):
+        raise ValueError("This tool returns a stream, which Mission Control cannot show")
+    return Response(resp.body, status_code=resp.status_code, media_type=resp.media_type or "application/json",
+                    headers={"Cache-Control": "no-store"})
+
+
 routes_studio = [
     Route("/api/v1/studio/me", me_get, methods=["GET"]),
     Route("/api/v1/studio/me", me_update, methods=["POST"]),
@@ -1203,6 +1253,7 @@ routes_studio = [
     Route("/api/v1/studio/admin/users/{id}", admin_user_update, methods=["POST"]),
     Route("/api/v1/studio/admin/activity", admin_activity, methods=["GET"]),
     Route("/api/v1/studio/admin/platforms", admin_platforms, methods=["GET"]),
+    Route("/api/v1/studio/admin/tool", admin_tool, methods=["POST"]),
     Route("/api/v1/studio/admin/settings", admin_settings, methods=["GET"]),
     Route("/api/v1/studio/admin/settings", admin_settings_save, methods=["POST"]),
     Route("/api/v1/studio/admin/platforms/{platform}/test", admin_platform_test, methods=["POST"]),
