@@ -447,9 +447,10 @@ async def admin_billing_sync(request: Request, me: Dict[str, Any]) -> Response:
     if not dodo.configured():
         raise ValueError("Set DODO_API_KEY on the backend first")
     created = []
+    existing = await dodo.product_ids_by_name()
     for pk in await db.select("ap_packs", {"active": "eq.true", "dodo_product_id": "is.null", "select": "*"}):
         pid = await dodo.create_product(dodo.one_time_product(f"WinPlayBox Studio - {pk['credits']:,} credits", pk["price_inr"],
-                                                              "One-time credit pack. Credits never expire."))
+                                                              "One-time credit pack. Credits never expire."), existing)
         await db.update("ap_packs", {"id": f"eq.{pk['id']}"}, {"dodo_product_id": pid})
         created.append(pk["id"])
     for pl in await db.select("ap_plans", {"active": "eq.true", "price_inr": "gt.0", "select": "*"}):
@@ -459,7 +460,7 @@ async def admin_billing_sync(request: Request, me: Dict[str, Any]) -> Response:
                 continue
             credits = pl["monthly_credits"] * (12 if period == "year" else 1)
             pid = await dodo.create_product(dodo.recurring_product(f"WinPlayBox Studio {pl['name']} ({period}ly)", price, interval,
-                                                                   f"{credits:,} credits per {period}. Credits never expire."))
+                                                                   f"{credits:,} credits per {period}. Credits never expire."), existing)
             await db.update("ap_plans", {"id": f"eq.{pl['id']}"}, {col: pid})
             created.append(f"{pl['id']}:{period}")
     await log(request, me, "admin.billing_sync", "dodo", {"created": created})

@@ -47,18 +47,37 @@ async def call(method: str, path: str, body: Optional[Dict[str, Any]] = None, pa
 
 def one_time_product(name: str, price_inr: int, description: str = "") -> Dict[str, Any]:
     return {"name": name, "description": description, "tax_category": "saas",
-            "price": {"type": "one_time_price", "currency": "INR", "price": int(price_inr) * 100, "discount": 0, "purchasing_power_parity": False}}
+            "price": {"type": "one_time_price", "currency": "INR", "price": int(price_inr) * 100, "discount": 0, "purchasing_power_parity": False,
+                      "tax_inclusive": True}}
 
 
 def recurring_product(name: str, price_inr: int, interval: str, description: str = "") -> Dict[str, Any]:
     """interval: "Month" or "Year"."""
     return {"name": name, "description": description, "tax_category": "saas",
             "price": {"type": "recurring_price", "currency": "INR", "price": int(price_inr) * 100, "discount": 0, "purchasing_power_parity": False,
-                      "payment_frequency_interval": interval, "payment_frequency_count": 1,
+                      "tax_inclusive": True, "payment_frequency_interval": interval, "payment_frequency_count": 1,
                       "subscription_period_interval": interval, "subscription_period_count": 10 if interval == "Year" else 120}}
 
 
-async def create_product(body: Dict[str, Any]) -> str:
+async def product_ids_by_name() -> Dict[str, str]:
+    """Existing (non-archived) products in this mode, so a sync never creates duplicates."""
+    out: Dict[str, str] = {}
+    page = 0
+    while True:
+        items = (await call("GET", "/products", params={"page_size": 100, "page_number": page, "archived": "false"})).get("items") or []
+        for it in items:
+            out.setdefault(it.get("name", ""), it["product_id"])
+        if len(items) < 100:
+            return out
+        page += 1
+
+
+async def create_product(body: Dict[str, Any], existing: Optional[Dict[str, str]] = None) -> str:
+    """Reuses a product with the same name (updating its price), otherwise creates one."""
+    pid = (existing or {}).get(body["name"])
+    if pid:
+        await call("PATCH", f"/products/{pid}", {"price": body["price"], "description": body.get("description", "")})
+        return pid
     return (await call("POST", "/products", body))["product_id"]
 
 
