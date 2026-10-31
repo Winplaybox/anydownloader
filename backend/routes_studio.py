@@ -22,11 +22,14 @@ X-Admin-Key still works as a super-admin login for scripts.
   GET  /api/v1/auth/{platform}/callback          public OAuth redirect target (signed, expiring, user-bound state)
   GET  /api/v1/studio/billing                   balance, plan, plans (monthly/yearly) and credit packs
   GET  /api/v1/studio/billing/usage             credit history with video titles
-  POST /api/v1/studio/billing/checkout          {kind: pack|plan, id, period} -> order (needs AP_PAYMENT_PROVIDER)
+  POST /api/v1/studio/billing/checkout          {kind: pack|plan, id, period} -> {"url"} Dodo hosted checkout
+  POST /api/v1/studio/billing/portal | /cancel  Dodo customer portal link | cancel at period end
+  POST /api/v1/billing/dodo/webhook             public, Standard Webhooks signature (DODO_WEBHOOK_SECRET)
 Super admin only:
   GET  /api/v1/studio/admin/users                POST /admin/users/{id} {role, credits_delta, status, plan_id}
   GET  /api/v1/studio/admin/activity?user=&limit=
   GET  /api/v1/studio/admin/platforms            setup state of each platform's OAuth app (env names, redirect URIs)
+  POST /api/v1/studio/admin/billing/sync         create missing Dodo products for packs and plans
 
 Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WPB_VAULT_SECRET; platform app credentials in services/social_oauth.py.
 """
@@ -55,11 +58,13 @@ try:
     from backend.services.llm_router import LLMError, llm_router
     from backend.services import social_oauth as social
     from backend.services.studio_catalog import CATALOG
+    from backend.services import dodo
 except (ModuleNotFoundError, ImportError):
     from security.zero_trust import authenticate_admin, client_ip, error, rate_limit  # type: ignore
     from services.llm_router import LLMError, llm_router  # type: ignore
     from services import social_oauth as social  # type: ignore
     from services.studio_catalog import CATALOG  # type: ignore
+    from services import dodo  # type: ignore
 
 AUTOPILOT_FIELDS = {"name", "active", "niche", "topics", "style", "language", "voice", "rate", "seconds", "captions",
                     "caption_style", "caption_position", "watermark", "music", "quality", "aspect", "platforms",
@@ -298,9 +303,9 @@ async def me_get(request: Request, me: Dict[str, Any]) -> Response:
                 "plan_period": p.get("plan_period"), "plan_renews_at": p.get("plan_renews_at")})
 
 
-# --------------------------------------------------------------------------- billing
+# --------------------------------------------------------------------------- billing (Dodo Payments)
 
-PAYMENT_PROVIDER = os.environ.get("AP_PAYMENT_PROVIDER", "").strip().lower()   # razorpay | dodo | "" (off)
+PAYMENT_PROVIDER = os.environ.get("AP_PAYMENT_PROVIDER", "dodo" if dodo.configured() else "").strip().lower()
 
 
 def _ledger_kind(reason: str) -> str:
@@ -316,16 +321,34 @@ def _ledger_kind(reason: str) -> str:
     return r.split(":")[0].split(" ")[0] or "video"
 
 
+def _public(row: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in row.items() if not k.startswith("dodo_")}
+
+
+async def _gateway_state() -> Dict[str, Any]:
+    plans = await db.select("ap_plans", {"active": "eq.true", "price_inr": "gt.0", "select": "id,dodo_month_product_id,dodo_year_product_id"})
+    packs = await db.select("ap_packs", {"active": "eq.true", "select": "id,dodo_product_id"})
+    need = len(plans) * 2 + len(packs)
+    ready = sum(bool(x["dodo_month_product_id"]) + bool(x["dodo_year_product_id"]) for x in plans) + sum(bool(x["dodo_product_id"]) for x in packs)
+    return {"provider": PAYMENT_PROVIDER or None, "mode": dodo.mode() if dodo.configured() else None, "configured": dodo.configured(),
+            "webhook": bool(os.environ.get("DODO_WEBHOOK_SECRET", "").strip()), "products_ready": ready, "products_needed": need,
+            "webhook_url": f"{API_BASE}/api/v1/billing/dodo/webhook"}
+
+
 @route()
 async def billing_get(request: Request, me: Dict[str, Any]) -> Response:
     """Balance, current plan, every plan (monthly and yearly prices) and every one-time pack."""
     plans = await db.select("ap_plans", {"active": "eq.true", "select": "*", "order": "sort.asc"})
     packs = await db.select("ap_packs", {"active": "eq.true", "select": "id,credits,price_inr", "order": "sort.asc"})
     p = me["profile"] or {}
-    return _ok({"credits": None if me["admin"] else p.get("credits", 0), "admin": me["admin"],
-                "plan_id": p.get("plan_id") or "free", "plan_period": p.get("plan_period"), "plan_renews_at": p.get("plan_renews_at"),
-                "plans": plans, "packs": packs, "short_cost": QUALITY_COST["basic"], "costs": QUALITY_COST,
-                "payments": bool(PAYMENT_PROVIDER)})
+    out = {"credits": None if me["admin"] else p.get("credits", 0), "admin": me["admin"],
+           "plan_id": p.get("plan_id") or "free", "plan_period": p.get("plan_period"), "plan_renews_at": p.get("plan_renews_at"),
+           "plan_cancel_at": p.get("plan_cancel_at"), "subscription": bool(p.get("dodo_subscription_id")),
+           "portal": bool(p.get("dodo_customer_id")), "plans": [_public(x) for x in plans], "packs": packs,
+           "short_cost": QUALITY_COST["basic"], "costs": QUALITY_COST, "payments": PAYMENT_PROVIDER == "dodo" and dodo.configured()}
+    if me["admin"]:
+        out["gateway"] = await _gateway_state()
+    return _ok(out)
 
 
 @route()
@@ -350,7 +373,7 @@ async def billing_usage(request: Request, me: Dict[str, Any]) -> Response:
 
 @route()
 async def billing_checkout(request: Request, me: Dict[str, Any]) -> Response:
-    """Creates an order for a pack or a plan. The payment page itself comes from the payment provider once one is set up."""
+    """Creates an order for a pack or a plan and returns the Dodo hosted checkout URL for it."""
     if not me["id"]:
         raise ValueError("The admin key cannot buy credits")
     b = await request.json()
@@ -360,22 +383,163 @@ async def billing_checkout(request: Request, me: Dict[str, Any]) -> Response:
         if not pack:
             raise ValueError("Unknown pack")
         order = {"kind": "pack", "item_id": item, "period": None, "amount_inr": pack["price_inr"], "credits": pack["credits"]}
+        product = pack.get("dodo_product_id")
     elif kind == "plan":
         period = "year" if b.get("period") == "year" else "month"
         plan = (await db.select("ap_plans", {"id": f"eq.{item}", "active": "eq.true", "select": "*"}) or [None])[0]
         if not plan or not plan["price_inr"]:
             raise ValueError("Unknown plan")
+        p = me["profile"] or {}
+        if p.get("dodo_subscription_id") and p.get("plan_id") == item and p.get("plan_period") == period and not p.get("plan_cancel_at"):
+            raise ValueError("You are already on this plan")
         order = {"kind": "plan", "item_id": item, "period": period,
                  "amount_inr": plan["price_year_inr"] if period == "year" else plan["price_inr"],
                  "credits": plan["monthly_credits"] * (12 if period == "year" else 1)}
+        product = plan.get("dodo_year_product_id" if period == "year" else "dodo_month_product_id")
     else:
         raise ValueError("Pick a pack or a plan")
-    if not PAYMENT_PROVIDER:
+    if PAYMENT_PROVIDER != "dodo" or not dodo.configured() or not product:
         await log(request, me, "billing.interest", item, order)
-        raise PaymentRequired("Online payments are being set up. Your choice is noted; we'll email you when checkout opens.")
-    saved = await db.insert("ap_orders", {**order, "user_id": me["id"], "provider": PAYMENT_PROVIDER})
+        raise PaymentRequired("Online payments are being set up. Your choice is noted; please try again soon.")
+    saved = await db.insert("ap_orders", {**order, "user_id": me["id"], "provider": "dodo"})
+    try:
+        session = await dodo.checkout(product, me["email"] or "", (me["profile"] or {}).get("name") or "",
+                                      f"{DASHBOARD}?billing=done#billing", {"order_id": saved["id"], "user_id": me["id"]})
+    except dodo.DodoError as e:
+        await db.update("ap_orders", {"id": f"eq.{saved['id']}"}, {"status": "failed"})
+        await log(request, me, "billing.error", saved["id"], {"error": str(e)[:300]})
+        raise PaymentRequired("Checkout could not start. Please try again in a minute.")
     await log(request, me, "billing.checkout", saved["id"], order)
-    raise PaymentRequired("Checkout is not connected yet.")
+    return _ok({"url": session["checkout_url"], "order_id": saved["id"]})
+
+
+@route()
+async def billing_portal(request: Request, me: Dict[str, Any]) -> Response:
+    """Dodo customer portal: invoices, payment method, subscription."""
+    cid = (me["profile"] or {}).get("dodo_customer_id")
+    if not cid:
+        raise ValueError("No payments yet")
+    try:
+        return _ok({"url": await dodo.portal_link(cid, f"{DASHBOARD}#billing")})
+    except dodo.DodoError:
+        raise PaymentRequired("The billing portal is not available right now. Try again in a minute.")
+
+
+@route()
+async def billing_cancel(request: Request, me: Dict[str, Any]) -> Response:
+    """Cancels at the end of the paid period; credits already added stay."""
+    p = me["profile"] or {}
+    sid = p.get("dodo_subscription_id")
+    if not sid:
+        raise ValueError("You have no active subscription")
+    try:
+        await dodo.cancel_subscription(sid, at_period_end=True)
+    except dodo.DodoError:
+        raise PaymentRequired("Could not cancel right now. Try again in a minute.")
+    await db.update("ap_profiles", {"user_id": f"eq.{me['id']}"}, {"plan_cancel_at": p.get("plan_renews_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+    await log(request, me, "billing.cancel", sid, {"plan": p.get("plan_id")})
+    return _ok({"cancel_at": p.get("plan_renews_at")})
+
+
+@route(admin_only=True)
+async def admin_billing_sync(request: Request, me: Dict[str, Any]) -> Response:
+    """Creates the Dodo products that are missing (one per pack, one monthly and one yearly per paid plan)."""
+    if not dodo.configured():
+        raise ValueError("Set DODO_API_KEY on the backend first")
+    created = []
+    for pk in await db.select("ap_packs", {"active": "eq.true", "dodo_product_id": "is.null", "select": "*"}):
+        pid = await dodo.create_product(dodo.one_time_product(f"WinPlayBox Studio - {pk['credits']:,} credits", pk["price_inr"],
+                                                              "One-time credit pack. Credits never expire."))
+        await db.update("ap_packs", {"id": f"eq.{pk['id']}"}, {"dodo_product_id": pid})
+        created.append(pk["id"])
+    for pl in await db.select("ap_plans", {"active": "eq.true", "price_inr": "gt.0", "select": "*"}):
+        for period, col, interval, price in (("month", "dodo_month_product_id", "Month", pl["price_inr"]),
+                                             ("year", "dodo_year_product_id", "Year", pl["price_year_inr"])):
+            if pl.get(col) or not price:
+                continue
+            credits = pl["monthly_credits"] * (12 if period == "year" else 1)
+            pid = await dodo.create_product(dodo.recurring_product(f"WinPlayBox Studio {pl['name']} ({period}ly)", price, interval,
+                                                                   f"{credits:,} credits per {period}. Credits never expire."))
+            await db.update("ap_plans", {"id": f"eq.{pl['id']}"}, {col: pid})
+            created.append(f"{pl['id']}:{period}")
+    await log(request, me, "admin.billing_sync", "dodo", {"created": created})
+    return _ok({"created": created, **(await _gateway_state())})
+
+
+def _order_meta(data: Dict[str, Any]) -> Dict[str, Any]:
+    return data.get("metadata") or {}
+
+
+async def _renewal_order(sub_id: str, payment_id: str) -> Optional[str]:
+    """A renewal charge of an existing subscription: a new paid order for the next period, same plan."""
+    first = (await db.select("ap_orders", {"subscription_id": f"eq.{sub_id}", "select": "*", "order": "created_at.asc", "limit": "1"}) or [None])[0]
+    if not first:
+        return None
+    o = await db.insert("ap_orders", {"user_id": first["user_id"], "kind": "plan", "item_id": first["item_id"], "period": first["period"],
+                                      "amount_inr": first["amount_inr"], "credits": first["credits"], "provider": "dodo",
+                                      "subscription_id": sub_id})
+    return o["id"]
+
+
+async def dodo_webhook(request: Request) -> Response:
+    """Dodo -> us. Signed (Standard Webhooks); idempotent, since Dodo retries."""
+    raw = await request.body()
+    if not dodo.verify_webhook(request.headers, raw):
+        return JSONResponse({"ok": False}, status_code=401)
+    try:
+        event = json.loads(raw)
+    except ValueError:
+        return JSONResponse({"ok": False}, status_code=400)
+    kind, data = event.get("type", ""), event.get("data") or {}
+    meta = _order_meta(data)
+    customer = data.get("customer") or {}
+    try:
+        if kind == "payment.succeeded":
+            pay_id = data.get("payment_id")
+            sub_id = data.get("subscription_id")
+            if pay_id and await db.select("ap_orders", {"provider_ref": f"eq.{pay_id}", "select": "id"}):
+                return JSONResponse({"ok": True, "duplicate": True})
+            order_id = meta.get("order_id")
+            order = (await db.select("ap_orders", {"id": f"eq.{order_id}", "select": "*"}) or [None])[0] if order_id else None
+            if order and order["status"] != "created" and sub_id:
+                order_id = await _renewal_order(sub_id, pay_id)          # metadata of a renewal points at the first order
+            elif not order and sub_id:
+                order_id = await _renewal_order(sub_id, pay_id)
+            if order_id:
+                if sub_id:
+                    await db.update("ap_orders", {"id": f"eq.{order_id}"}, {"subscription_id": sub_id})
+                await db.rpc("ap_apply_order", p_order=order_id, p_provider_ref=pay_id)
+                owner = (await db.select("ap_orders", {"id": f"eq.{order_id}", "select": "user_id"}) or [{}])[0].get("user_id")
+                if owner and customer.get("customer_id"):
+                    await db.update("ap_profiles", {"user_id": f"eq.{owner}"}, {"dodo_customer_id": customer["customer_id"]})
+        elif kind == "payment.failed" and meta.get("order_id"):
+            await db.update("ap_orders", {"id": f"eq.{meta['order_id']}", "status": "eq.created"}, {"status": "failed"})
+        elif kind in ("subscription.active", "subscription.renewed") and meta.get("user_id"):
+            uid, sub_id = meta["user_id"], data.get("subscription_id")
+            prof = (await db.select("ap_profiles", {"user_id": f"eq.{uid}", "select": "dodo_subscription_id"}) or [{}])[0]
+            old = prof.get("dodo_subscription_id")
+            if old and sub_id and old != sub_id:                         # switched plan: stop the previous subscription
+                try:
+                    await dodo.cancel_subscription(old, at_period_end=False)
+                except dodo.DodoError:
+                    pass
+            fields = {"dodo_subscription_id": sub_id, "plan_cancel_at": None}
+            if customer.get("customer_id"):
+                fields["dodo_customer_id"] = customer["customer_id"]
+            if data.get("next_billing_date"):
+                fields["plan_renews_at"] = data["next_billing_date"]
+            await db.update("ap_profiles", {"user_id": f"eq.{uid}"}, fields)
+            if meta.get("order_id") and sub_id:
+                await db.update("ap_orders", {"id": f"eq.{meta['order_id']}"}, {"subscription_id": sub_id})
+        elif kind in ("subscription.cancelled", "subscription.expired", "subscription.failed") and data.get("subscription_id"):
+            rows = await db.select("ap_profiles", {"dodo_subscription_id": f"eq.{data['subscription_id']}", "select": "user_id,plan_renews_at"})
+            for r in rows:
+                await db.update("ap_profiles", {"user_id": f"eq.{r['user_id']}"},
+                                {"plan_cancel_at": r.get("plan_renews_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+    except Exception as e:  # tell Dodo to retry later
+        print(f"dodo webhook {kind} failed: {e}")
+        return JSONResponse({"ok": False}, status_code=500)
+    return JSONResponse({"ok": True})
 
 
 @route(needs_db=False)
@@ -847,6 +1011,10 @@ routes_studio = [
     Route("/api/v1/studio/billing", billing_get, methods=["GET"]),
     Route("/api/v1/studio/billing/usage", billing_usage, methods=["GET"]),
     Route("/api/v1/studio/billing/checkout", billing_checkout, methods=["POST"]),
+    Route("/api/v1/studio/billing/portal", billing_portal, methods=["POST"]),
+    Route("/api/v1/studio/billing/cancel", billing_cancel, methods=["POST"]),
+    Route("/api/v1/studio/admin/billing/sync", admin_billing_sync, methods=["POST"]),
+    Route("/api/v1/billing/dodo/webhook", dodo_webhook, methods=["POST"]),
     Route("/api/v1/studio/accounts", accounts_list, methods=["GET"]),
     Route("/api/v1/studio/accounts/{id}/delete", accounts_delete, methods=["POST"]),
     Route("/api/v1/studio/analytics", analytics, methods=["GET"]),
