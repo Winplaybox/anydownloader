@@ -303,6 +303,81 @@ async def me_get(request: Request, me: Dict[str, Any]) -> Response:
                 "plan_period": p.get("plan_period"), "plan_renews_at": p.get("plan_renews_at")})
 
 
+# --------------------------------------------------------------------------- account (profile, devices, delete)
+
+def _session_id(request: Request) -> Optional[str]:
+    """The Supabase session behind this call (claim of the already-verified access token)."""
+    try:
+        payload = request.headers.get("authorization", "")[7:].split(".")[1]
+        return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))).get("session_id")
+    except Exception:
+        return None
+
+
+def _signed_in(me: Dict[str, Any]) -> None:
+    if not me["id"]:
+        raise ValueError("Sign in with your account for this")
+
+
+@route()
+async def me_update(request: Request, me: Dict[str, Any]) -> Response:
+    _signed_in(me)
+    name = " ".join(str((await _body(request)).get("name") or "").split())[:60]
+    if len(name) < 2:
+        raise ValueError("Use at least 2 characters")
+    await db.update("ap_profiles", {"user_id": f"eq.{me['id']}"}, {"name": name})
+    await log(request, me, "account.rename", me["id"], {"name": name})
+    return _ok({"name": name})
+
+
+@route()
+async def account_sessions(request: Request, me: Dict[str, Any]) -> Response:
+    _signed_in(me)
+    current = _session_id(request)
+    rows = await db.rpc("ap_my_sessions", p_user=me["id"]) or []
+    return _ok([{**r, "current": r["id"] == current} for r in rows])
+
+
+@route()
+async def account_session_revoke(request: Request, me: Dict[str, Any]) -> Response:
+    _signed_in(me)
+    sid = request.path_params["id"]
+    if sid == _session_id(request):
+        raise ValueError("Use Sign out for this device")
+    if not await db.rpc("ap_revoke_session", p_user=me["id"], p_session=sid):
+        raise ValueError("That device is already signed out")
+    _sessions.clear()                                              # forget cached token checks right away
+    await log(request, me, "account.session_revoke", sid)
+    return _ok({"revoked": sid})
+
+
+@route()
+async def account_delete(request: Request, me: Dict[str, Any]) -> Response:
+    """Permanently deletes the user: their videos' files, then the auth user (all ap_* rows cascade)."""
+    _signed_in(me)
+    if me["admin"]:
+        raise ValueError("A super admin account cannot delete itself. Hand the role to someone else first.")
+    if str((await _body(request)).get("confirm") or "").strip().lower() != (me["email"] or "").lower():
+        raise ValueError("Type your email address to confirm")
+    p = me["profile"] or {}
+    if p.get("dodo_subscription_id"):
+        try:
+            await dodo.cancel_subscription(p["dodo_subscription_id"], at_period_end=False)
+        except dodo.DodoError:
+            raise PaymentRequired("Could not cancel your subscription. Try again in a minute.")
+    jobs = await db.select("ap_jobs", {"owner": f"eq.{me['id']}", "select": "video_path,thumb_path"})
+    for i in range(0, len(jobs), 100):
+        await db.remove_files([x for j in jobs[i:i + 100] for x in (j.get("video_path"), j.get("thumb_path"))])
+    for acc in await db.select("ap_social_accounts", {"owner": f"eq.{me['id']}", "select": "id,platform"}):
+        await social.revoke(acc["platform"], await db.rpc("ap_account_token", p_id=acc["id"]) or {})
+        await db.rpc("ap_delete_account", p_id=acc["id"])          # also removes the encrypted token from Vault
+    await log(request, me, "account.delete", me["id"], {"email": me["email"], "videos": len(jobs)})
+    r = await db.client().delete(f"{db.url}/auth/v1/admin/users/{me['id']}")
+    r.raise_for_status()
+    _sessions.clear()
+    return _ok({"deleted": True})
+
+
 # --------------------------------------------------------------------------- billing (Dodo Payments)
 
 PAYMENT_PROVIDER = os.environ.get("AP_PAYMENT_PROVIDER", "dodo" if dodo.configured() else "").strip().lower()
@@ -794,9 +869,9 @@ def _sign(body: str) -> str:
     return base64.urlsafe_b64encode(hmac.new(key, body.encode(), hashlib.sha256).digest()).decode().rstrip("=")
 
 
-def _make_state(platform: str, nonce: str, user_id: Optional[str]) -> str:
+def _make_state(platform: str, nonce: str, user_id: Optional[str], popup: bool = False) -> str:
     body = base64.urlsafe_b64encode(json.dumps(
-        {"p": platform, "u": user_id, "n": nonce, "exp": int(time.time()) + 600}).encode()).decode().rstrip("=")
+        {"p": platform, "u": user_id, "n": nonce, "exp": int(time.time()) + 600, "w": 1 if popup else 0}).encode()).decode().rstrip("=")
     return f"{body}.{_sign(body)}"
 
 
@@ -836,11 +911,12 @@ async def oauth_start(request: Request, me: Dict[str, Any]) -> Response:
         await db.insert("ap_oauth_states", {"nonce": nonce, "platform": platform, "verifier": verifier, "user_id": me["id"]},
                         returning=False)
     await log(request, me, "account.connect_start", platform)
-    return _ok({"url": social.authorize_url(platform, _redirect_uri(platform), _make_state(platform, nonce, me["id"]), challenge)})
+    return _ok({"url": social.authorize_url(platform, _redirect_uri(platform), _make_state(platform, nonce, me["id"], request.query_params.get("popup") == "1"), challenge)})
 
 
-def _back(platform: str, ok: bool, msg: str = "") -> Response:
-    q = urlencode({"connected" if ok else "connect_error": platform, **({"msg": msg[:200]} if msg else {})})
+def _back(platform: str, ok: bool, msg: str = "", popup: bool = False) -> Response:
+    """Back to the Studio; "popup=1" tells a sign-in popup to report to the Studio tab and close."""
+    q = urlencode({"connected" if ok else "connect_error": platform, **({"msg": msg[:200]} if msg else {}), **({"popup": "1"} if popup else {})})
     return RedirectResponse(f"{DASHBOARD}?{q}#publish", status_code=302)
 
 
@@ -851,17 +927,18 @@ async def oauth_callback(request: Request) -> Response:
     if platform not in social.PLATFORMS:
         return _back(platform, False, "Unknown platform.")
     state = _read_state(q.get("state", ""), platform)
+    popup = bool((state or {}).get("w"))
     if not state:
-        return _back(platform, False, "This sign-in link expired. Click Connect again.")
+        return _back(platform, False, "This sign-in link expired. Click Connect again.")  # no state: cannot know
     if q.get("error"):
-        return _back(platform, False, q.get("error_description") or q.get("error_reason") or q["error"])
+        return _back(platform, False, q.get("error_description") or q.get("error_reason") or q["error"], popup)
     if not db.configured:
-        return _back(platform, False, "Service is not available right now.")
+        return _back(platform, False, "Service is not available right now.", popup)
     verifier = None
     if social.PLATFORMS[platform]["pkce"]:
         rows = await db.select("ap_oauth_states", {"nonce": f"eq.{state['n']}", "select": "verifier,user_id"})
         if not rows or rows[0].get("user_id") != state.get("u"):
-            return _back(platform, False, "This sign-in link was already used. Click Connect again.")
+            return _back(platform, False, "This sign-in link was already used. Click Connect again.", popup)
         verifier = rows[0]["verifier"]
         await db.delete("ap_oauth_states", {"nonce": f"eq.{state['n']}"})
     who = {"id": state.get("u"), "email": None}
@@ -871,19 +948,21 @@ async def oauth_callback(request: Request) -> Response:
             await db.rpc("ap_save_account", p_owner=state.get("u"), p_platform=a["platform"], p_external_id=a["external_id"],
                          p_name=a["name"], p_avatar=a["avatar"], p_token=a["token"])
         await log(request, who, "account.connected", platform, {"accounts": [a["name"] for a in accounts]})
-        return _back(platform, True, ", ".join(a["name"] for a in accounts))
+        return _back(platform, True, ", ".join(a["name"] for a in accounts), popup)
     except social.OAuthError as e:
         await log(request, who, "account.connect_failed", platform, {"error": str(e)[:200]})
-        return _back(platform, False, str(e))
+        return _back(platform, False, str(e), popup)
     except httpx.HTTPError as e:
-        return _back(platform, False, f"network error: {type(e).__name__}")
+        return _back(platform, False, f"network error: {type(e).__name__}", popup)
 
 
 @route()
 async def accounts_delete(request: Request, me: Dict[str, Any]) -> Response:
     acc = await _own(me, "ap_social_accounts", request.path_params["id"], "id,platform,name")
+    token = await db.rpc("ap_account_token", p_id=acc["id"]) or {}
+    revoked = await social.revoke(acc["platform"], token)            # platform side first, then our encrypted copy
     await db.rpc("ap_delete_account", p_id=acc["id"])
-    await log(request, me, "account.disconnect", acc["id"], {"platform": acc["platform"], "name": acc["name"]})
+    await log(request, me, "account.disconnect", acc["id"], {"platform": acc["platform"], "name": acc["name"], "revoked": revoked})
     return _ok({"deleted": acc["id"]})
 
 
@@ -994,6 +1073,10 @@ async def admin_platforms(request: Request, me: Dict[str, Any]) -> Response:
 
 routes_studio = [
     Route("/api/v1/studio/me", me_get, methods=["GET"]),
+    Route("/api/v1/studio/me", me_update, methods=["POST"]),
+    Route("/api/v1/studio/account/sessions", account_sessions, methods=["GET"]),
+    Route("/api/v1/studio/account/sessions/{id}/revoke", account_session_revoke, methods=["POST"]),
+    Route("/api/v1/studio/account/delete", account_delete, methods=["POST"]),
     Route("/api/v1/studio/catalog", catalog, methods=["GET"]),
     Route("/api/v1/studio/voices", voices, methods=["GET"]),
     Route("/api/v1/studio/ideas", ideas, methods=["POST"]),
