@@ -66,7 +66,10 @@ SPEC_FIELDS = {"topic", "script", "niche", "style", "language", "voice", "rate",
 QUALITY_COST = {"basic": 1, "good": 1, "premium": 2, "max": 3}
 
 API_BASE = os.environ.get("AP_PUBLIC_API_BASE", "https://anydownloader-backend-vvbj.onrender.com").rstrip("/")
-DASHBOARD = os.environ.get("AP_DASHBOARD_URL", "https://winplaybox.in/admin")
+DASHBOARD = os.environ.get("AP_DASHBOARD_URL", "https://studio.winplaybox.in/")
+# Shared with the Studio server (studio.winplaybox.in). When set, user calls must carry its HMAC signature, so only the
+# Studio server can use this API; browsers and scripts calling it directly are refused.
+STUDIO_SECRET = os.environ.get("STUDIO_SHARED_SECRET", "").strip().encode()
 
 
 def _ok(data: Any, status: int = 200) -> JSONResponse:
@@ -181,10 +184,23 @@ async def _profile(user: Dict[str, Any]) -> Dict[str, Any]:
     return p
 
 
+async def _studio_signed(request: Request) -> bool:
+    """X-Studio-Sig = HMAC-SHA256(secret, "ts\\nMETHOD\\npath\\nsha256(body)"), at most 5 minutes old."""
+    ts = request.headers.get("x-studio-ts", "")
+    sig = request.headers.get("x-studio-sig", "")
+    if not ts.isdigit() or not sig or abs(time.time() - int(ts)) > 300:
+        return False
+    body_hash = hashlib.sha256(await request.body()).hexdigest()
+    msg = f"{ts}\n{request.method}\n{request.url.path}\n{body_hash}".encode()
+    return hmac.compare_digest(hmac.new(STUDIO_SECRET, msg, hashlib.sha256).hexdigest(), sig)
+
+
 async def caller(request: Request) -> Dict[str, Any]:
     """{"id", "email", "role", "admin", "profile"} or raises Forbidden."""
     if authenticate_admin(request, allow_bearer_jwt=False):
         return {"id": None, "email": "admin-key", "role": "admin", "admin": True, "profile": None}
+    if STUDIO_SECRET and not await _studio_signed(request):
+        raise Forbidden("Use studio.winplaybox.in")
     auth = request.headers.get("authorization", "")
     token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
     if not token or token.startswith("wpb"):
