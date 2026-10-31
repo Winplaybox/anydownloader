@@ -233,12 +233,46 @@ async def log(request: Request, me: Dict[str, Any], action: str, target: str = "
         pass
 
 
+# --------------------------------------------------------------------------- server settings set in the Studio
+
+# Keys the super admin may set on the Platform setup page. Stored encrypted in Supabase Vault (ap_settings); a value
+# saved there overrides the same Render variable, and removing it falls back to Render's value.
+SETTING_KEYS = sorted({k for v in social.PLATFORMS.values() for k in v["env"]} | {"DODO_API_KEY", "DODO_WEBHOOK_SECRET", "DODO_MODE"})
+_ENV_DEFAULTS = {k: os.environ.get(k, "") for k in SETTING_KEYS}
+_settings: Dict[str, Any] = {"at": 0.0, "applied": set(), "meta": {}, "ready": False}
+
+
+async def load_settings(force: bool = False) -> None:
+    if not db.configured or (not force and time.time() - _settings["at"] < 60):
+        return
+    _settings["at"] = time.time()
+    try:
+        rows = await db.rpc("ap_get_settings") or []
+        _settings["ready"] = True
+    except Exception:          # settings table not created yet: Render variables only
+        _settings["ready"] = False
+        return
+    seen = set()
+    for r in rows:
+        if r["key"] in SETTING_KEYS and r.get("value"):
+            os.environ[r["key"]] = r["value"]
+            seen.add(r["key"])
+    for k in _settings["applied"] - seen:
+        if _ENV_DEFAULTS.get(k):
+            os.environ[k] = _ENV_DEFAULTS[k]
+        else:
+            os.environ.pop(k, None)
+    _settings["applied"] = seen
+    _settings["meta"] = {r["key"]: {"updated_at": r.get("updated_at"), "updated_by": r.get("updated_by")} for r in rows}
+
+
 def route(admin_only: bool = False, needs_db: bool = True):
     def deco(fn):
         async def wrapper(request: Request) -> Response:
             if needs_db and not db.configured:
                 return error(request, 503, "NotConfigured", "Backend is missing Supabase settings")
             try:
+                await load_settings()
                 me = await caller(request)
             except Forbidden as e:
                 return error(request, 401, "AuthRequired", str(e))
@@ -380,7 +414,8 @@ async def account_delete(request: Request, me: Dict[str, Any]) -> Response:
 
 # --------------------------------------------------------------------------- billing (Dodo Payments)
 
-PAYMENT_PROVIDER = os.environ.get("AP_PAYMENT_PROVIDER", "dodo" if dodo.configured() else "").strip().lower()
+def payment_provider() -> str:
+    return os.environ.get("AP_PAYMENT_PROVIDER", "").strip().lower() or ("dodo" if dodo.configured() else "")
 
 
 def _ledger_kind(reason: str) -> str:
@@ -405,7 +440,7 @@ async def _gateway_state() -> Dict[str, Any]:
     packs = await db.select("ap_packs", {"active": "eq.true", "select": "id,dodo_product_id"})
     need = len(plans) * 2 + len(packs)
     ready = sum(bool(x["dodo_month_product_id"]) + bool(x["dodo_year_product_id"]) for x in plans) + sum(bool(x["dodo_product_id"]) for x in packs)
-    return {"provider": PAYMENT_PROVIDER or None, "mode": dodo.mode() if dodo.configured() else None, "configured": dodo.configured(),
+    return {"provider": payment_provider() or None, "mode": dodo.mode() if dodo.configured() else None, "configured": dodo.configured(),
             "webhook": bool(os.environ.get("DODO_WEBHOOK_SECRET", "").strip()), "products_ready": ready, "products_needed": need,
             "webhook_url": f"{API_BASE}/api/v1/billing/dodo/webhook"}
 
@@ -420,7 +455,7 @@ async def billing_get(request: Request, me: Dict[str, Any]) -> Response:
            "plan_id": p.get("plan_id") or "free", "plan_period": p.get("plan_period"), "plan_renews_at": p.get("plan_renews_at"),
            "plan_cancel_at": p.get("plan_cancel_at"), "subscription": bool(p.get("dodo_subscription_id")),
            "portal": bool(p.get("dodo_customer_id")), "plans": [_public(x) for x in plans], "packs": packs,
-           "short_cost": QUALITY_COST["basic"], "costs": QUALITY_COST, "payments": PAYMENT_PROVIDER == "dodo" and dodo.configured()}
+           "short_cost": QUALITY_COST["basic"], "costs": QUALITY_COST, "payments": payment_provider() == "dodo" and dodo.configured()}
     if me["admin"]:
         out["gateway"] = await _gateway_state()
     return _ok(out)
@@ -473,7 +508,7 @@ async def billing_checkout(request: Request, me: Dict[str, Any]) -> Response:
         product = plan.get("dodo_year_product_id" if period == "year" else "dodo_month_product_id")
     else:
         raise ValueError("Pick a pack or a plan")
-    if PAYMENT_PROVIDER != "dodo" or not dodo.configured() or not product:
+    if payment_provider() != "dodo" or not dodo.configured() or not product:
         await log(request, me, "billing.interest", item, order)
         raise PaymentRequired("Online payments are being set up. Your choice is noted; please try again soon.")
     saved = await db.insert("ap_orders", {**order, "user_id": me["id"], "provider": "dodo"})
@@ -559,6 +594,7 @@ async def _renewal_order(sub_id: str, payment_id: str) -> Optional[str]:
 
 async def dodo_webhook(request: Request) -> Response:
     """Dodo -> us. Signed (Standard Webhooks); idempotent, since Dodo retries."""
+    await load_settings()
     raw = await request.body()
     if not dodo.verify_webhook(request.headers, raw):
         return JSONResponse({"ok": False}, status_code=401)
@@ -922,6 +958,7 @@ def _back(platform: str, ok: bool, msg: str = "", popup: bool = False) -> Respon
 
 async def oauth_callback(request: Request) -> Response:
     """Public: the platform sends the browser here. Trust comes from the signed state, which names the user."""
+    await load_settings()
     platform = request.path_params["platform"]
     q = request.query_params
     if platform not in social.PLATFORMS:
@@ -1067,8 +1104,67 @@ async def admin_activity(request: Request, me: Dict[str, Any]) -> Response:
 @route(admin_only=True, needs_db=False)
 async def admin_platforms(request: Request, me: Dict[str, Any]) -> Response:
     """For the site owner only: what each platform's OAuth app still needs (never returns secret values)."""
-    return _ok({k: {"label": v["label"], "configured": social.configured(k), "env": v["env"], "steps": v["steps"],
+    return _ok({k: {"label": v["label"], "about": v["about"], "configured": social.configured(k), "env": v["env"], "steps": v["steps"],
                     "note": v["note"], "redirect_uri": _redirect_uri(k)} for k, v in social.PLATFORMS.items()})
+
+
+def _setting_state(key: str) -> Dict[str, Any]:
+    v = os.environ.get(key, "")
+    src = "studio" if key in _settings["applied"] else ("server" if v else None)
+    return {"set": bool(v), "source": src, "hint": ("••••" + v[-4:]) if len(v) > 8 else ("set" if v else ""),
+            **(_settings["meta"].get(key) or {})}
+
+
+@route(admin_only=True)
+async def admin_settings(request: Request, me: Dict[str, Any]) -> Response:
+    """Which keys are set and where (Studio or Render). Never returns the values themselves."""
+    await load_settings(force=True)
+    return _ok({"keys": {k: _setting_state(k) for k in SETTING_KEYS}, "store_ready": _settings["ready"],
+                "dodo_webhook_url": f"{API_BASE}/api/v1/billing/dodo/webhook"})
+
+
+@route(admin_only=True)
+async def admin_settings_save(request: Request, me: Dict[str, Any]) -> Response:
+    """{"values": {KEY: "value" | ""}}; an empty value removes the Studio copy (Render's value applies again)."""
+    values = (await _body(request)).get("values") or {}
+    if not isinstance(values, dict) or not values:
+        raise ValueError("Nothing to save")
+    for k, v in values.items():
+        if k not in SETTING_KEYS:
+            raise ValueError(f"Unknown setting {k}")
+        v = str(v or "").strip()
+        if len(v) > 4000:
+            raise ValueError(f"{k} is too long")
+        if k == "DODO_MODE" and v not in ("", "test", "live"):
+            raise ValueError("Mode must be test or live")
+    try:
+        for k, v in values.items():
+            await db.rpc("ap_set_setting", p_key=k, p_value=str(v or "").strip(), p_by=me["email"] or "admin")
+    except httpx.HTTPStatusError as e:
+        if "ap_set_setting" in e.response.text:
+            raise ValueError("The settings store is not set up yet: run supabase/autopilot_settings.sql once.")
+        raise
+    await load_settings(force=True)
+    await log(request, me, "admin.settings", ",".join(sorted(values)), {"keys": sorted(values)})   # names only, never values
+    return _ok({"keys": {k: _setting_state(k) for k in SETTING_KEYS}})
+
+
+@route(admin_only=True)
+async def admin_platform_test(request: Request, me: Dict[str, Any]) -> Response:
+    platform = request.path_params["platform"]
+    if platform == "dodo":
+        if not dodo.configured():
+            return _ok({"ok": False, "message": "Add the Dodo API key first."})
+        try:
+            await dodo.call("GET", "/products", params={"page_size": 1})
+            return _ok({"ok": True, "message": f"Dodo accepted the key ({dodo.mode()} mode)."})
+        except dodo.DodoError as e:
+            return _ok({"ok": False, "message": "Dodo rejected the key" + (" (check that Mode matches the key: test or live)" if "401" in str(e) else "") + "."})
+    if platform not in social.PLATFORMS:
+        raise ValueError("Unknown platform")
+    ok, msg = await social.check_app(platform, _redirect_uri(platform))
+    await log(request, me, "admin.platform_test", platform, {"ok": ok})
+    return _ok({"ok": ok, "message": msg})
 
 
 routes_studio = [
@@ -1107,6 +1203,9 @@ routes_studio = [
     Route("/api/v1/studio/admin/users/{id}", admin_user_update, methods=["POST"]),
     Route("/api/v1/studio/admin/activity", admin_activity, methods=["GET"]),
     Route("/api/v1/studio/admin/platforms", admin_platforms, methods=["GET"]),
+    Route("/api/v1/studio/admin/settings", admin_settings, methods=["GET"]),
+    Route("/api/v1/studio/admin/settings", admin_settings_save, methods=["POST"]),
+    Route("/api/v1/studio/admin/platforms/{platform}/test", admin_platform_test, methods=["POST"]),
     Route("/api/v1/auth/{platform}/callback", oauth_callback, methods=["GET"]),
     Route("/api/v1/auth/{platform}", oauth_start, methods=["GET"]),
 ]
