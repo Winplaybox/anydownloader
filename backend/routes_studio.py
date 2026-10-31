@@ -20,6 +20,9 @@ X-Admin-Key still works as a super-admin login for scripts.
   POST /api/v1/studio/requests                   "which platform next?"
   GET  /api/v1/auth/{platform}                   -> {"url"}: start OAuth (YouTube, TikTok, Instagram, Facebook, Threads, X)
   GET  /api/v1/auth/{platform}/callback          public OAuth redirect target (signed, expiring, user-bound state)
+  GET  /api/v1/studio/billing                   balance, plan, plans (monthly/yearly) and credit packs
+  GET  /api/v1/studio/billing/usage             credit history with video titles
+  POST /api/v1/studio/billing/checkout          {kind: pack|plan, id, period} -> order (needs AP_PAYMENT_PROVIDER)
 Super admin only:
   GET  /api/v1/studio/admin/users                POST /admin/users/{id} {role, credits_delta, status, plan_id}
   GET  /api/v1/studio/admin/activity?user=&limit=
@@ -63,7 +66,8 @@ AUTOPILOT_FIELDS = {"name", "active", "niche", "topics", "style", "language", "v
                     "schedule", "timezone", "character"}
 SPEC_FIELDS = {"topic", "script", "niche", "style", "language", "voice", "rate", "seconds", "captions", "caption_style",
                "caption_position", "watermark", "music", "quality", "aspect", "platforms", "character"}
-QUALITY_COST = {"basic": 1, "good": 1, "premium": 2, "max": 3}
+# Credits per started 30 seconds of video (a 30 s basic short = 24). Mirrors ap_job_cost() in the database.
+QUALITY_COST = {"basic": 24, "good": 30, "premium": 45, "max": 70}
 
 API_BASE = os.environ.get("AP_PUBLIC_API_BASE", "https://anydownloader-backend-vvbj.onrender.com").rstrip("/")
 DASHBOARD = os.environ.get("AP_DASHBOARD_URL", "https://studio.winplaybox.in/")
@@ -290,7 +294,88 @@ async def me_get(request: Request, me: Dict[str, Any]) -> Response:
     if p.get("plan_id"):
         plan = (await db.select("ap_plans", {"id": f"eq.{p['plan_id']}", "select": "id,name,monthly_credits"}) or [None])[0]
     return _ok({"id": me["id"], "email": me["email"], "role": me["role"], "admin": me["admin"], "name": p.get("name"),
-                "avatar": p.get("avatar"), "credits": None if me["admin"] else p.get("credits", 0), "plan": plan})
+                "avatar": p.get("avatar"), "credits": None if me["admin"] else p.get("credits", 0), "plan": plan,
+                "plan_period": p.get("plan_period"), "plan_renews_at": p.get("plan_renews_at")})
+
+
+# --------------------------------------------------------------------------- billing
+
+PAYMENT_PROVIDER = os.environ.get("AP_PAYMENT_PROVIDER", "").strip().lower()   # razorpay | dodo | "" (off)
+
+
+def _ledger_kind(reason: str) -> str:
+    r = (reason or "").lower()
+    if r.startswith("refund"):
+        return "refund"
+    if r.startswith("payment"):
+        return "purchase"
+    if r.startswith("monthly"):
+        return "subscription"
+    if r.startswith("admin") or r.startswith("credit scale"):
+        return "adjustment"
+    return r.split(":")[0].split(" ")[0] or "video"
+
+
+@route()
+async def billing_get(request: Request, me: Dict[str, Any]) -> Response:
+    """Balance, current plan, every plan (monthly and yearly prices) and every one-time pack."""
+    plans = await db.select("ap_plans", {"active": "eq.true", "select": "*", "order": "sort.asc"})
+    packs = await db.select("ap_packs", {"active": "eq.true", "select": "id,credits,price_inr", "order": "sort.asc"})
+    p = me["profile"] or {}
+    return _ok({"credits": None if me["admin"] else p.get("credits", 0), "admin": me["admin"],
+                "plan_id": p.get("plan_id") or "free", "plan_period": p.get("plan_period"), "plan_renews_at": p.get("plan_renews_at"),
+                "plans": plans, "packs": packs, "short_cost": QUALITY_COST["basic"], "costs": QUALITY_COST,
+                "payments": bool(PAYMENT_PROVIDER)})
+
+
+@route()
+async def billing_usage(request: Request, me: Dict[str, Any]) -> Response:
+    """Credit history, newest first, with the video title for video charges and refunds."""
+    if not me["id"]:
+        return _ok([])
+    rows = await db.select("ap_credit_ledger", {"user_id": f"eq.{me['id']}", "select": "id,delta,reason,kind,title,job_id,created_at",
+                                                 "order": "created_at.desc", "limit": "200"})
+    job_ids = sorted({r["job_id"] for r in rows if r.get("job_id")})
+    titles: Dict[str, str] = {}
+    if job_ids:
+        jobs = await db.select("ap_jobs", {"id": f"in.({','.join(job_ids)})", "select": "id,title:result->>title,topic:spec->>topic"})
+        titles = {j["id"]: j.get("title") or j.get("topic") or "" for j in jobs}
+    out = []
+    for r in rows:
+        kind = r.get("kind") or _ledger_kind(r.get("reason", ""))
+        out.append({"id": r["id"], "delta": r["delta"], "kind": kind, "created_at": r["created_at"],
+                    "title": r.get("title") or titles.get(r.get("job_id") or "", "")})
+    return _ok(out)
+
+
+@route()
+async def billing_checkout(request: Request, me: Dict[str, Any]) -> Response:
+    """Creates an order for a pack or a plan. The payment page itself comes from the payment provider once one is set up."""
+    if not me["id"]:
+        raise ValueError("The admin key cannot buy credits")
+    b = await request.json()
+    kind, item = str(b.get("kind") or ""), str(b.get("id") or "")
+    if kind == "pack":
+        pack = (await db.select("ap_packs", {"id": f"eq.{item}", "active": "eq.true", "select": "*"}) or [None])[0]
+        if not pack:
+            raise ValueError("Unknown pack")
+        order = {"kind": "pack", "item_id": item, "period": None, "amount_inr": pack["price_inr"], "credits": pack["credits"]}
+    elif kind == "plan":
+        period = "year" if b.get("period") == "year" else "month"
+        plan = (await db.select("ap_plans", {"id": f"eq.{item}", "active": "eq.true", "select": "*"}) or [None])[0]
+        if not plan or not plan["price_inr"]:
+            raise ValueError("Unknown plan")
+        order = {"kind": "plan", "item_id": item, "period": period,
+                 "amount_inr": plan["price_year_inr"] if period == "year" else plan["price_inr"],
+                 "credits": plan["monthly_credits"] * (12 if period == "year" else 1)}
+    else:
+        raise ValueError("Pick a pack or a plan")
+    if not PAYMENT_PROVIDER:
+        await log(request, me, "billing.interest", item, order)
+        raise PaymentRequired("Online payments are being set up. Your choice is noted; we'll email you when checkout opens.")
+    saved = await db.insert("ap_orders", {**order, "user_id": me["id"], "provider": PAYMENT_PROVIDER})
+    await log(request, me, "billing.checkout", saved["id"], order)
+    raise PaymentRequired("Checkout is not connected yet.")
 
 
 @route(needs_db=False)
@@ -396,7 +481,7 @@ async def autopilots_save(request: Request, me: Dict[str, Any]) -> Response:
     if not me["admin"]:
         plan = (await db.select("ap_plans", {"id": f"eq.{me['profile']['plan_id']}", "select": "max_autopilots"}) or [{"max_autopilots": 1}])[0]
         count = len(await db.select("ap_autopilots", {"owner": f"eq.{me['id']}", "select": "id"}))
-        if count >= plan["max_autopilots"]:
+        if plan["max_autopilots"] is not None and count >= plan["max_autopilots"]:
             raise PaymentRequired(f"Your plan allows {plan['max_autopilots']} autopilot(s). Upgrade to add more.")
     row["owner"] = me["id"]
     saved = await db.insert("ap_autopilots", row)
@@ -420,8 +505,8 @@ JOB_LIST_COLUMNS = ("id,owner,autopilot_id,kind,status,progress,stage,error,spec
 
 
 def job_cost(spec: Dict[str, Any]) -> int:
-    minutes = max(1, -(-int(spec.get("seconds") or 60) // 60))
-    return minutes * QUALITY_COST.get(str(spec.get("quality") or "good"), 1) + (0 if spec.get("style", "flat") == "flat" else 1)
+    halves = max(1, -(-int(spec.get("seconds") or 60) // 30))
+    return halves * QUALITY_COST.get(str(spec.get("quality") or "good"), QUALITY_COST["good"])
 
 
 @route()
@@ -759,6 +844,9 @@ routes_studio = [
     Route("/api/v1/studio/jobs/{id}/cancel", job_cancel, methods=["POST"]),
     Route("/api/v1/studio/jobs/{id}/delete", job_delete, methods=["POST"]),
     Route("/api/v1/studio/status", status, methods=["GET"]),
+    Route("/api/v1/studio/billing", billing_get, methods=["GET"]),
+    Route("/api/v1/studio/billing/usage", billing_usage, methods=["GET"]),
+    Route("/api/v1/studio/billing/checkout", billing_checkout, methods=["POST"]),
     Route("/api/v1/studio/accounts", accounts_list, methods=["GET"]),
     Route("/api/v1/studio/accounts/{id}/delete", accounts_delete, methods=["POST"]),
     Route("/api/v1/studio/analytics", analytics, methods=["GET"]),
