@@ -21,6 +21,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
+import re
 import secrets
 import time
 from typing import Any, Dict, List, Optional
@@ -147,7 +148,10 @@ async def _json(r: httpx.Response, what: str) -> Dict[str, Any]:
     if r.status_code >= 400 or (isinstance(data, dict) and data.get("error") and not data.get("access_token")):
         err = data.get("error") if isinstance(data, dict) else None
         if isinstance(err, dict):
-            err = err.get("message") or err.get("code")
+            if any(e.get("reason") in ("quotaExceeded", "dailyLimitExceeded", "rateLimitExceeded") for e in err.get("errors") or []):
+                raise OAuthError("YouTube's daily API limit for WinPlayBox is used up. It resets at 1:30 PM India time "
+                                 "(midnight Pacific); connect again after that.")
+            err = re.sub(r"<[^>]+>", "", str(err.get("message") or err.get("code")))
         desc = data.get("error_description") if isinstance(data, dict) else None
         raise OAuthError(f"{what}: {desc or err or r.status_code}")
     return data
