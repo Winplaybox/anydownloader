@@ -177,8 +177,9 @@ async def _supabase_user(token: str) -> Optional[Dict[str, Any]]:
     return user
 
 
-async def _profile(user: Dict[str, Any]) -> Dict[str, Any]:
-    rows = await db.select("ap_profiles", {"user_id": f"eq.{user['id']}", "select": "*"})
+async def _profile(user: Dict[str, Any], rows: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    if rows is None:
+        rows = await db.select("ap_profiles", {"user_id": f"eq.{user['id']}", "select": "*"})
     if rows:
         p = rows[0]
         if not p.get("last_seen_at") or p["last_seen_at"] < time.strftime("%Y-%m-%dT%H:%M", time.gmtime(time.time() - 300)):
@@ -193,6 +194,16 @@ async def _profile(user: Dict[str, Any]) -> Dict[str, Any]:
                                         "name": meta.get("full_name") or meta.get("name") or (user.get("email") or "").split("@")[0],
                                         "avatar": meta.get("avatar_url")})
     return p
+
+
+def _token_sub(token: str) -> Optional[str]:
+    try:
+        payload = token.split(".")[1]
+        sub = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))).get("sub")
+        ok = isinstance(sub, str) and len(sub) == 36 and all(c in "0123456789abcdef-" for c in sub)
+        return sub if ok else None
+    except Exception:
+        return None
 
 
 async def _studio_signed(request: Request) -> bool:
@@ -216,10 +227,15 @@ async def caller(request: Request) -> Dict[str, Any]:
     token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
     if not token or token.startswith("wpb"):
         raise Forbidden("Sign in required")
-    user = await _supabase_user(token)
+    # The login check (Supabase Auth) and the profile read run side by side: the token's own user id names the
+    # profile, and it is only used after Supabase confirms that same id.
+    sub = _token_sub(token)
+    user, rows = await asyncio.gather(
+        _supabase_user(token),
+        db.select("ap_profiles", {"user_id": f"eq.{sub}", "select": "*"}) if sub else asyncio.sleep(0, None))
     if not user or not user.get("id"):
         raise Forbidden("Your session expired. Sign in again.")
-    p = await _profile(user)
+    p = await _profile(user, rows if sub and sub == user["id"] else None)
     if p.get("status") == "suspended":
         raise Forbidden("This account is suspended. Contact support.")
     return {"id": user["id"], "email": user.get("email"), "role": p["role"], "admin": p["role"] == "admin", "profile": p}
@@ -807,6 +823,34 @@ async def job_get(request: Request, me: Dict[str, Any]) -> Response:
     return _ok(job)
 
 
+# How many videos one user may have queued or rendering at the same time (super admins: no limit). Keeps one
+# busy account from filling the queue; the worker also takes users in turn (ap_claim_job).
+QUEUE_LIMITS = {"free": 2, "creator": 3, "pro": 5, "studio": 8}
+QUEUE_LIMIT_DEFAULT = 15
+REGEN_COST = 10   # a regenerate re-renders the whole video
+
+
+async def _queue_room(me: Dict[str, Any]) -> None:
+    if me["admin"] or not me["id"]:
+        return
+    limit = QUEUE_LIMITS.get((me["profile"] or {}).get("plan_id") or "free", QUEUE_LIMIT_DEFAULT)
+    busy = await db.select("ap_jobs", {"owner": f"eq.{me['id']}", "status": "in.(queued,running)", "select": "id"})
+    if len(busy) >= limit:
+        raise ValueError(f"You already have {len(busy)} video(s) in progress; your plan allows {limit} at a time. "
+                         "Start this one when one of them finishes.")
+
+
+async def _insert_job_or_refund(me: Dict[str, Any], row: Dict[str, Any]) -> Dict[str, Any]:
+    """Credits were taken just before: give them back if the job cannot be saved."""
+    try:
+        return await db.insert("ap_jobs", row)
+    except Exception:
+        if row.get("credits"):
+            await db.rpc("ap_charge", p_user=me["id"], p_amount=-int(row["credits"]), p_reason="refund: video could not be queued",
+                         p_job=None)
+        raise
+
+
 async def _charge(me: Dict[str, Any], cost: int, job_id: str, reason: str) -> int:
     if me["admin"] or cost <= 0:
         return 0
@@ -822,12 +866,13 @@ async def jobs_create(request: Request, me: Dict[str, Any]) -> Response:
     if not spec.get("topic") and not spec.get("niche") and not b.get("story"):
         raise ValueError("give a topic, a niche or a story")
     await _check_accounts(me, spec.get("platforms"))
+    await _queue_room(me)
     job_id = str(uuid.uuid4())
     credits = await _charge(me, job_cost(spec), job_id, "video")
     row = {"id": job_id, "kind": "make", "spec": spec, "owner": me["id"], "credits": credits}
     if b.get("story"):
         row["story"] = b["story"]
-    saved = await db.insert("ap_jobs", row)
+    saved = await _insert_job_or_refund(me, row)
     await log(request, me, "video.create", job_id, {"topic": spec.get("topic"), "style": spec.get("style"), "credits": credits})
     return _ok(saved, 201)
 
@@ -837,12 +882,15 @@ async def job_regen(request: Request, me: Dict[str, Any]) -> Response:
     b = await _body(request)
     src = await _own(me, "ap_jobs", request.path_params["id"], "id,spec")
     regen = {k: b[k] for k in ("scene", "say", "image", "new_picture") if k in b}
-    row: Dict[str, Any] = {"kind": "regen", "owner": me["id"] if not me["admin"] else src.get("owner"),
+    await _queue_room(me)
+    job_id = str(uuid.uuid4())
+    credits = await _charge(me, REGEN_COST, job_id, "regen")
+    row: Dict[str, Any] = {"id": job_id, "credits": credits, "kind": "regen", "owner": me["id"] if not me["admin"] else src.get("owner"),
                            "spec": {"source_job": src["id"], "regen": regen,
                                     "overrides": {k: v for k, v in (b.get("overrides") or {}).items() if k in SPEC_FIELDS}}}
     if b.get("story"):
         row["story"] = b["story"]
-    saved = await db.insert("ap_jobs", row)
+    saved = await _insert_job_or_refund(me, row)
     await log(request, me, "video.regen", src["id"], {"scene": regen.get("scene")})
     return _ok(saved, 201)
 
