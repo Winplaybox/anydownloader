@@ -82,10 +82,12 @@ try:
     )
     from backend.routes_v2 import routes_v2
     from backend.routes_autopilot import routes_autopilot
+    from backend.routes_studio import routes_studio
 except (ModuleNotFoundError, ImportError):
     from security.zero_trust import ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify
     from routes_v2 import routes_v2
     from routes_autopilot import routes_autopilot
+    from routes_studio import routes_studio
 
 # Security & Origin Configuration
 ALLOWED_ORIGINS = [
@@ -3528,7 +3530,7 @@ routes = [
     Route("/api/download_audio", download_audio_handler, methods=["GET"])
 ]
 
-routes = routes_v2 + routes_autopilot + routes
+routes = routes_v2 + routes_studio + routes_autopilot + routes
 
 # Order = outermost first: CORS -> Zero-Trust guard -> origin/extension gate
 middleware = [

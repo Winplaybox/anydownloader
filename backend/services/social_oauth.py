@@ -58,7 +58,7 @@ PLATFORMS: Dict[str, Dict[str, Any]] = {
         "label": "TikTok", "env": ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"], "pkce": False,
         "about": "Post videos straight to your TikTok account.",
         "steps": ["developers.tiktok.com: create an app with Login Kit and the Content Posting API (Direct Post).",
-                  "Add the redirect URI below and the scopes user.info.basic, video.publish, video.upload.",
+                  "Add the redirect URI below and the scopes user.info.basic, user.info.stats, video.publish, video.upload.",
                   "Set TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET on the backend."],
         "note": "Until TikTok audits the app, posts are visible only to the account owner.",
     },
@@ -130,7 +130,7 @@ def authorize_url(platform: str, redirect_uri: str, state: str, challenge: Optio
     if platform == "tiktok":
         return "https://www.tiktok.com/v2/auth/authorize/?" + urlencode({
             "client_key": env("TIKTOK_CLIENT_KEY"), "redirect_uri": redirect_uri, "response_type": "code",
-            "scope": "user.info.basic,video.publish,video.upload", "state": state, "disable_auto_auth": "1"})
+            "scope": "user.info.basic,user.info.stats,video.publish,video.upload", "state": state, "disable_auto_auth": "1"})
     if platform == "x":
         return "https://x.com/i/oauth2/authorize?" + urlencode({
             "response_type": "code", "client_id": env("X_CLIENT_ID"), "redirect_uri": redirect_uri,
@@ -255,3 +255,134 @@ async def complete(platform: str, code: str, redirect_uri: str, verifier: Option
                                "client_id": env("X_CLIENT_ID"), "client_secret": env("X_CLIENT_SECRET")}}]
 
     raise OAuthError(f"unknown platform {platform}")
+
+
+# --------------------------------------------------------------------------- live stats for the analytics page
+
+class TokenRevoked(OAuthError):
+    """The user removed our access or it expired for good: the account must be connected again."""
+
+
+async def _refresh(c: httpx.AsyncClient, platform: str, token: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """New token fields when the access token needed refreshing ("_access" = short-lived, not stored)."""
+    exp = token.get("expires_at", 0)
+    if platform == "youtube":
+        if not token.get("refresh_token"):
+            raise TokenRevoked("connect the channel again")
+        r = await c.post(token.get("token_uri", "https://oauth2.googleapis.com/token"), data={
+            "client_id": token["client_id"], "client_secret": token["client_secret"],
+            "refresh_token": token["refresh_token"], "grant_type": "refresh_token"})
+        if r.status_code != 200:
+            raise TokenRevoked("YouTube access was revoked or expired")
+        return {"_access": r.json()["access_token"]}
+    if platform in ("instagram", "threads") and exp and exp - time.time() < 7 * 86400:
+        url = ("https://graph.instagram.com/refresh_access_token" if platform == "instagram"
+               else "https://graph.threads.net/refresh_access_token")
+        r = await c.get(url, params={"grant_type": "ig_refresh_token" if platform == "instagram" else "th_refresh_token",
+                                     "access_token": token["access_token"]})
+        if r.status_code != 200:
+            raise TokenRevoked(f"{platform} access expired")
+        d = r.json()
+        return {"access_token": d["access_token"], "expires_at": int(time.time()) + int(d.get("expires_in", 5184000))}
+    if platform == "tiktok" and exp - time.time() < 300:
+        r = await c.post("https://open.tiktokapis.com/v2/oauth/token/", data={
+            "client_key": token.get("client_key") or env("TIKTOK_CLIENT_KEY"),
+            "client_secret": token.get("client_secret") or env("TIKTOK_CLIENT_SECRET"),
+            "grant_type": "refresh_token", "refresh_token": token.get("refresh_token", "")})
+        d = r.json()
+        if r.status_code != 200 or "access_token" not in d:
+            raise TokenRevoked("TikTok access expired")
+        return {"access_token": d["access_token"], "refresh_token": d.get("refresh_token", token.get("refresh_token")),
+                "expires_at": int(time.time()) + int(d.get("expires_in", 86400))}
+    if platform == "x" and exp - time.time() < 300:
+        cid, sec = token.get("client_id") or env("X_CLIENT_ID"), token.get("client_secret") or env("X_CLIENT_SECRET")
+        basic = base64.b64encode(f"{cid}:{sec}".encode()).decode()
+        r = await c.post("https://api.x.com/2/oauth2/token", headers={"Authorization": f"Basic {basic}"}, data={
+            "grant_type": "refresh_token", "refresh_token": token.get("refresh_token", ""), "client_id": cid})
+        d = r.json()
+        if r.status_code != 200 or "access_token" not in d:
+            raise TokenRevoked("X access expired")
+        return {"access_token": d["access_token"], "refresh_token": d.get("refresh_token", token.get("refresh_token")),
+                "expires_at": int(time.time()) + int(d.get("expires_in", 7200))}
+    return None
+
+
+def _auth_failed(r: httpx.Response) -> bool:
+    return r.status_code in (401, 403) or "OAuthException" in r.text[:500]
+
+
+async def stats(platform: str, external_id: str, token: Dict[str, Any]) -> tuple:
+    """({"followers", "views", "posts", "likes", "recent": [...]}, token fields to save or None). Raises TokenRevoked."""
+    async with httpx.AsyncClient(timeout=20) as c:
+        fresh = await _refresh(c, platform, token)
+        tok = {**token, **(fresh or {})}
+        save = {k: v for k, v in (fresh or {}).items() if not k.startswith("_")} or None
+        if platform == "youtube":
+            h = {"Authorization": f"Bearer {tok['_access']}"}
+            r = await c.get("https://www.googleapis.com/youtube/v3/channels",
+                            params={"part": "statistics,contentDetails", "id": external_id}, headers=h)
+            if _auth_failed(r):
+                raise TokenRevoked("YouTube access was revoked")
+            ch = (r.json().get("items") or [{}])[0]
+            st = ch.get("statistics", {})
+            uploads = ch.get("contentDetails", {}).get("relatedPlaylists", {}).get("uploads")
+            recent = []
+            if uploads:
+                pl = (await c.get("https://www.googleapis.com/youtube/v3/playlistItems", headers=h, params={
+                    "part": "contentDetails", "playlistId": uploads, "maxResults": 8})).json()
+                ids = [i["contentDetails"]["videoId"] for i in pl.get("items", [])]
+                if ids:
+                    vids = (await c.get("https://www.googleapis.com/youtube/v3/videos", headers=h, params={
+                        "part": "snippet,statistics", "id": ",".join(ids)})).json()
+                    recent = [{"title": v["snippet"]["title"], "url": f"https://youtu.be/{v['id']}",
+                               "published": v["snippet"].get("publishedAt"),
+                               "views": int(v["statistics"].get("viewCount", 0)), "likes": int(v["statistics"].get("likeCount", 0)),
+                               "comments": int(v["statistics"].get("commentCount", 0))} for v in vids.get("items", [])]
+            return {"followers": int(st.get("subscriberCount", 0)), "views": int(st.get("viewCount", 0)),
+                    "posts": int(st.get("videoCount", 0)), "recent": recent}, save
+        if platform == "instagram":
+            r = await c.get(f"https://graph.instagram.com/{GRAPH}/me", params={
+                "fields": "followers_count,media_count", "access_token": tok["access_token"]})
+            if _auth_failed(r):
+                raise TokenRevoked("Instagram access expired")
+            d = r.json()
+            media = (await c.get(f"https://graph.instagram.com/{GRAPH}/me/media", params={
+                "fields": "caption,permalink,timestamp,like_count,comments_count", "limit": 8,
+                "access_token": tok["access_token"]})).json().get("data", [])
+            return {"followers": d.get("followers_count"), "posts": d.get("media_count"),
+                    "recent": [{"title": (m.get("caption") or "")[:80], "url": m.get("permalink"), "published": m.get("timestamp"),
+                                "likes": m.get("like_count"), "comments": m.get("comments_count")} for m in media]}, save
+        if platform == "facebook":
+            r = await c.get(f"https://graph.facebook.com/{GRAPH}/{external_id}", params={
+                "fields": "followers_count,fan_count", "access_token": tok["page_access_token"]})
+            if _auth_failed(r):
+                raise TokenRevoked("Facebook Page access expired")
+            d = r.json()
+            return {"followers": d.get("followers_count") or d.get("fan_count"), "likes": d.get("fan_count")}, save
+        if platform == "threads":
+            r = await c.get(f"https://graph.threads.net/v1.0/{external_id}/threads_insights", params={
+                "metric": "views,likes,followers_count", "access_token": tok["access_token"]})
+            if _auth_failed(r):
+                raise TokenRevoked("Threads access expired")
+            vals = {}
+            for m in r.json().get("data", []):
+                v = m.get("total_value", {}).get("value")
+                if v is None and m.get("values"):
+                    v = sum(x.get("value", 0) for x in m["values"])
+                vals[m.get("name")] = v
+            return {"followers": vals.get("followers_count"), "views": vals.get("views"), "likes": vals.get("likes")}, save
+        if platform == "tiktok":
+            r = await c.get("https://open.tiktokapis.com/v2/user/info/", headers={"Authorization": f"Bearer {tok['access_token']}"},
+                            params={"fields": "follower_count,likes_count,video_count"})
+            if _auth_failed(r):
+                raise TokenRevoked("TikTok access expired")
+            u = (r.json().get("data") or {}).get("user") or {}
+            return {"followers": u.get("follower_count"), "likes": u.get("likes_count"), "posts": u.get("video_count")}, save
+        if platform == "x":
+            r = await c.get("https://api.x.com/2/users/me", headers={"Authorization": f"Bearer {tok['access_token']}"},
+                            params={"user.fields": "public_metrics"})
+            if _auth_failed(r):
+                raise TokenRevoked("X access expired")
+            m = (r.json().get("data") or {}).get("public_metrics") or {}
+            return {"followers": m.get("followers_count"), "posts": m.get("tweet_count"), "likes": m.get("like_count")}, save
+    return {}, None
