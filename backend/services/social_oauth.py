@@ -50,7 +50,7 @@ PLATFORMS: Dict[str, Dict[str, Any]] = {
         "steps": ["Google Cloud console: create a project and enable \"YouTube Data API v3\".",
                   "OAuth consent screen: External, with the youtube.upload and youtube.readonly scopes.",
                   "Credentials > OAuth client ID > Web application; add the redirect URI below.",
-                  "Set YT_CLIENT_ID and YT_CLIENT_SECRET on the backend."],
+                  "Paste the keys below, press Save, then Test."],
         "note": "Default quota allows about 6 uploads a day. Until Google verifies the app, uploads are private "
                 "and only test users can connect.",
     },
@@ -59,7 +59,7 @@ PLATFORMS: Dict[str, Dict[str, Any]] = {
         "about": "Post videos straight to your TikTok account.",
         "steps": ["developers.tiktok.com: create an app with Login Kit and the Content Posting API (Direct Post).",
                   "Add the redirect URI below and the scopes user.info.basic, user.info.stats, video.publish, video.upload.",
-                  "Set TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET on the backend."],
+                  "Paste the keys below, press Save, then Test."],
         "note": "Until TikTok audits the app, posts are visible only to the account owner.",
     },
     "instagram": {
@@ -67,7 +67,7 @@ PLATFORMS: Dict[str, Dict[str, Any]] = {
         "about": "Post Reels. Needs a Professional (Business or Creator) account.",
         "steps": ["developers.facebook.com: create an app and add \"Instagram API with Instagram Login\".",
                   "Add the redirect URI below under Business login settings.",
-                  "Set INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET (from the Instagram product page) on the backend."],
+                  "Paste the keys below (from the Instagram product page), press Save, then Test."],
         "note": "In development mode only accounts added as testers can connect; App Review opens it to everyone.",
     },
     "facebook": {
@@ -75,7 +75,7 @@ PLATFORMS: Dict[str, Dict[str, Any]] = {
         "about": "Post videos to a Facebook Page you manage.",
         "steps": ["developers.facebook.com: create a Business app and add Facebook Login for Business.",
                   "Add the redirect URI below as a valid OAuth redirect URI.",
-                  "Set META_APP_ID and META_APP_SECRET on the backend."],
+                  "Paste the keys below, press Save, then Test."],
         "note": "Every Page you tick during sign-in is added. Pages you own work before App Review.",
     },
     "threads": {
@@ -83,7 +83,7 @@ PLATFORMS: Dict[str, Dict[str, Any]] = {
         "about": "Post videos to your Threads profile.",
         "steps": ["developers.facebook.com: create an app with the \"Access the Threads API\" use case.",
                   "Add the redirect URI below, with threads_basic and threads_content_publish.",
-                  "Set THREADS_APP_ID and THREADS_APP_SECRET on the backend."],
+                  "Paste the keys below, press Save, then Test."],
         "note": "In development mode only Threads testers can connect.",
     },
     "x": {
@@ -91,7 +91,7 @@ PLATFORMS: Dict[str, Dict[str, Any]] = {
         "about": "Post videos to your X profile.",
         "steps": ["developer.x.com: create an app, enable OAuth 2.0 (Web App, confidential client), read and write.",
                   "Add the redirect URI below as the callback URL.",
-                  "Set X_CLIENT_ID and X_CLIENT_SECRET on the backend."],
+                  "Paste the keys below, press Save, then Test."],
         "note": "Posting video needs an X API plan that includes media upload.",
     },
 }
@@ -329,6 +329,43 @@ async def revoke(platform: str, token: Dict[str, Any]) -> bool:
             return r.status_code < 400
     except httpx.HTTPError:
         return False
+
+
+async def check_app(platform: str, redirect_uri: str) -> tuple:
+    """Are this platform's app keys accepted by the platform? -> (True | False | None, message). None = cannot tell
+    without a real sign-in. Bad-code probes rely on the error the platform gives a wrong client vs. a wrong code."""
+    if not configured(platform):
+        return False, "Add the keys first."
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            if platform == "youtube":
+                r = await c.post("https://oauth2.googleapis.com/token", data={
+                    "client_id": env("YT_CLIENT_ID"), "client_secret": env("YT_CLIENT_SECRET"), "code": "probe",
+                    "grant_type": "authorization_code", "redirect_uri": redirect_uri})
+                err = (r.json() or {}).get("error", "")
+                if err in ("invalid_client", "unauthorized_client"):
+                    return False, "Google rejected the client ID or secret."
+                return True, "Google accepted the client ID and secret. Add yourself as a test user, then Connect."
+            if platform == "facebook":
+                r = await c.get(f"https://graph.facebook.com/{GRAPH}/oauth/access_token", params={
+                    "client_id": env("META_APP_ID"), "client_secret": env("META_APP_SECRET"), "grant_type": "client_credentials"})
+                return (True, "Meta accepted the app ID and secret.") if r.status_code == 200 else (False, "Meta rejected the app ID or secret.")
+            if platform == "tiktok":
+                r = await c.post("https://open.tiktokapis.com/v2/oauth/token/", data={
+                    "client_key": env("TIKTOK_CLIENT_KEY"), "client_secret": env("TIKTOK_CLIENT_SECRET"), "grant_type": "client_credentials"})
+                ok = r.status_code == 200 and "access_token" in (r.json() or {})
+                return (True, "TikTok accepted the client key and secret.") if ok else (False, "TikTok rejected the client key or secret.")
+            if platform == "x":
+                basic = base64.b64encode(f"{env('X_CLIENT_ID')}:{env('X_CLIENT_SECRET')}".encode()).decode()
+                r = await c.post("https://api.x.com/2/oauth2/token", headers={"Authorization": f"Basic {basic}"}, data={
+                    "grant_type": "authorization_code", "code": "probe", "redirect_uri": redirect_uri,
+                    "code_verifier": "probe" * 9, "client_id": env("X_CLIENT_ID")})
+                if r.status_code == 401 or "unauthorized_client" in r.text:
+                    return False, "X rejected the client ID or secret (use OAuth 2.0 keys, confidential client)."
+                return True, "X accepted the client ID and secret."
+    except httpx.HTTPError as e:
+        return None, f"Could not reach the platform: {type(e).__name__}"
+    return None, "Keys are saved. This platform can only be checked by connecting a test account."
 
 
 def _auth_failed(r: httpx.Response) -> bool:
