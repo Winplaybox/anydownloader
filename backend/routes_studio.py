@@ -1,0 +1,756 @@
+"""
+Video Studio API (the Autopilot dashboard at winplaybox.in/admin) - signed-in users, per-user data.
+
+Auth: every call carries the user's Supabase session token (Authorization: Bearer <access_token>); the backend
+checks it with Supabase Auth and loads the user's profile (role, credits, status). Super admins (role 'admin')
+see everything and never pay credits; users see only their own autopilots, videos and accounts. The legacy
+X-Admin-Key still works as a super-admin login for scripts.
+
+  GET  /api/v1/studio/me                         profile, credits, plan
+  GET  /api/v1/studio/catalog                    styles, captions, formats, qualities, frequencies, niches, characters
+  GET  /api/v1/studio/voices?language=
+  POST /api/v1/studio/ideas | /script
+  GET  /api/v1/studio/autopilots                 POST to create/update, POST /{id}/delete
+  GET  /api/v1/studio/jobs?limit=                POST to create (charges credits), GET /{id}
+  POST /api/v1/studio/jobs/{id}/regen | /publish | /cancel | /delete  (delete = hard delete incl. files)
+  GET  /api/v1/studio/status
+  GET  /api/v1/studio/accounts                   connected accounts + which platforms are available
+  POST /api/v1/studio/accounts/{id}/delete
+  GET  /api/v1/studio/analytics                  live channel/profile stats for connected accounts + usage
+  POST /api/v1/studio/requests                   "which platform next?"
+  GET  /api/v1/auth/{platform}                   -> {"url"}: start OAuth (YouTube, TikTok, Instagram, Facebook, Threads, X)
+  GET  /api/v1/auth/{platform}/callback          public OAuth redirect target (signed, expiring, user-bound state)
+Super admin only:
+  GET  /api/v1/studio/admin/users                POST /admin/users/{id} {role, credits_delta, status, plan_id}
+  GET  /api/v1/studio/admin/activity?user=&limit=
+  GET  /api/v1/studio/admin/platforms            setup state of each platform's OAuth app (env names, redirect URIs)
+
+Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WPB_VAULT_SECRET; platform app credentials in services/social_oauth.py.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import hashlib
+import hmac
+import json
+import os
+import secrets
+import time
+import uuid
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlencode
+
+import httpx
+from starlette.requests import Request
+from starlette.responses import JSONResponse, RedirectResponse, Response
+from starlette.routing import Route
+
+try:
+    from backend.security.zero_trust import authenticate_admin, client_ip, error, rate_limit
+    from backend.services.llm_router import LLMError, llm_router
+    from backend.services import social_oauth as social
+    from backend.services.studio_catalog import CATALOG
+except (ModuleNotFoundError, ImportError):
+    from security.zero_trust import authenticate_admin, client_ip, error, rate_limit  # type: ignore
+    from services.llm_router import LLMError, llm_router  # type: ignore
+    from services import social_oauth as social  # type: ignore
+    from services.studio_catalog import CATALOG  # type: ignore
+
+AUTOPILOT_FIELDS = {"name", "active", "niche", "topics", "style", "language", "voice", "rate", "seconds", "captions",
+                    "caption_style", "caption_position", "watermark", "music", "quality", "aspect", "platforms",
+                    "schedule", "timezone", "character"}
+SPEC_FIELDS = {"topic", "script", "niche", "style", "language", "voice", "rate", "seconds", "captions", "caption_style",
+               "caption_position", "watermark", "music", "quality", "aspect", "platforms", "character"}
+QUALITY_COST = {"basic": 1, "good": 1, "premium": 2, "max": 3}
+
+API_BASE = os.environ.get("AP_PUBLIC_API_BASE", "https://anydownloader-backend-vvbj.onrender.com").rstrip("/")
+DASHBOARD = os.environ.get("AP_DASHBOARD_URL", "https://winplaybox.in/admin")
+
+
+def _ok(data: Any, status: int = 200) -> JSONResponse:
+    return JSONResponse({"ok": True, "data": data}, status_code=status, headers={"Cache-Control": "no-store"})
+
+
+class Forbidden(Exception):
+    pass
+
+
+class PaymentRequired(Exception):
+    pass
+
+
+# --------------------------------------------------------------------------- Supabase (service role, server side only)
+
+class _DB:
+    def __init__(self) -> None:
+        self._c: httpx.AsyncClient | None = None
+
+    @property
+    def configured(self) -> bool:
+        return bool(os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
+
+    @property
+    def url(self) -> str:
+        return os.environ.get("SUPABASE_URL", "").rstrip("/")
+
+    def client(self) -> httpx.AsyncClient:
+        if self._c is None:
+            key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+            self._c = httpx.AsyncClient(headers={"apikey": key, "Authorization": f"Bearer {key}"},
+                                        timeout=httpx.Timeout(30, connect=10))
+        return self._c
+
+    async def select(self, table: str, params: Dict[str, str]) -> List[Dict[str, Any]]:
+        r = await self.client().get(f"{self.url}/rest/v1/{table}", params=params)
+        r.raise_for_status()
+        return r.json()
+
+    async def insert(self, table: str, row: Dict[str, Any], returning: bool = True) -> Dict[str, Any] | None:
+        r = await self.client().post(f"{self.url}/rest/v1/{table}", json=row,
+                                     headers={"Prefer": "return=representation" if returning else "return=minimal"})
+        r.raise_for_status()
+        return r.json()[0] if returning else None
+
+    async def update(self, table: str, match: Dict[str, str], fields: Dict[str, Any]) -> List[Dict[str, Any]]:
+        r = await self.client().patch(f"{self.url}/rest/v1/{table}", params=match, json=fields,
+                                      headers={"Prefer": "return=representation"})
+        r.raise_for_status()
+        return r.json()
+
+    async def delete(self, table: str, match: Dict[str, str]) -> None:
+        r = await self.client().delete(f"{self.url}/rest/v1/{table}", params=match)
+        r.raise_for_status()
+
+    async def rpc(self, fn: str, **args: Any) -> Any:
+        r = await self.client().post(f"{self.url}/rest/v1/rpc/{fn}", json=args)
+        r.raise_for_status()
+        return r.json() if r.content else None
+
+    async def sign(self, path: str | None, seconds: int = 3600) -> str | None:
+        if not path:
+            return None
+        r = await self.client().post(f"{self.url}/storage/v1/object/sign/autopilot/{path}", json={"expiresIn": seconds})
+        if r.status_code != 200:
+            return None
+        return f"{self.url}/storage/v1{r.json()['signedURL']}"
+
+    async def remove_files(self, paths: List[str]) -> None:
+        paths = [p for p in paths if p]
+        if paths:
+            await self.client().request("DELETE", f"{self.url}/storage/v1/object/autopilot", json={"prefixes": paths})
+
+
+db = _DB()
+
+
+# --------------------------------------------------------------------------- who is calling
+
+_sessions: Dict[str, Any] = {}   # access token hash -> (expires, user)
+
+
+async def _supabase_user(token: str) -> Optional[Dict[str, Any]]:
+    key = hashlib.sha256(token.encode()).hexdigest()
+    hit = _sessions.get(key)
+    if hit and hit[0] > time.time():
+        return hit[1]
+    r = await db.client().get(f"{db.url}/auth/v1/user", headers={"Authorization": f"Bearer {token}"})
+    user = r.json() if r.status_code == 200 else None
+    if len(_sessions) > 5000:
+        _sessions.clear()
+    _sessions[key] = (time.time() + (60 if user else 10), user)
+    return user
+
+
+async def _profile(user: Dict[str, Any]) -> Dict[str, Any]:
+    rows = await db.select("ap_profiles", {"user_id": f"eq.{user['id']}", "select": "*"})
+    if rows:
+        p = rows[0]
+        if not p.get("last_seen_at") or p["last_seen_at"] < time.strftime("%Y-%m-%dT%H:%M", time.gmtime(time.time() - 300)):
+            asyncio.ensure_future(db.update("ap_profiles", {"user_id": f"eq.{user['id']}"},
+                                            {"last_seen_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}))
+        return p
+    # Signed up before the sign-up trigger existed: create a regular free profile.
+    meta = user.get("user_metadata") or {}
+    plan = (await db.select("ap_plans", {"id": "eq.free", "select": "monthly_credits"}) or [{"monthly_credits": 0}])[0]
+    p = await db.insert("ap_profiles", {"user_id": user["id"], "role": "user", "plan_id": "free",
+                                        "credits": plan["monthly_credits"], "email": user.get("email"),
+                                        "name": meta.get("full_name") or meta.get("name") or (user.get("email") or "").split("@")[0],
+                                        "avatar": meta.get("avatar_url")})
+    return p
+
+
+async def caller(request: Request) -> Dict[str, Any]:
+    """{"id", "email", "role", "admin", "profile"} or raises Forbidden."""
+    if authenticate_admin(request, allow_bearer_jwt=False):
+        return {"id": None, "email": "admin-key", "role": "admin", "admin": True, "profile": None}
+    auth = request.headers.get("authorization", "")
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not token or token.startswith("wpb"):
+        raise Forbidden("Sign in required")
+    user = await _supabase_user(token)
+    if not user or not user.get("id"):
+        raise Forbidden("Your session expired. Sign in again.")
+    p = await _profile(user)
+    if p.get("status") == "suspended":
+        raise Forbidden("This account is suspended. Contact support.")
+    return {"id": user["id"], "email": user.get("email"), "role": p["role"], "admin": p["role"] == "admin", "profile": p}
+
+
+async def log(request: Request, me: Dict[str, Any], action: str, target: str = "", detail: Dict[str, Any] | None = None) -> None:
+    """Audit trail of what each user does (reviewed by super admins). Never stores tokens or secrets."""
+    try:
+        await db.insert("ap_activity", {"user_id": me.get("id"), "email": me.get("email"), "action": action,
+                                        "target": str(target)[:200], "detail": detail or {}, "ip": client_ip(request),
+                                        "user_agent": (request.headers.get("user-agent") or "")[:300]}, returning=False)
+    except Exception:
+        pass
+
+
+def route(admin_only: bool = False, needs_db: bool = True):
+    def deco(fn):
+        async def wrapper(request: Request) -> Response:
+            if needs_db and not db.configured:
+                return error(request, 503, "NotConfigured", "Backend is missing Supabase settings")
+            try:
+                me = await caller(request)
+            except Forbidden as e:
+                return error(request, 401, "AuthRequired", str(e))
+            if admin_only and not me["admin"]:
+                return error(request, 403, "Forbidden", "Super admin only")
+            ok, _ = rate_limit("studio", me.get("id") or "admin", 300 if me["admin"] else 120, 60)
+            if not ok:
+                return error(request, 429, "RateLimited", "Too many requests, slow down a little")
+            try:
+                return await fn(request, me)
+            except Forbidden as e:
+                return error(request, 403, "Forbidden", str(e))
+            except PaymentRequired as e:
+                return error(request, 402, "NoCredits", str(e))
+            except httpx.HTTPStatusError as e:
+                return error(request, 502, "DatabaseError", e.response.text[:300])
+            except LLMError as e:
+                return error(request, 503, "LLMUnavailable", str(e))
+            except (ValueError, KeyError, TypeError) as e:
+                return error(request, 400, "BadRequest", str(e))
+        wrapper.__name__ = fn.__name__
+        return wrapper
+    return deco
+
+
+async def _body(request: Request) -> Dict[str, Any]:
+    raw = await request.body()
+    if len(raw) > 256 * 1024:
+        raise ValueError("request too large")
+    data = json.loads(raw or b"{}")
+    if not isinstance(data, dict):
+        raise ValueError("JSON object expected")
+    return data
+
+
+def _mine(me: Dict[str, Any], request: Request | None = None) -> Dict[str, str]:
+    """Row filter: users see their own rows; super admins see their own unless ?scope=all."""
+    if me["admin"] and request is not None and request.query_params.get("scope") == "all":
+        return {}
+    return {"owner": "is.null"} if me["id"] is None else {"owner": f"eq.{me['id']}"}
+
+
+async def _own(me: Dict[str, Any], table: str, row_id: str, columns: str = "*") -> Dict[str, Any]:
+    rows = await db.select(table, {"id": f"eq.{row_id}", "select": columns + ",owner" if columns != "*" else "*"})
+    if not rows:
+        raise ValueError("not found")
+    if not me["admin"] and rows[0].get("owner") != me["id"]:
+        raise Forbidden("Not yours")
+    return rows[0]
+
+
+# --------------------------------------------------------------------------- profile, catalog, AI helpers
+
+@route()
+async def me_get(request: Request, me: Dict[str, Any]) -> Response:
+    p = me["profile"] or {}
+    plan = None
+    if p.get("plan_id"):
+        plan = (await db.select("ap_plans", {"id": f"eq.{p['plan_id']}", "select": "id,name,monthly_credits"}) or [None])[0]
+    return _ok({"id": me["id"], "email": me["email"], "role": me["role"], "admin": me["admin"], "name": p.get("name"),
+                "avatar": p.get("avatar"), "credits": None if me["admin"] else p.get("credits", 0), "plan": plan})
+
+
+@route(needs_db=False)
+async def catalog(request: Request, me: Dict[str, Any]) -> Response:
+    return _ok(CATALOG)
+
+
+_voices: Dict[str, Any] = {"at": 0, "list": []}
+
+
+@route(needs_db=False)
+async def voices(request: Request, me: Dict[str, Any]) -> Response:
+    if time.time() - _voices["at"] > 86400 or not _voices["list"]:
+        import edge_tts
+        raw = await edge_tts.list_voices()
+        out = []
+        for v in raw:
+            friendly = v.get("FriendlyName", "")
+            out.append({"id": v["ShortName"], "name": v["ShortName"].split("-")[-1].replace("Neural", ""),
+                        "gender": v.get("Gender", ""), "locale": v["Locale"],
+                        "language": friendly.split(" - ", 1)[1] if " - " in friendly else v["Locale"]})
+        _voices.update(at=time.time(), list=sorted(out, key=lambda x: (x["language"], x["id"])))
+    q = (request.query_params.get("language") or "").lower()
+    items = [v for v in _voices["list"] if not q or v["language"].lower().startswith(q) or v["locale"].lower() == q]
+    return _ok({"count": len(items), "languages": len({v["language"] for v in _voices["list"]}), "voices": items})
+
+
+IDEAS_SYSTEM = ("You are a short-form video strategist who finds ideas that get views on YouTube Shorts, Instagram "
+                "Reels and TikTok. Ideas must be specific, have a curiosity gap, be factually safe, and fit in under "
+                "a minute. Reply with JSON only.")
+SCRIPT_SYSTEM = ("You write narration for short videos: a hook in the first two seconds, one idea per line, concrete "
+                 "examples, a payoff and a short call to action. Facts must be accurate and mainstream; never invent "
+                 "study names or numbers. Each line is 1-2 short spoken sentences (5-7 seconds). Reply with JSON only.")
+
+
+@route(needs_db=False)
+async def ideas(request: Request, me: Dict[str, Any]) -> Response:
+    b = await _body(request)
+    niche = str(b.get("niche") or "interesting facts")[:300]
+    lang = str(b.get("language") or "English")[:40]
+    n = max(1, min(int(b.get("count") or 10), 20))
+    obj, res = await llm_router.complete_json(
+        IDEAS_SYSTEM,
+        f"Niche: {niche}\nAudience language: {lang}\nGive {n} fresh video ideas. Write title and hook in {lang}.\n"
+        'Return {"ideas": [{"title": "...", "hook": "first spoken line", "why": "why it will get views"}]}',
+        temperature=0.9, max_tokens=3000, budget_s=110.0)
+    if db.configured:
+        await log(request, me, "ideas", niche)
+    return _ok({"ideas": obj.get("ideas", [])[:n], "provider": res.provider})
+
+
+@route(needs_db=False)
+async def script(request: Request, me: Dict[str, Any]) -> Response:
+    b = await _body(request)
+    topic = str(b.get("topic") or "").strip()[:500]
+    if not topic:
+        raise ValueError("topic is required")
+    lang = str(b.get("language") or "English")[:40]
+    seconds = max(15, min(int(b.get("seconds") or 60), 600))
+    note = ("Hindi in Devanagari with common English words in English" if lang.lower() == "hindi" else
+            "Hinglish: Hindi in Devanagari mixed with English words" if lang.lower() == "hinglish" else
+            f"{lang}, natural spoken style, in its own script")
+    obj, res = await llm_router.complete_json(
+        SCRIPT_SYSTEM,
+        f"Topic: {topic}\nNiche: {b.get('niche') or 'general'}\nLanguage: {note}\n"
+        f"Length: about {seconds} seconds ({max(4, round(seconds / 6.5))} lines).\n"
+        'Return {"title": "...", "lines": ["...", "..."], "description": "...", "hashtags": ["#..."]}',
+        temperature=0.85, max_tokens=6000, budget_s=110.0)
+    if db.configured:
+        await log(request, me, "script", topic)
+    return _ok({**obj, "provider": res.provider})
+
+
+# --------------------------------------------------------------------------- autopilots
+
+@route()
+async def autopilots_list(request: Request, me: Dict[str, Any]) -> Response:
+    return _ok(await db.select("ap_autopilots", {"select": "*", "order": "created_at.desc", **_mine(me, request)}))
+
+
+async def _check_accounts(me: Dict[str, Any], platforms: Any) -> None:
+    """Users can only post to accounts they connected themselves."""
+    ids = [i for c in (platforms or {}).values() if isinstance(c, dict) for i in (c.get("account_ids") or [])]
+    if not ids or me["admin"]:
+        return
+    rows = await db.select("ap_social_accounts", {"id": "in.(" + ",".join(ids) + ")", "select": "id,owner"})
+    if len(rows) != len(set(ids)) or any(r["owner"] != me["id"] for r in rows):
+        raise Forbidden("You can only post to accounts you connected")
+
+
+@route()
+async def autopilots_save(request: Request, me: Dict[str, Any]) -> Response:
+    b = await _body(request)
+    row = {k: v for k, v in b.items() if k in AUTOPILOT_FIELDS}
+    await _check_accounts(me, row.get("platforms"))
+    if b.get("id"):
+        await _own(me, "ap_autopilots", str(b["id"]), "id")
+        saved = (await db.update("ap_autopilots", {"id": f"eq.{b['id']}"}, row) or [None])[0]
+        await log(request, me, "autopilot.update", b["id"], {"fields": sorted(row)})
+        return _ok(saved)
+    if not row.get("name"):
+        raise ValueError("name is required")
+    if not me["admin"]:
+        plan = (await db.select("ap_plans", {"id": f"eq.{me['profile']['plan_id']}", "select": "max_autopilots"}) or [{"max_autopilots": 1}])[0]
+        count = len(await db.select("ap_autopilots", {"owner": f"eq.{me['id']}", "select": "id"}))
+        if count >= plan["max_autopilots"]:
+            raise PaymentRequired(f"Your plan allows {plan['max_autopilots']} autopilot(s). Upgrade to add more.")
+    row["owner"] = me["id"]
+    saved = await db.insert("ap_autopilots", row)
+    await log(request, me, "autopilot.create", saved["id"], {"name": row.get("name"), "niche": row.get("niche")})
+    return _ok(saved, 201)
+
+
+@route()
+async def autopilots_delete(request: Request, me: Dict[str, Any]) -> Response:
+    rid = request.path_params["id"]
+    await _own(me, "ap_autopilots", rid, "id")
+    await db.delete("ap_autopilots", {"id": f"eq.{rid}"})
+    await log(request, me, "autopilot.delete", rid)
+    return _ok({"deleted": rid})
+
+
+# --------------------------------------------------------------------------- jobs (videos)
+
+JOB_LIST_COLUMNS = ("id,owner,autopilot_id,kind,status,progress,stage,error,spec->>topic,spec->>style,spec->>language,"
+                    "spec->>aspect,result->>title,result->>duration,publish,thumb_path,created_at,finished_at,attempts")
+
+
+def job_cost(spec: Dict[str, Any]) -> int:
+    minutes = max(1, -(-int(spec.get("seconds") or 60) // 60))
+    return minutes * QUALITY_COST.get(str(spec.get("quality") or "good"), 1) + (0 if spec.get("style", "flat") == "flat" else 1)
+
+
+@route()
+async def jobs_list(request: Request, me: Dict[str, Any]) -> Response:
+    limit = max(1, min(int(request.query_params.get("limit") or 50), 200))
+    params = {"select": JOB_LIST_COLUMNS, "order": "created_at.desc", "limit": str(limit), **_mine(me, request)}
+    if request.query_params.get("autopilot"):
+        params["autopilot_id"] = f"eq.{request.query_params['autopilot']}"
+    rows = await db.select("ap_jobs", params)
+    signed = await asyncio.gather(*(db.sign(r.pop("thumb_path", None)) for r in rows))
+    for r, url in zip(rows, signed):
+        r["thumb_url"] = url
+    return _ok(rows)
+
+
+@route()
+async def job_get(request: Request, me: Dict[str, Any]) -> Response:
+    job = await _own(me, "ap_jobs", request.path_params["id"])
+    job["video_url"], job["thumb_url"] = await asyncio.gather(db.sign(job.get("video_path")), db.sign(job.get("thumb_path")))
+    return _ok(job)
+
+
+async def _charge(me: Dict[str, Any], cost: int, job_id: str, reason: str) -> int:
+    if me["admin"] or cost <= 0:
+        return 0
+    if not await db.rpc("ap_charge", p_user=me["id"], p_amount=cost, p_reason=reason, p_job=job_id):
+        raise PaymentRequired(f"This video needs {cost} credit(s); you have {me['profile'].get('credits', 0)}.")
+    return cost
+
+
+@route()
+async def jobs_create(request: Request, me: Dict[str, Any]) -> Response:
+    b = await _body(request)
+    spec = {k: v for k, v in (b.get("spec") or {}).items() if k in SPEC_FIELDS}
+    if not spec.get("topic") and not spec.get("niche") and not b.get("story"):
+        raise ValueError("give a topic, a niche or a story")
+    await _check_accounts(me, spec.get("platforms"))
+    job_id = str(uuid.uuid4())
+    credits = await _charge(me, job_cost(spec), job_id, "video")
+    row = {"id": job_id, "kind": "make", "spec": spec, "owner": me["id"], "credits": credits}
+    if b.get("story"):
+        row["story"] = b["story"]
+    saved = await db.insert("ap_jobs", row)
+    await log(request, me, "video.create", job_id, {"topic": spec.get("topic"), "style": spec.get("style"), "credits": credits})
+    return _ok(saved, 201)
+
+
+@route()
+async def job_regen(request: Request, me: Dict[str, Any]) -> Response:
+    b = await _body(request)
+    src = await _own(me, "ap_jobs", request.path_params["id"], "id,spec")
+    regen = {k: b[k] for k in ("scene", "say", "image", "new_picture") if k in b}
+    row: Dict[str, Any] = {"kind": "regen", "owner": me["id"] if not me["admin"] else src.get("owner"),
+                           "spec": {"source_job": src["id"], "regen": regen,
+                                    "overrides": {k: v for k, v in (b.get("overrides") or {}).items() if k in SPEC_FIELDS}}}
+    if b.get("story"):
+        row["story"] = b["story"]
+    saved = await db.insert("ap_jobs", row)
+    await log(request, me, "video.regen", src["id"], {"scene": regen.get("scene")})
+    return _ok(saved, 201)
+
+
+@route()
+async def job_publish(request: Request, me: Dict[str, Any]) -> Response:
+    b = await _body(request)
+    src = await _own(me, "ap_jobs", request.path_params["id"], "id")
+    platforms = b.get("platforms") or {}
+    if not isinstance(platforms, dict) or not platforms:
+        raise ValueError("choose at least one account")
+    await _check_accounts(me, platforms)
+    saved = await db.insert("ap_jobs", {"kind": "publish", "owner": src.get("owner"),
+                                        "spec": {"source_job": src["id"], "platforms": platforms}})
+    await log(request, me, "video.publish", src["id"], {"platforms": sorted(platforms)})
+    return _ok(saved, 201)
+
+
+@route()
+async def job_cancel(request: Request, me: Dict[str, Any]) -> Response:
+    job = await _own(me, "ap_jobs", request.path_params["id"], "id,status")
+    if job["status"] != "queued":
+        return error(request, 409, "NotQueued", "only queued videos can be canceled")
+    await db.rpc("ap_fail_job", p_job=job["id"], p_error="canceled by user")   # refunds credits
+    await db.update("ap_jobs", {"id": f"eq.{job['id']}"}, {"status": "canceled"})
+    await log(request, me, "video.cancel", job["id"])
+    return _ok({"canceled": job["id"]})
+
+
+@route()
+async def job_delete(request: Request, me: Dict[str, Any]) -> Response:
+    """Hard delete: the video, its thumbnail, and its row. Posts already published on platforms stay there."""
+    job = await _own(me, "ap_jobs", request.path_params["id"], "id,status,video_path,thumb_path")
+    if job["status"] == "running":
+        return error(request, 409, "Busy", "This video is being made right now; delete it when it finishes")
+    await db.remove_files([job.get("video_path"), job.get("thumb_path")])
+    await db.delete("ap_jobs", {"id": f"eq.{job['id']}"})
+    await log(request, me, "video.delete", job["id"])
+    return _ok({"deleted": job["id"]})
+
+
+@route()
+async def status(request: Request, me: Dict[str, Any]) -> Response:
+    rows = await db.select("ap_jobs", {"select": "status", "order": "created_at.desc", "limit": "500", **_mine(me)})
+    counts: Dict[str, int] = {}
+    for r in rows:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+    since = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - 600))
+    recent = await db.select("ap_jobs", {"select": "worker_id", "heartbeat_at": f"gte.{since}", "worker_id": "not.is.null"})
+    return _ok({"counts": counts, "workers_online": len({r["worker_id"] for r in recent}),
+                **({"workers": sorted({r["worker_id"] for r in recent})} if me["admin"] else {})})
+
+
+# --------------------------------------------------------------------------- connected accounts + OAuth
+
+def _redirect_uri(platform: str) -> str:
+    return f"{API_BASE}/api/v1/auth/{platform}/callback"
+
+
+def _sign(body: str) -> str:
+    key = (social.env("WPB_VAULT_SECRET") or "dev-only-state-key").encode()
+    return base64.urlsafe_b64encode(hmac.new(key, body.encode(), hashlib.sha256).digest()).decode().rstrip("=")
+
+
+def _make_state(platform: str, nonce: str, user_id: Optional[str]) -> str:
+    body = base64.urlsafe_b64encode(json.dumps(
+        {"p": platform, "u": user_id, "n": nonce, "exp": int(time.time()) + 600}).encode()).decode().rstrip("=")
+    return f"{body}.{_sign(body)}"
+
+
+def _read_state(state: str, platform: str) -> Dict[str, Any] | None:
+    try:
+        body, sig = state.split(".", 1)
+        if not hmac.compare_digest(sig, _sign(body)):
+            return None
+        data = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
+        return data if data.get("p") == platform and data.get("exp", 0) > time.time() else None
+    except Exception:
+        return None
+
+
+ACCOUNT_COLUMNS = "id,platform,external_id,name,avatar,status,error,created_at,updated_at"
+
+
+@route()
+async def accounts_list(request: Request, me: Dict[str, Any]) -> Response:
+    rows = await db.select("ap_social_accounts", {"select": ACCOUNT_COLUMNS, "order": "created_at.asc", **_mine(me, request)})
+    platforms = {k: {"label": v["label"], "about": v["about"], "available": social.configured(k)}
+                 for k, v in social.PLATFORMS.items()}
+    return _ok({"accounts": rows, "platforms": platforms})
+
+
+@route()
+async def oauth_start(request: Request, me: Dict[str, Any]) -> Response:
+    """GET /api/v1/auth/{platform} -> {"url"} of the platform's own sign-in page, bound to this user."""
+    platform = request.path_params["platform"]
+    if platform not in social.PLATFORMS:
+        return error(request, 404, "NotFound", "unknown platform")
+    if not social.configured(platform):
+        return error(request, 503, "Unavailable", f"{social.PLATFORMS[platform]['label']} connections are not available yet")
+    nonce, challenge = secrets.token_urlsafe(16), None
+    if social.PLATFORMS[platform]["pkce"]:
+        verifier, challenge = social.pkce_pair()
+        await db.insert("ap_oauth_states", {"nonce": nonce, "platform": platform, "verifier": verifier, "user_id": me["id"]},
+                        returning=False)
+    await log(request, me, "account.connect_start", platform)
+    return _ok({"url": social.authorize_url(platform, _redirect_uri(platform), _make_state(platform, nonce, me["id"]), challenge)})
+
+
+def _back(platform: str, ok: bool, msg: str = "") -> Response:
+    q = urlencode({"connected" if ok else "connect_error": platform, **({"msg": msg[:200]} if msg else {})})
+    return RedirectResponse(f"{DASHBOARD}?{q}#publish", status_code=302)
+
+
+async def oauth_callback(request: Request) -> Response:
+    """Public: the platform sends the browser here. Trust comes from the signed state, which names the user."""
+    platform = request.path_params["platform"]
+    q = request.query_params
+    if platform not in social.PLATFORMS:
+        return _back(platform, False, "Unknown platform.")
+    state = _read_state(q.get("state", ""), platform)
+    if not state:
+        return _back(platform, False, "This sign-in link expired. Click Connect again.")
+    if q.get("error"):
+        return _back(platform, False, q.get("error_description") or q.get("error_reason") or q["error"])
+    if not db.configured:
+        return _back(platform, False, "Service is not available right now.")
+    verifier = None
+    if social.PLATFORMS[platform]["pkce"]:
+        rows = await db.select("ap_oauth_states", {"nonce": f"eq.{state['n']}", "select": "verifier,user_id"})
+        if not rows or rows[0].get("user_id") != state.get("u"):
+            return _back(platform, False, "This sign-in link was already used. Click Connect again.")
+        verifier = rows[0]["verifier"]
+        await db.delete("ap_oauth_states", {"nonce": f"eq.{state['n']}"})
+    who = {"id": state.get("u"), "email": None}
+    try:
+        accounts = await social.complete(platform, q.get("code", ""), _redirect_uri(platform), verifier)
+        for a in accounts:
+            await db.rpc("ap_save_account", p_owner=state.get("u"), p_platform=a["platform"], p_external_id=a["external_id"],
+                         p_name=a["name"], p_avatar=a["avatar"], p_token=a["token"])
+        await log(request, who, "account.connected", platform, {"accounts": [a["name"] for a in accounts]})
+        return _back(platform, True, ", ".join(a["name"] for a in accounts))
+    except social.OAuthError as e:
+        await log(request, who, "account.connect_failed", platform, {"error": str(e)[:200]})
+        return _back(platform, False, str(e))
+    except httpx.HTTPError as e:
+        return _back(platform, False, f"network error: {type(e).__name__}")
+
+
+@route()
+async def accounts_delete(request: Request, me: Dict[str, Any]) -> Response:
+    acc = await _own(me, "ap_social_accounts", request.path_params["id"], "id,platform,name")
+    await db.rpc("ap_delete_account", p_id=acc["id"])
+    await log(request, me, "account.disconnect", acc["id"], {"platform": acc["platform"], "name": acc["name"]})
+    return _ok({"deleted": acc["id"]})
+
+
+@route()
+async def platform_request(request: Request, me: Dict[str, Any]) -> Response:
+    text = str((await _body(request)).get("text") or "").strip()[:300]
+    if len(text) < 2:
+        raise ValueError("tell us which platform")
+    await db.insert("ap_platform_requests", {"text": text, "owner": me["id"]}, returning=False)
+    await log(request, me, "platform.request", text)
+    return _ok({"saved": True}, 201)
+
+
+# --------------------------------------------------------------------------- analytics
+
+_stats_cache: Dict[str, Any] = {}
+
+
+async def _account_stats(acc: Dict[str, Any]) -> Dict[str, Any]:
+    hit = _stats_cache.get(acc["id"])
+    if hit and hit[0] > time.time():
+        return hit[1]
+    token = await db.rpc("ap_account_token", p_id=acc["id"]) or {}
+    try:
+        stats, fresh = await social.stats(acc["platform"], acc["external_id"], token)
+        if fresh:
+            await db.rpc("ap_update_account", p_id=acc["id"], p_token=fresh, p_status="connected", p_error=None)
+        out = {"ok": True, **stats}
+    except social.TokenRevoked as e:
+        await db.rpc("ap_update_account", p_id=acc["id"], p_token=None, p_status="expired", p_error=str(e)[:300])
+        out = {"ok": False, "error": str(e), "expired": True}
+    except Exception as e:
+        out = {"ok": False, "error": str(e)[:200]}
+    _stats_cache[acc["id"]] = (time.time() + 300, out)
+    return out
+
+
+@route()
+async def analytics(request: Request, me: Dict[str, Any]) -> Response:
+    accs = await db.select("ap_social_accounts", {"select": ACCOUNT_COLUMNS, "order": "created_at.asc", **_mine(me, request)})
+    stats = await asyncio.gather(*(_account_stats(a) for a in accs))
+    jobs = await db.select("ap_jobs", {"select": "status,kind,publish,credits,created_at", "order": "created_at.desc",
+                                       "limit": "1000", **_mine(me, request)})
+    made = [j for j in jobs if j["kind"] == "make"]
+    posts = sum(1 for j in jobs for p in (j.get("publish") or {}).values() if isinstance(p, dict)
+                for x in (p.get("posts") or [p]) if x.get("status") == "published")
+    by_day: Dict[str, int] = {}
+    for j in made:
+        d = j["created_at"][:10]
+        by_day[d] = by_day.get(d, 0) + 1
+    return _ok({"accounts": [{**a, "stats": s} for a, s in zip(accs, stats)],
+                "usage": {"videos": len(made), "ready": sum(j["status"] == "done" for j in made),
+                          "failed": sum(j["status"] == "failed" for j in made), "posts": posts,
+                          "credits_used": sum(j.get("credits") or 0 for j in jobs),
+                          "credits_left": None if me["admin"] else me["profile"].get("credits"),
+                          "per_day": sorted(by_day.items())[-30:]}})
+
+
+# --------------------------------------------------------------------------- super admin
+
+@route(admin_only=True)
+async def admin_users(request: Request, me: Dict[str, Any]) -> Response:
+    users = await db.select("ap_profiles", {"select": "user_id,email,name,avatar,role,plan_id,credits,status,created_at,last_seen_at",
+                                            "order": "created_at.desc", "limit": "500"})
+    return _ok(users)
+
+
+@route(admin_only=True)
+async def admin_user_update(request: Request, me: Dict[str, Any]) -> Response:
+    uid = request.path_params["id"]
+    b = await _body(request)
+    fields = {}
+    if b.get("status") in ("active", "suspended"):
+        fields["status"] = b["status"]
+    if b.get("plan_id"):
+        fields["plan_id"] = str(b["plan_id"])
+    if b.get("role") in ("admin", "user"):
+        if uid == me["id"] and b["role"] != "admin":
+            raise ValueError("you cannot remove your own super admin role")
+        fields["role"] = b["role"]
+    if fields:
+        await db.update("ap_profiles", {"user_id": f"eq.{uid}"}, fields)
+    delta = int(b.get("credits_delta") or 0)
+    if delta:
+        p = (await db.select("ap_profiles", {"user_id": f"eq.{uid}", "select": "credits"}) or [{"credits": 0}])[0]
+        await db.update("ap_profiles", {"user_id": f"eq.{uid}"}, {"credits": max(0, p["credits"] + delta)})
+        await db.insert("ap_credit_ledger", {"user_id": uid, "delta": delta, "reason": f"admin adjustment by {me['email']}"}, returning=False)
+    await log(request, me, "admin.user_update", uid, {**fields, "credits_delta": delta})
+    return _ok((await db.select("ap_profiles", {"user_id": f"eq.{uid}", "select": "*"}) or [None])[0])
+
+
+@route(admin_only=True)
+async def admin_activity(request: Request, me: Dict[str, Any]) -> Response:
+    params = {"select": "*", "order": "created_at.desc", "limit": str(max(1, min(int(request.query_params.get("limit") or 200), 1000)))}
+    if request.query_params.get("user"):
+        params["user_id"] = f"eq.{request.query_params['user']}"
+    if request.query_params.get("action"):
+        params["action"] = f"like.{request.query_params['action']}*"
+    return _ok(await db.select("ap_activity", params))
+
+
+@route(admin_only=True, needs_db=False)
+async def admin_platforms(request: Request, me: Dict[str, Any]) -> Response:
+    """For the site owner only: what each platform's OAuth app still needs (never returns secret values)."""
+    return _ok({k: {"label": v["label"], "configured": social.configured(k), "env": v["env"], "steps": v["steps"],
+                    "note": v["note"], "redirect_uri": _redirect_uri(k)} for k, v in social.PLATFORMS.items()})
+
+
+routes_studio = [
+    Route("/api/v1/studio/me", me_get, methods=["GET"]),
+    Route("/api/v1/studio/catalog", catalog, methods=["GET"]),
+    Route("/api/v1/studio/voices", voices, methods=["GET"]),
+    Route("/api/v1/studio/ideas", ideas, methods=["POST"]),
+    Route("/api/v1/studio/script", script, methods=["POST"]),
+    Route("/api/v1/studio/autopilots", autopilots_list, methods=["GET"]),
+    Route("/api/v1/studio/autopilots", autopilots_save, methods=["POST"]),
+    Route("/api/v1/studio/autopilots/{id}/delete", autopilots_delete, methods=["POST"]),
+    Route("/api/v1/studio/jobs", jobs_list, methods=["GET"]),
+    Route("/api/v1/studio/jobs", jobs_create, methods=["POST"]),
+    Route("/api/v1/studio/jobs/{id}", job_get, methods=["GET"]),
+    Route("/api/v1/studio/jobs/{id}/regen", job_regen, methods=["POST"]),
+    Route("/api/v1/studio/jobs/{id}/publish", job_publish, methods=["POST"]),
+    Route("/api/v1/studio/jobs/{id}/cancel", job_cancel, methods=["POST"]),
+    Route("/api/v1/studio/jobs/{id}/delete", job_delete, methods=["POST"]),
+    Route("/api/v1/studio/status", status, methods=["GET"]),
+    Route("/api/v1/studio/accounts", accounts_list, methods=["GET"]),
+    Route("/api/v1/studio/accounts/{id}/delete", accounts_delete, methods=["POST"]),
+    Route("/api/v1/studio/analytics", analytics, methods=["GET"]),
+    Route("/api/v1/studio/requests", platform_request, methods=["POST"]),
+    Route("/api/v1/studio/admin/users", admin_users, methods=["GET"]),
+    Route("/api/v1/studio/admin/users/{id}", admin_user_update, methods=["POST"]),
+    Route("/api/v1/studio/admin/activity", admin_activity, methods=["GET"]),
+    Route("/api/v1/studio/admin/platforms", admin_platforms, methods=["GET"]),
+    Route("/api/v1/auth/{platform}/callback", oauth_callback, methods=["GET"]),
+    Route("/api/v1/auth/{platform}", oauth_start, methods=["GET"]),
+]
