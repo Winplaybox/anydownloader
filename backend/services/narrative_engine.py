@@ -4,6 +4,8 @@ Handles script-first generation, topic-to-script expansion, natural multilingual
 evidence qualification for factual/health topics, and speech timing models.
 """
 
+import os
+import json
 import re
 import math
 from typing import Dict, Any, List, Optional, Tuple
@@ -361,6 +363,47 @@ class NarrativeEngine:
 
         return self._format_segments(data, is_hindi, is_hinglish)
 
+    def _generate_bedrock_script(
+        self,
+        topic: str,
+        is_hindi: bool,
+        is_hinglish: bool,
+        target_beats: int,
+        tone: str
+    ) -> Optional[List[Tuple[str, str]]]:
+        """
+        Synthesizes a tailored, viral multi-beat script using AWS Bedrock Nova Micro.
+        100% resilient: returns None on any failure to guarantee instant local fallback.
+        """
+        try:
+            import boto3
+            client = boto3.client('bedrock-runtime', region_name=os.getenv('AWS_REGION', 'ap-southeast-2'))
+            lang_str = "pure Devanagari Hindi (no English words)" if is_hindi else ("Hinglish" if is_hinglish else "English")
+            prompt = (
+                f"You are a world-class viral video scriptwriter. Create a compelling {target_beats}-beat video script about: '{topic}'.\n"
+                f"Tone: {tone}. Language: {lang_str}.\n"
+                f"Return a strictly valid JSON array of exactly {target_beats} objects, each with:\n"
+                f'- "beat_title": (e.g. "Hook & Inciting Opening", "Context", "Mechanism", "Action", "Resolution")\n'
+                f'- "narration": (1-2 powerful sentences to be spoken by narrator).\n'
+                f"Output ONLY the raw JSON array without markdown code fences."
+            )
+            resp = client.converse(
+                modelId='amazon.nova-micro-v1:0',
+                messages=[{'role': 'user', 'content': [{'text': prompt}]}],
+                inferenceConfig={'maxTokens': 800, 'temperature': 0.7}
+            )
+            raw_text = resp['output']['message']['content'][0]['text'].strip()
+            if '`' in raw_text:
+                raw_text = re.sub(r'^`+(?:json)?\s*', '', raw_text)
+                raw_text = re.sub(r'\s*`+$', '', raw_text)
+            data = json.loads(raw_text)
+            if isinstance(data, list) and len(data) > 0:
+                return [(d.get('beat_title', f"Beat {i+1}"), d.get('narration', '')) for i, d in enumerate(data)]
+        except Exception as e:
+            # Silent fallback to rule-based templates
+            pass
+        return None
+
     def _build_generic_explainer_script(
         self,
         topic: str,
@@ -369,6 +412,11 @@ class NarrativeEngine:
         target_beats: int,
         tone: str
     ) -> List[Dict[str, Any]]:
+        # 1. High-Precision AI Synthesis via AWS Bedrock (with instant local fallback)
+        ai_beats = self._generate_bedrock_script(topic, is_hindi, is_hinglish, target_beats, tone)
+        if ai_beats:
+            return self._format_segments(ai_beats, is_hindi, is_hinglish)
+
         clean_topic = topic.strip().capitalize()
         if is_hindi:
             data = [
