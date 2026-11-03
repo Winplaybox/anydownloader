@@ -394,7 +394,7 @@ class ZeroTrustMiddleware(BaseHTTPMiddleware):
 
 def cors_kwargs() -> Dict[str, Any]:
     extra = [o.strip() for o in os.environ.get("WPB_CORS_EXTRA_ORIGINS", "").split(",") if o.strip()]
-    pattern = r"https://([a-z0-9-]+\.)*winplaybox\.in|https://(www\.)?latestnewsnx\.com|https://(www\.)?buzzstormnow\.com|chrome-extension://[a-p]{32}"
+    pattern = r"https://([a-z0-9-]+\.)*winplaybox\.in|https://(www\.)?latestnewsnx\.com|https://(www\.)?buzzstormnow\.com|chrome-extension://[a-z0-9]{32}|moz-extension://.*"
     if not IS_PRODUCTION or os.environ.get("WPB_ALLOW_DEV_ORIGINS") == "1":
         pattern += r"|http://(localhost|127\.0\.0\.1)(:\d+)?"
     return {
