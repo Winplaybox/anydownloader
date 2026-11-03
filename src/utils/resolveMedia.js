@@ -199,8 +199,7 @@ export async function resolveMedia(rawInput) {
     const resp = await fetch(`${BACKEND_BASE}/api/resolve`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        ...attributionHeaders
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         url: norm.url,
@@ -235,8 +234,7 @@ export async function resolveMedia(rawInput) {
     const resp = await fetch(`${BACKEND_BASE}/api/extract`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        ...attributionHeaders
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         url: norm.url,

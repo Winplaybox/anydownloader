@@ -402,7 +402,7 @@ def cors_kwargs() -> Dict[str, Any]:
         "allow_origin_regex": pattern,
         "allow_methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Authorization", "Content-Type", "X-Admin-Key", "X-Request-ID",
-                          "X-Extension-Key", "X-Auth-Token", "cf-turnstile-response"],
+                          "X-Extension-Key", "X-Auth-Token", "cf-turnstile-response", "x-ovd-source", "x-ovd-medium", "x-ovd-channel", "x-ovd-referrer", "X-OVD-Source", "X-OVD-Medium", "X-OVD-Channel", "X-OVD-Referrer"],
         "expose_headers": ["X-Request-ID"],
         "allow_credentials": False,
         "max_age": 600,
