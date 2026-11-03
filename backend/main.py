@@ -98,7 +98,7 @@ ALLOWED_ORIGINS = [
 ]
 EXTENSION_SECRET_KEY = os.environ.get("EXTENSION_SECRET_KEY", "wpb_ext_9f83e2a74c1048b9ad51f63cb7e90812")
 ALLOWED_EXTENSION_IDS = [
-    ext_id.strip() for ext_id in os.environ.get("ALLOWED_EXTENSION_IDS", "").split(",") if ext_id.strip()
+    ext_id.strip() for ext_id in os.environ.get("ALLOWED_EXTENSION_IDS", "aifhpejlmiogofokpjclelmlohmlnjmm").split(",") if ext_id.strip()
 ]
 
 # Strict Whitelist for /api/stream proxy to prevent SSRF and open proxy abuse
