@@ -135,6 +135,8 @@ async function resolveYouTubeClientFallback(url, videoId) {
 
   const cleanTitle = title.replace(/[\\/*?:"<>|]/g, '').trim();
 
+  const reliableThumb = thumb || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
   const variants = [
     {
       id: 'maxres_jpg',
@@ -143,6 +145,7 @@ async function resolveYouTubeClientFallback(url, videoId) {
       quality: '1080p Full HD Maxres Thumbnail',
       width: 1920,
       height: 1080,
+      url: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
       downloadUrl: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`
     },
     {
@@ -152,6 +155,7 @@ async function resolveYouTubeClientFallback(url, videoId) {
       quality: '720p HD Thumbnail',
       width: 1280,
       height: 720,
+      url: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
       downloadUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
     },
     {
@@ -161,6 +165,7 @@ async function resolveYouTubeClientFallback(url, videoId) {
       quality: '480p Standard Thumbnail',
       width: 640,
       height: 480,
+      url: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
       downloadUrl: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`
     }
   ];
@@ -169,11 +174,12 @@ async function resolveYouTubeClientFallback(url, videoId) {
     platform: 'youtube',
     sourceUrl: `https://www.youtube.com/watch?v=${videoId}`,
     title,
-    author: { name: author, handle: author, avatar: thumb },
+    thumbnail: reliableThumb,
+    author: { name: author, handle: author, avatar: reliableThumb },
     items: [{
       index: 1,
       kind: 'image',
-      thumbnail: thumb,
+      thumbnail: reliableThumb,
       variants
     }]
   };
