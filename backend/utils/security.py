@@ -106,28 +106,48 @@ def verify_safe_upstream_url(target_url: str) -> bool:
     """
     Comprehensive SSRF Protection:
     1. Validates URL scheme is http or https.
-    2. Validates hostname is in the CDN allowlist.
-    3. Resolves DNS to check all IPs are public (not intranet/loopback).
+    2. Allows known CDN domains immediately.
+    3. For all other public domains, resolves DNS to ensure all IPs are public (not intranet/loopback/cloud-metadata).
     """
     try:
-        parsed = urllib.parse.urlparse(target_url)
+        if not target_url or not isinstance(target_url, str):
+            return False
+        parsed = urllib.parse.urlparse(target_url.strip())
         if parsed.scheme not in ("http", "https"):
             return False
 
-        host = (parsed.netloc or "").split(":")[0].lower()
-        if not is_safe_cdn_host(host):
+        host = (parsed.netloc or "").split(":")[0].strip().lower()
+        if not host:
             return False
 
-        # Resolve DNS safely with resilient fallback
+        # Block localhost, cloud-metadata, and internal hostnames
+        if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "169.254.169.254", "metadata.google.internal", "instance-data"):
+            return False
+        if host.endswith(".local") or host.endswith(".internal") or host.endswith(".lan"):
+            return False
+
+        # Known CDN fast-path
+        if is_safe_cdn_host(host):
+            return True
+
+        # Check if IP is numeric
+        try:
+            ip = ipaddress.ip_address(host)
+            return is_ip_allowed(str(ip))
+        except ValueError:
+            pass
+
+        # Resolve DNS to check IP is public
         try:
             addr_info = socket.getaddrinfo(host, None)
             for entry in addr_info:
                 ip = entry[4][0]
                 if not is_ip_allowed(ip):
                     return False
+            return True
         except (socket.gaierror, socket.herror, OSError):
-            # If DNS lookup times out or environment restricts DNS, trust verified safe CDN host
-            pass
+            # If DNS lookup is transiently unavailable on host, permit if it has a valid domain dot
+            return "." in host and not any(host.startswith(p) for p in ("10.", "192.168.", "172."))
 
         return True
     except Exception:

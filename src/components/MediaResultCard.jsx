@@ -229,18 +229,28 @@ export default function MediaResultCard({ data, onReset }) {
   }, [activeJob]);
 
   function triggerDownload(item) {
-    const rawUrl = item.downloadUrl || item.url || item.streamUrl;
+    if (!item) return;
+    const rawUpstream = (typeof item.url === 'string' && item.url.startsWith('http')) 
+      ? item.url 
+      : ((typeof item.streamUrl === 'string' && item.streamUrl.startsWith('http')) ? item.streamUrl : null);
+
+    const ext = item.ext || (item.kind === 'audio' ? 'mp3' : item.kind === 'image' ? 'jpg' : 'mp4');
+    const cleanName = `${platform || 'ovd'}_${item.label || 'media'}.${ext}`.replace(/[^a-zA-Z0-9._-]/g, '_');
+
     if (item.token) {
       let downloadUrl = `${BACKEND_BASE}/api/download?token=${encodeURIComponent(item.token)}`;
-      if (rawUrl) {
-        downloadUrl += `&url=${encodeURIComponent(rawUrl)}`;
+      if (rawUpstream) {
+        downloadUrl += `&url=${encodeURIComponent(rawUpstream)}`;
       }
-      const ext = item.ext || (item.kind === 'audio' ? 'mp3' : item.kind === 'image' ? 'jpg' : 'mp4');
-      const cleanName = `${platform}_${item.label || 'media'}.${ext}`.replace(/[^a-zA-Z0-9._-]/g, '_');
       downloadUrl += `&filename=${encodeURIComponent(cleanName)}`;
       window.location.href = downloadUrl;
-    } else if (rawUrl) {
-      window.open(rawUrl, '_blank', 'noopener,noreferrer');
+    } else if (item.downloadUrl) {
+      const fullUrl = item.downloadUrl.startsWith('http')
+        ? item.downloadUrl
+        : `${BACKEND_BASE}${item.downloadUrl.startsWith('/') ? '' : '/'}${item.downloadUrl}`;
+      window.location.href = fullUrl;
+    } else if (rawUpstream) {
+      window.location.href = `${BACKEND_BASE}/api/download?url=${encodeURIComponent(rawUpstream)}&filename=${encodeURIComponent(cleanName)}`;
     }
   }
 

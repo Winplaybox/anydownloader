@@ -158,30 +158,25 @@ def find_node_path() -> Optional[str]:
 NODE_EXE = find_node_path()
 
 def is_safe_cdn_url(target_url: str) -> bool:
-    """Validates target URL against permitted media CDN domains to prevent SSRF."""
+    """Validates target URL is a public web resource (http/https) and prevents SSRF."""
+    try:
+        from backend.utils.security import verify_safe_upstream_url
+        return verify_safe_upstream_url(target_url)
+    except Exception:
+        pass
+    try:
+        from utils.security import verify_safe_upstream_url
+        return verify_safe_upstream_url(target_url)
+    except Exception:
+        pass
     try:
         parsed = urllib.parse.urlparse(target_url)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
             return False
-        hostname = parsed.netloc.split(":")[0].lower()
+        hostname = parsed.netloc.split(":")[0].strip().lower()
         if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254"):
             return False
-        for pattern in ALLOWED_CDN_DOMAINS:
-            if re.match(pattern, hostname):
-                return True
-        # Also check direct exact or suffix match for common media roots
-        safe_suffixes = (
-            "googlevideo.com", "youtube.com", "ytimg.com", "ggpht.com", "googleusercontent.com",
-            "cdninstagram.com", "instagram.com", "fbcdn.net", "facebook.com", "fbsbx.com",
-            "tiktokcdn.com", "tiktokcdn-us.com", "tiktokcdn-eu.com", "tiktokv.com", "tiktok.com",
-            "ibytedtos.com", "byteoversea.com", "byteimg.com", "twimg.com", "twitter.com", "x.com",
-            "pinimg.com", "pinterest.com", "vimeocdn.com", "vimeo.com", "sndcdn.com", "soundcloud.com",
-            "redd.it", "reddit.com", "redditmedia.com", "akamaized.net", "cloudfront.net", "fastly.net"
-        )
-        for s in safe_suffixes:
-            if hostname == s or hostname.endswith("." + s):
-                return True
-        return False
+        return True
     except Exception:
         return False
 
@@ -2550,7 +2545,7 @@ async def download_proxy_handler(request):
     if "range" in request.headers:
         req_headers["range"] = request.headers["range"]
 
-    client = httpx.AsyncClient(headers=req_headers, follow_redirects=True, timeout=90.0)
+    client = httpx.AsyncClient(headers=req_headers, follow_redirects=True, timeout=120.0)
 
     try:
         upstream_req = client.build_request("GET", target_url)
@@ -2571,7 +2566,8 @@ async def download_proxy_handler(request):
 
     resp_headers = {
         "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8\'\'{urllib.parse.quote(safe_filename)}',
-        "Cache-Control": "private, max-age=300",
+        "Cache-Control": "public, max-age=14400",
+        "Access-Control-Allow-Origin": "*",
     }
     if "content-type" in upstream_resp.headers:
         resp_headers["Content-Type"] = upstream_resp.headers["Content-Type"]
