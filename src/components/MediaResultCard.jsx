@@ -90,6 +90,17 @@ function getPlatformIcon(platform) {
   return GlobeIcon;
 }
 
+function getValidImageUrl(val) {
+  if (!val) return null;
+  const str = typeof val === 'string' ? val : (val.url || val.streamUrl || val.thumbnail || '');
+  if (!str || typeof str !== 'string') return null;
+  // NEVER use download endpoints as inline image src
+  if (str.includes('/download?') || str.includes('/api/download')) return null;
+  if (str.startsWith('data:image/') || str.startsWith('http://') || str.startsWith('https://')) return str;
+  if (str.startsWith('/api/proxy-image')) return `${BACKEND_BASE}${str}`;
+  return str;
+}
+
 export default function MediaResultCard({ data, onReset }) {
   if (!data) return null;
 
@@ -167,11 +178,19 @@ export default function MediaResultCard({ data, onReset }) {
 
   const PlatformIcon = getPlatformIcon(platform);
 
-  const mainThumbnail = thumbnails[0]?.token 
-    ? `${BACKEND_BASE}/api/proxy-image?token=${thumbnails[0].token}`
-    : (images[0]?.token 
-        ? `${BACKEND_BASE}/api/proxy-image?token=${images[0].token}`
-        : (data.thumbnail || thumbnails[0]?.downloadUrl || images[0]?.downloadUrl || avatar));
+  const thumbToken = thumbnails[0]?.token || images[0]?.token;
+  const directThumb = getValidImageUrl(data.thumbnail) 
+    || getValidImageUrl(thumbnails[0]?.url) 
+    || getValidImageUrl(thumbnails[0]?.streamUrl)
+    || getValidImageUrl(images[0]?.url)
+    || getValidImageUrl(images[0]?.streamUrl)
+    || (thumbnails[0]?.downloadUrl && !thumbnails[0].downloadUrl.includes('/download') ? thumbnails[0].downloadUrl : null)
+    || (images[0]?.downloadUrl && !images[0].downloadUrl.includes('/download') ? images[0].downloadUrl : null)
+    || getValidImageUrl(avatar);
+
+  const mainThumbnail = thumbToken 
+    ? `${BACKEND_BASE}/api/proxy-image?token=${encodeURIComponent(thumbToken)}`
+    : (directThumb ? (directThumb.startsWith('http') ? directThumb : `${BACKEND_BASE}${directThumb}`) : null);
 
   useEffect(() => {
     if (!activeJob || activeJob.status === 'done' || activeJob.status === 'failed') return;
@@ -359,12 +378,30 @@ export default function MediaResultCard({ data, onReset }) {
                   alt={title}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   onError={(e) => {
-                    const fallback = data.thumbnail || thumbnails[0]?.downloadUrl || thumbnails[0]?.url || images[0]?.downloadUrl || images[0]?.url || avatar;
-                    if (fallback && e.currentTarget.src !== fallback) {
-                      e.currentTarget.src = fallback;
-                    } else {
-                      e.currentTarget.style.display = 'none';
+                    const target = e.currentTarget;
+                    if (target.dataset.hasFailed) {
+                      target.style.display = 'none';
+                      return;
                     }
+                    target.dataset.hasFailed = 'true';
+
+                    const currentSrc = target.src || '';
+                    if (currentSrc.includes('maxresdefault.jpg')) {
+                      target.src = currentSrc.replace('maxresdefault.jpg', 'hqdefault.jpg');
+                      return;
+                    }
+                    if (currentSrc.includes('hqdefault.jpg')) {
+                      target.src = currentSrc.replace('hqdefault.jpg', 'mqdefault.jpg');
+                      return;
+                    }
+
+                    const safeAvatar = getValidImageUrl(avatar);
+                    if (safeAvatar && target.src !== safeAvatar) {
+                      target.src = safeAvatar;
+                      return;
+                    }
+
+                    target.style.display = 'none';
                   }}
                 />
               ) : (
@@ -823,8 +860,8 @@ export default function MediaResultCard({ data, onReset }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
                 {images.map((img, idx) => {
                   const imgUrl = img.token 
-                    ? `${BACKEND_BASE}/api/proxy-image?token=${img.token}`
-                    : (img.downloadUrl || img.url);
+                    ? `${BACKEND_BASE}/api/proxy-image?token=${encodeURIComponent(img.token)}`
+                    : getValidImageUrl(img.url || img.streamUrl || (img.downloadUrl && !img.downloadUrl.includes('/download') ? img.downloadUrl : null));
 
                   return (
                     <div 
@@ -832,19 +869,26 @@ export default function MediaResultCard({ data, onReset }) {
                       className="group bg-[var(--bg-alt)] border border-[var(--border)] rounded-xl overflow-hidden flex flex-col justify-between transition-colors"
                     >
                       <div className="relative aspect-video overflow-hidden bg-[var(--bg-alt)]">
-                        <img 
-                          src={imgUrl} 
-                          alt={img.label || `Image ${idx + 1}`}
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          onError={(e) => {
-                            const fallback = img.downloadUrl || img.url;
-                            if (fallback && e.currentTarget.src !== fallback) {
-                              e.currentTarget.src = fallback;
-                            } else {
-                              e.currentTarget.style.display = 'none';
-                            }
-                          }}
-                        />
+                        {imgUrl ? (
+                          <img 
+                            src={imgUrl} 
+                            alt={img.label || `Image ${idx + 1}`}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (target.dataset.hasFailed) {
+                                target.style.display = 'none';
+                                return;
+                              }
+                              target.dataset.hasFailed = 'true';
+                              target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)] bg-[var(--bg-alt)]">
+                            <ImageIcon className="w-8 h-8 opacity-40" />
+                          </div>
+                        )}
                         <button
                           type="button"
                           onClick={() => setPreviewMedia({ type: 'image', url: imgUrl, title: img.label })}
