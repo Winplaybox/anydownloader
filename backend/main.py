@@ -2351,7 +2351,7 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
-        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs") or request.url.path.startswith("/api/jobs") or request.url.path.startswith(("/api/v1", "/api/v2")) or request.url.path.startswith("/admin/"):
+        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs", "/api/ai/captions", "/api/ai/voice") or request.url.path.startswith("/api/jobs") or request.url.path.startswith(("/api/v1", "/api/v2")) or request.url.path.startswith("/admin/"):
             return await call_next(request)
         # OAuth sign-in redirects come from the platform (no allowed origin); the route checks its own signed state.
         if request.method == "GET" and request.url.path.startswith("/oauth/autopilot/"):
@@ -2526,6 +2526,17 @@ async def download_proxy_handler(request):
     if not target_url:
         return error_response(ErrorCode.PRIVATE_OR_RESTRICTED, "Download token is invalid or expired.")
 
+    # Unwrap /api/stream?url= if present
+    if target_url and ("/api/stream?url=" in target_url or "/api/stream?" in target_url):
+        try:
+            parsed_q = urllib.parse.urlparse(target_url)
+            params_q = urllib.parse.parse_qs(parsed_q.query)
+            inner_u = params_q.get("url", [None])[0]
+            if inner_u:
+                target_url = inner_u
+        except Exception:
+            pass
+
     # If target_url is an internal route (like /api/download_video or /api/download_audio)
     if target_url.startswith("/api/download_video") or target_url.startswith("/api/download_audio") or target_url.startswith("/api/stream"):
         return RedirectResponse(url=target_url, status_code=307)
@@ -2612,24 +2623,39 @@ def map_legacy_to_normalized(legacy_data: Dict[str, Any], platform_id: str, url:
             hasAudio=vf.get("has_audio", True)
         ).to_dict())
 
+    def _unwrap_url(u: Optional[str]) -> str:
+        if not u:
+            return ""
+        if "/api/stream?url=" in u:
+            try:
+                qs = urllib.parse.parse_qs(urllib.parse.urlparse(u).query)
+                return qs.get("url", [u])[0]
+            except Exception:
+                pass
+        return u
+
     images = []
     for idx, cm in enumerate(legacy_data.get("carousel_media") or []):
         ext = "mp4" if cm.get("type") == "video" else "jpg"
         fn = f"{platform_id}_slide_{idx+1}.{ext}"
-        token = sign_download_token(cm.get("stream_url") or cm.get("url"), fn)
+        actual_u = _unwrap_url(cm.get("url") or cm.get("stream_url"))
+        token = sign_download_token(actual_u, fn)
         images.append(ImageVariant(
             label=f"Slide {idx+1}",
             token=token,
-            ext=ext
+            ext=ext,
+            url=actual_u
         ).to_dict())
 
     thumbnails = []
     for idx, th in enumerate(legacy_data.get("thumbnails") or []):
         fn = f"{platform_id}_thumb_{idx+1}.jpg"
-        token = sign_download_token(th.get("stream_url") or th.get("url"), fn)
+        actual_u = _unwrap_url(th.get("url") or th.get("stream_url"))
+        token = sign_download_token(actual_u, fn)
         thumbnails.append(ThumbnailVariant(
             label=th.get("quality") or f"Thumbnail {idx+1}",
-            token=token
+            token=token,
+            url=actual_u
         ).to_dict())
 
     stats = {}
@@ -2780,8 +2806,20 @@ async def proxy_image_handler(request):
                 pass
 
     if not target_url and url_param:
-        if is_safe_cdn_url(url_param):
-            target_url = url_param
+        clean_u = url_param.strip()
+        if is_safe_cdn_url(clean_u):
+            target_url = clean_u
+
+    # Unwrap /api/stream?url= if present
+    if target_url and ("/api/stream?url=" in target_url or "/api/stream?" in target_url):
+        try:
+            parsed_q = urllib.parse.urlparse(target_url)
+            params_q = urllib.parse.parse_qs(parsed_q.query)
+            inner_u = params_q.get("url", [None])[0]
+            if inner_u:
+                target_url = inner_u
+        except Exception:
+            pass
 
     if not target_url:
         return JSONResponse({"error": "Valid token or permitted CDN url is required"}, status_code=403)
@@ -2795,8 +2833,9 @@ async def proxy_image_handler(request):
         "User-Agent": USER_AGENT,
         "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Referer": f"{parsed_u.scheme}://{parsed_u.netloc}/",
+        "Referer": f"{parsed_u.scheme}://{parsed_u.netloc}/" if parsed_u.netloc else "https://www.google.com/",
     }
+
 
     try:
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
@@ -2938,9 +2977,53 @@ async def subtitles_handler(request):
     if media_url:
         res = subtitles_service.extract_subtitles_from_url(media_url)
     else:
-        srt_res = subtitles_service.generate_srt_from_text(text_input)
-        res = {"ok": True, "format": "srt", "subtitles": srt_res, "type": "text_sync"}
+        res = subtitles_service.get_full_media_captions(media_url="", title=text_input)
     return JSONResponse(res)
+
+async def ai_captions_handler(request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    media_url = (body.get("url") or "").strip()
+    title = (body.get("title") or "").strip()
+    caption = (body.get("caption") or "").strip()
+    platform = (body.get("platform") or "social").strip()
+
+    res = subtitles_service.get_full_media_captions(
+        media_url=media_url,
+        title=title,
+        caption=caption,
+        platform=platform
+    )
+    return JSONResponse(res)
+
+async def ai_voice_handler(request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    text = (body.get("text") or "").strip()
+    voice = body.get("voice") or "hi-IN-MadhurNeural"
+    if not text:
+        return JSONResponse({"ok": False, "error": "Text is required for voice generation."}, status_code=400)
+
+    # Clean text to safe max 1500 chars for speech
+    sample_text = text[:1500]
+    res = await voice_service.synthesize_speech(text=sample_text, voice=voice)
+    audio_path = res.get("audio_path")
+    if audio_path and os.path.exists(audio_path):
+        with open(audio_path, "rb") as f:
+            audio_b64 = base64.b64encode(f.read()).decode("ascii")
+        data_uri = f"data:audio/mp3;base64,{audio_b64}"
+        return JSONResponse({
+            "ok": True,
+            "voice": voice,
+            "duration": res.get("duration", 0),
+            "data_uri": data_uri,
+            "word_timestamps": res.get("word_timestamps", [])
+        })
+    return JSONResponse({"ok": False, "error": "Voice synthesis failed."}, status_code=500)
 
 async def voice_list_handler(request):
     voices = voice_service.get_curated_voices()
@@ -3622,6 +3705,8 @@ routes = [
     Route('/api/v1/audio/download', audio_download_handler, methods=['GET']),
     Route('/api/resolve', unified_extract_handler, methods=['POST']),
     Route('/api/extract', unified_extract_handler, methods=['POST']),
+    Route('/api/ai/captions', ai_captions_handler, methods=['POST']),
+    Route('/api/ai/voice', ai_voice_handler, methods=['POST']),
     Route('/api/platforms', platforms_handler, methods=['GET']),
     Route('/api/download', download_proxy_handler, methods=['GET']),
     Route('/api/jobs', create_job_handler, methods=['POST']),

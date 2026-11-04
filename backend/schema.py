@@ -79,6 +79,7 @@ class ImageVariant:
     ext: str = "jpg"
     width: Optional[int] = None
     height: Optional[int] = None
+    url: Optional[str] = None
     downloadUrl: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -93,6 +94,7 @@ class ThumbnailVariant:
     token: str
     width: Optional[int] = None
     height: Optional[int] = None
+    url: Optional[str] = None
     downloadUrl: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:

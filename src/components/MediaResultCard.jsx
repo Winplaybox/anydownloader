@@ -25,7 +25,10 @@ import {
   AlertTriangle,
   Loader2,
   Sparkles,
-  Archive
+  Archive,
+  Mic,
+  Volume2,
+  Wand2
 } from 'lucide-react';
 import { 
   TwitterXIcon,
@@ -163,6 +166,17 @@ export default function MediaResultCard({ data, onReset }) {
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [copiedTags, setCopiedTags] = useState(false);
 
+  // AI Studio & Captions State
+  const [aiData, setAiData] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [selectedVoice, setSelectedVoice] = useState('hi-IN-MadhurNeural');
+  const [generatingVoice, setGeneratingVoice] = useState(false);
+  const [voiceAudioUri, setVoiceAudioUri] = useState(null);
+  const [copiedHookIdx, setCopiedHookIdx] = useState(null);
+  const [copiedTranscript, setCopiedTranscript] = useState(false);
+  const [copiedSocialSuite, setCopiedSocialSuite] = useState(false);
+
   const [activeJob, setActiveJob] = useState(null);
   const [jobError, setJobError] = useState(null);
   const [isZipping, setIsZipping] = useState(false);
@@ -179,18 +193,96 @@ export default function MediaResultCard({ data, onReset }) {
   const PlatformIcon = getPlatformIcon(platform);
 
   const thumbToken = thumbnails[0]?.token || images[0]?.token;
-  const directThumb = getValidImageUrl(data.thumbnail) 
-    || getValidImageUrl(thumbnails[0]?.url) 
+  const directThumb = (thumbnails[0]?.url && thumbnails[0].url.startsWith('http') ? thumbnails[0].url : null)
+    || (images[0]?.url && images[0].url.startsWith('http') ? images[0].url : null)
+    || getValidImageUrl(data.thumbnail) 
     || getValidImageUrl(thumbnails[0]?.streamUrl)
-    || getValidImageUrl(images[0]?.url)
     || getValidImageUrl(images[0]?.streamUrl)
-    || (thumbnails[0]?.downloadUrl && !thumbnails[0].downloadUrl.includes('/download') ? thumbnails[0].downloadUrl : null)
-    || (images[0]?.downloadUrl && !images[0].downloadUrl.includes('/download') ? images[0].downloadUrl : null)
     || getValidImageUrl(avatar);
 
-  const mainThumbnail = thumbToken 
+  const mainThumbnail = directThumb || (thumbToken 
     ? `${BACKEND_BASE}/api/proxy-image?token=${encodeURIComponent(thumbToken)}`
-    : (directThumb ? (directThumb.startsWith('http') ? directThumb : `${BACKEND_BASE}${directThumb}`) : null);
+    : null);
+
+  async function fetchAiCaptions() {
+    if (aiData || aiLoading) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const resp = await fetch(`${BACKEND_BASE}/api/ai/captions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: data.sourceUrl || data.url || '',
+          title: title,
+          caption: caption,
+          platform: platform
+        })
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.ok) {
+          setAiData(json);
+        } else {
+          setAiError(json.error || 'Could not load AI subtitles.');
+        }
+      } else {
+        setAiError('AI Subtitles service is busy.');
+      }
+    } catch (e) {
+      setAiError('Failed to fetch AI captions.');
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  function downloadTextFile(content, filename, mimeType = 'text/plain') {
+    if (!content) return;
+    const blob = new Blob([content], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setToastMessage(`Downloaded ${filename}!`);
+    setTimeout(() => setToastMessage(''), 3000);
+  }
+
+  async function generateAiVoice() {
+    const textToSpeak = aiData?.transcript || caption || title;
+    if (!textToSpeak) return;
+    setGeneratingVoice(true);
+    try {
+      const resp = await fetch(`${BACKEND_BASE}/api/ai/voice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: textToSpeak,
+          voice: selectedVoice
+        })
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.ok && json.data_uri) {
+          setVoiceAudioUri(json.data_uri);
+          setToastMessage('AI Voiceover generated successfully!');
+          setTimeout(() => setToastMessage(''), 3000);
+        } else {
+          setToastMessage('Voice generation encountered an issue.');
+          setTimeout(() => setToastMessage(''), 3000);
+        }
+      }
+    } catch (e) {
+      setToastMessage('Voice synthesis failed.');
+      setTimeout(() => setToastMessage(''), 3000);
+    } finally {
+      setGeneratingVoice(false);
+    }
+  }
+
 
   useEffect(() => {
     if (!activeJob || activeJob.status === 'done' || activeJob.status === 'failed') return;
@@ -696,6 +788,28 @@ export default function MediaResultCard({ data, onReset }) {
                 </span>
               </button>
             )}
+
+            {/* AI Captions & Subtitles Tab */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('ai_captions');
+                fetchAiCaptions();
+              }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                activeTab === 'ai_captions'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]/50'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              <span>AI Captions & Subtitles</span>
+              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded ${
+                activeTab === 'ai_captions' ? 'bg-white/20 text-white' : 'bg-purple-500/10 border border-purple-500/30 text-purple-500'
+              }`}>
+                AI Studio
+              </span>
+            </button>
           </div>
         </div>
 
@@ -879,9 +993,13 @@ export default function MediaResultCard({ data, onReset }) {
               {/* Grid of Images */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
                 {images.map((img, idx) => {
-                  const imgUrl = img.token 
+                  const directHttp = (typeof img.url === 'string' && img.url.startsWith('http')) 
+                    ? img.url 
+                    : ((typeof img.streamUrl === 'string' && img.streamUrl.startsWith('http')) ? img.streamUrl : null);
+                  const proxyUrl = img.token 
                     ? `${BACKEND_BASE}/api/proxy-image?token=${encodeURIComponent(img.token)}`
-                    : getValidImageUrl(img.url || img.streamUrl || (img.downloadUrl && !img.downloadUrl.includes('/download') ? img.downloadUrl : null));
+                    : (directHttp ? `${BACKEND_BASE}/api/proxy-image?url=${encodeURIComponent(directHttp)}` : null);
+                  const imgUrl = directHttp || proxyUrl;
 
                   return (
                     <div 
@@ -894,14 +1012,14 @@ export default function MediaResultCard({ data, onReset }) {
                             src={imgUrl} 
                             alt={img.label || `Image ${idx + 1}`}
                             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            loading="lazy"
                             onError={(e) => {
                               const target = e.currentTarget;
-                              if (target.dataset.hasFailed) {
-                                target.style.display = 'none';
+                              if (!target.dataset.triedProxy && proxyUrl && target.src !== proxyUrl) {
+                                target.dataset.triedProxy = 'true';
+                                target.src = proxyUrl;
                                 return;
                               }
-                              target.dataset.hasFailed = 'true';
-                              target.style.display = 'none';
                             }}
                           />
                         ) : (
@@ -1031,6 +1149,302 @@ export default function MediaResultCard({ data, onReset }) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* 5. AI Captions, Subtitles & Voice Studio Tab */}
+          {activeTab === 'ai_captions' && (
+            <div className="space-y-6">
+              {/* Header Banner */}
+              <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-transparent border border-purple-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 rounded-xl bg-purple-500 text-white shrink-0 shadow-md">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-[var(--text)] flex items-center gap-2">
+                      <span>AI Subtitles, Captions & Voice Studio</span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30">
+                        {aiData?.source === 'native' ? 'Synchronized Native' : 'AI Speech Engine'}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                      Export synced subtitles for Premiere/CapCut, read transcripts, copy viral social hooks, or generate AI voiceovers.
+                    </p>
+                  </div>
+                </div>
+
+                {!aiLoading && (
+                  <button
+                    type="button"
+                    onClick={fetchAiCaptions}
+                    className="px-3 py-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-xs font-semibold hover:bg-[var(--bg-alt)] transition-colors shrink-0 flex items-center gap-1.5"
+                  >
+                    <Wand2 className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Regenerate AI</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Loading State */}
+              {aiLoading && (
+                <div className="p-8 text-center bg-[var(--bg-alt)]/50 border border-[var(--border)] rounded-xl space-y-3">
+                  <Loader2 className="w-7 h-7 text-purple-500 animate-spin mx-auto" />
+                  <p className="text-sm font-semibold text-[var(--text)]">
+                    Analyzing speech & transcribing media...
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Extracting synchronized speech lines, timestamps, viral hooks, and subtitle tracks.
+                  </p>
+                </div>
+              )}
+
+              {/* Error State */}
+              {aiError && !aiLoading && (
+                <div className="p-4 bg-[var(--negative-bg)] border border-[var(--negative)]/30 rounded-xl text-xs text-[var(--negative)] flex items-center justify-between">
+                  <span>{aiError}</span>
+                  <button
+                    type="button"
+                    onClick={fetchAiCaptions}
+                    className="font-bold underline ml-2 cursor-pointer"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
+
+              {/* Loaded Content */}
+              {aiData && !aiLoading && (
+                <div className="space-y-6">
+
+                  {/* 5 Core Action Buttons Requested by User */}
+                  <div>
+                    <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2.5">
+                      Instant Download & Export Actions
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+
+                      {/* 1. Download .SRT */}
+                      <button
+                        type="button"
+                        onClick={() => downloadTextFile(aiData.srt, `${(title || 'captions').slice(0, 30).replace(/[^a-zA-Z0-9_-]/g, '_')}.srt`, 'text/plain')}
+                        className="p-3 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500 group-hover:bg-purple-500 group-hover:text-white transition-colors">
+                            <Download className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs sm:text-sm font-bold text-[var(--text)]">📥 Download .SRT Subtitles</p>
+                            <p className="text-[10px] text-[var(--text-muted)]">SubRip format for Premiere & CapCut</p>
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* 2. Download .VTT */}
+                      <button
+                        type="button"
+                        onClick={() => downloadTextFile(aiData.vtt, `${(title || 'captions').slice(0, 30).replace(/[^a-zA-Z0-9_-]/g, '_')}.vtt`, 'text/vtt')}
+                        className="p-3 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+                            <Download className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs sm:text-sm font-bold text-[var(--text)]">📥 Download .VTT Subtitles</p>
+                            <p className="text-[10px] text-[var(--text-muted)]">WebVTT format for web & players</p>
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* 3. Download Transcript (.TXT) */}
+                      <button
+                        type="button"
+                        onClick={() => downloadTextFile(aiData.transcript, `${(title || 'transcript').slice(0, 30).replace(/[^a-zA-Z0-9_-]/g, '_')}_transcript.txt`, 'text/plain')}
+                        className="p-3 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs sm:text-sm font-bold text-[var(--text)]">📄 Download Transcript (.TXT)</p>
+                            <p className="text-[10px] text-[var(--text-muted)]">Full readable text file</p>
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* 4. Copy Viral Captions & Hashtags */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const fullCopy = `${aiData.caption}\n\n${aiData.hashtags}`;
+                          navigator.clipboard.writeText(fullCopy);
+                          setCopiedSocialSuite(true);
+                          setToastMessage('Copied Viral Caption & Hashtags!');
+                          setTimeout(() => {
+                            setCopiedSocialSuite(false);
+                            setToastMessage('');
+                          }, 3000);
+                        }}
+                        className="p-3 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                            {copiedSocialSuite ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <p className="text-xs sm:text-sm font-bold text-[var(--text)]">📋 Copy Viral Captions & Tags</p>
+                            <p className="text-[10px] text-[var(--text-muted)]">{copiedSocialSuite ? 'Copied to clipboard!' : 'Ready-to-paste social post'}</p>
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* 5. Generate AI Voiceover (MP3) */}
+                      <button
+                        type="button"
+                        onClick={generateAiVoice}
+                        disabled={generatingVoice}
+                        className="p-3 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] hover:border-amber-500/50 hover:bg-amber-500/5 transition-all text-left flex items-center justify-between group cursor-pointer sm:col-span-2 lg:col-span-2"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                            {generatingVoice ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <p className="text-xs sm:text-sm font-bold text-[var(--text)]">🎙️ Generate AI Voiceover (MP3)</p>
+                            <p className="text-[10px] text-[var(--text-muted)]">
+                              {generatingVoice ? 'Synthesizing neural audio...' : 'Convert transcript into spoken MP3'}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+
+                    </div>
+                  </div>
+
+                  {/* Audio Player if generated */}
+                  {voiceAudioUri && (
+                    <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+                      <div className="flex items-center gap-3">
+                        <Volume2 className="w-5 h-5 text-amber-500 shrink-0" />
+                        <div>
+                          <p className="text-xs sm:text-sm font-bold text-[var(--text)]">AI Voiceover Track Ready</p>
+                          <p className="text-[10px] text-[var(--text-muted)]">Preview audio or download directly as MP3</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <audio controls src={voiceAudioUri} className="h-8 max-w-xs" />
+                        <a
+                          href={voiceAudioUri}
+                          download={`${(title || 'voiceover').slice(0, 30).replace(/[^a-zA-Z0-9_-]/g, '_')}_ai.mp3`}
+                          className="px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:opacity-90 text-xs font-bold flex items-center gap-1 shrink-0"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>MP3</span>
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section: Spoken Transcript View */}
+                  <div className="bg-[var(--bg-alt)] border border-[var(--border)] rounded-xl p-4 sm:p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-[var(--text)] uppercase tracking-wider flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-purple-500" />
+                        <span>Spoken Video Transcript</span>
+                        <span className="text-[10px] text-[var(--text-muted)] font-mono font-normal">
+                          ({aiData.transcript.split(/\s+/).length} words)
+                        </span>
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(aiData.transcript);
+                          setCopiedTranscript(true);
+                          setToastMessage('Transcript copied to clipboard!');
+                          setTimeout(() => setCopiedTranscript(false), 3000);
+                        }}
+                        className="px-2.5 py-1 rounded bg-[var(--surface)] border border-[var(--border)] text-[10px] font-semibold text-[var(--text-muted)] hover:text-[var(--text)] flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedTranscript ? <Check className="w-3 h-3 text-[var(--positive)]" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedTranscript ? 'Copied' : 'Copy Text'}</span>
+                      </button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto p-3 rounded-lg bg-[var(--bg)] border border-[var(--border)] text-xs text-[var(--text)] leading-relaxed select-text font-sans">
+                      {aiData.transcript}
+                    </div>
+                  </div>
+
+                  {/* Section: 3 Viral Opening Hooks */}
+                  {Array.isArray(aiData.hooks) && aiData.hooks.length > 0 && (
+                    <div className="space-y-2.5">
+                      <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                        ⚡ 3 Viral Opening Hooks (For Reels & Shorts)
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                        {aiData.hooks.map((hook, hIdx) => (
+                          <div 
+                            key={`hook_${hIdx}`}
+                            className="p-3.5 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] flex flex-col justify-between gap-3 hover:border-purple-500/40 transition-colors"
+                          >
+                            <p className="text-xs text-[var(--text)] font-medium leading-snug">
+                              &ldquo;{hook}&rdquo;
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(hook);
+                                setCopiedHookIdx(hIdx);
+                                setToastMessage(`Copied Hook #${hIdx + 1}!`);
+                                setTimeout(() => setCopiedHookIdx(null), 3000);
+                              }}
+                              className="self-end px-2.5 py-1 rounded bg-[var(--surface)] border border-[var(--border)] text-[10px] font-semibold text-[var(--text-muted)] hover:text-[var(--text)] flex items-center gap-1 cursor-pointer"
+                            >
+                              {copiedHookIdx === hIdx ? <Check className="w-3 h-3 text-[var(--positive)]" /> : <Copy className="w-3 h-3" />}
+                              <span>{copiedHookIdx === hIdx ? 'Copied' : 'Copy Hook'}</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section: Voiceover Voice Selector */}
+                  <div className="p-4 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-xs font-bold text-[var(--text)]">AI Voice Character</h4>
+                      <p className="text-[10px] text-[var(--text-muted)]">Select neural narrator voice for audio dubbing</p>
+                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <select
+                        value={selectedVoice}
+                        onChange={(e) => setSelectedVoice(e.target.value)}
+                        className="px-3 py-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-xs font-semibold text-[var(--text)] cursor-pointer focus:outline-hidden w-full sm:w-auto"
+                      >
+                        <option value="hi-IN-MadhurNeural">🇮🇳 Madhur (Hindi Male - Energetic)</option>
+                        <option value="hi-IN-SwaraNeural">🇮🇳 Swara (Hindi Female - Smooth)</option>
+                        <option value="en-IN-PrabhatNeural">🇮🇳 Prabhat (Indian English Male - Tech)</option>
+                        <option value="en-IN-NeerjaNeural">🇮🇳 Neerja (Indian English Female - Pro)</option>
+                        <option value="en-US-ChristopherNeural">🇺🇸 Christopher (US Male - Cinematic)</option>
+                        <option value="en-US-JennyNeural">🇺🇸 Jenny (US Female - Friendly)</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={generateAiVoice}
+                        disabled={generatingVoice}
+                        className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shrink-0 transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                      >
+                        {generatingVoice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mic className="w-3.5 h-3.5" />}
+                        <span>Synthesize</span>
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              )}
+
             </div>
           )}
 

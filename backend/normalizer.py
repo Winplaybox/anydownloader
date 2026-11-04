@@ -63,6 +63,7 @@ def normalize_raw_result(raw: RawResult, platform_def: Dict[str, Any], content_t
                 ext=ext_clean,
                 width=it.width,
                 height=it.height,
+                url=it.url,
             ))
 
         elif it.kind == "thumbnail":
@@ -71,6 +72,7 @@ def normalize_raw_result(raw: RawResult, platform_def: Dict[str, Any], content_t
                 token=token,
                 width=it.width,
                 height=it.height,
+                url=it.url,
             ))
 
         elif it.kind == "subtitle":
