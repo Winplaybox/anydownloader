@@ -7,7 +7,7 @@ for _p in (_current_dir, _parent_dir):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from starlette.responses import FileResponse, Response
+from starlette.responses import FileResponse, Response, RedirectResponse, JSONResponse, StreamingResponse
 from typing import Dict, Any, Optional, List, Union
 try:
     from backend.platform_registry import registry as platform_registry
@@ -2503,23 +2503,32 @@ async def download_proxy_handler(request):
         else:
             # Resilient fallback: recover download payload safely if token signature key rotated
             try:
-                if "." in token:
-                    b64_part = token.split(".", 1)[0]
-                    padding = '=' * (4 - (len(b64_part) % 4)) if len(b64_part) % 4 != 0 else ''
-                    raw_data = json.loads(base64.urlsafe_b64decode(b64_part + padding).decode('utf-8'))
-                    candidate_u = raw_data.get("u")
-                    if candidate_u and is_safe_cdn_url(candidate_u):
-                        target_url = candidate_u
-                        filename = raw_data.get("f") or filename
+                b64_part = token.split(".", 1)[0] if "." in token else token
+                padding = '=' * (4 - (len(b64_part) % 4)) if len(b64_part) % 4 != 0 else ''
+                raw_data = json.loads(base64.urlsafe_b64decode(b64_part + padding).decode('utf-8'))
+                candidate_u = raw_data.get("u")
+                if candidate_u and is_safe_cdn_url(candidate_u):
+                    target_url = candidate_u
+                    filename = raw_data.get("f") or filename
             except Exception:
                 pass
 
     if not target_url and url_param:
-        if is_safe_cdn_url(url_param):
-            target_url = url_param
+        clean_u = url_param.strip()
+        if is_safe_cdn_url(clean_u):
+            target_url = clean_u
+        elif clean_u.startswith("/api/") or clean_u.startswith("/"):
+            target_url = clean_u
+
+    if not token and not url_param:
+        return error_response(ErrorCode.URL_INVALID, "Download token or url is required.")
 
     if not target_url:
         return error_response(ErrorCode.PRIVATE_OR_RESTRICTED, "Download token is invalid or expired.")
+
+    # If target_url is an internal route (like /api/download_video or /api/download_audio)
+    if target_url.startswith("/api/download_video") or target_url.startswith("/api/download_audio") or target_url.startswith("/api/stream"):
+        return RedirectResponse(url=target_url, status_code=307)
 
     safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")[:100]
 

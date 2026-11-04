@@ -230,6 +230,16 @@ export default function MediaResultCard({ data, onReset }) {
 
   function triggerDownload(item) {
     if (!item) return;
+
+    // Check if item points to a specialized stream endpoint
+    if (item.downloadUrl && (item.downloadUrl.includes('/api/download_video') || item.downloadUrl.includes('/api/download_audio'))) {
+      const fullUrl = item.downloadUrl.startsWith('http')
+        ? item.downloadUrl
+        : `${BACKEND_BASE}${item.downloadUrl.startsWith('/') ? '' : '/'}${item.downloadUrl}`;
+      window.location.href = fullUrl;
+      return;
+    }
+
     const rawUpstream = (typeof item.url === 'string' && item.url.startsWith('http')) 
       ? item.url 
       : ((typeof item.streamUrl === 'string' && item.streamUrl.startsWith('http')) ? item.streamUrl : null);
