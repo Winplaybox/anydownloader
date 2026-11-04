@@ -488,6 +488,7 @@ export default function MediaResultCard({ data, onReset }) {
                 <img 
                   src={mainThumbnail} 
                   alt={title}
+                  referrerPolicy="no-referrer"
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   onError={(e) => {
                     const target = e.currentTarget;
@@ -559,7 +560,8 @@ export default function MediaResultCard({ data, onReset }) {
                       <img 
                         src={avatar} 
                         alt={authorName} 
-                        className="w-7 h-7 rounded-full object-cover border border-[var(--border)]"
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
                         onError={(e) => { e.target.style.display = 'none'; }}
                       />
                     )}
@@ -1011,6 +1013,7 @@ export default function MediaResultCard({ data, onReset }) {
                           <img 
                             src={imgUrl} 
                             alt={img.label || `Image ${idx + 1}`}
+                            referrerPolicy="no-referrer"
                             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                             loading="lazy"
                             onError={(e) => {
