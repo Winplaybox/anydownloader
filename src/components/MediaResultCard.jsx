@@ -351,7 +351,14 @@ export default function MediaResultCard({ data, onReset }) {
                   src={mainThumbnail} 
                   alt={title}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  onError={(e) => { e.target.style.display = 'none'; }}
+                  onError={(e) => {
+                    const fallback = data.thumbnail || thumbnails[0]?.downloadUrl || thumbnails[0]?.url || images[0]?.downloadUrl || images[0]?.url || avatar;
+                    if (fallback && e.currentTarget.src !== fallback) {
+                      e.currentTarget.src = fallback;
+                    } else {
+                      e.currentTarget.style.display = 'none';
+                    }
+                  }}
                 />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
@@ -822,7 +829,14 @@ export default function MediaResultCard({ data, onReset }) {
                           src={imgUrl} 
                           alt={img.label || `Image ${idx + 1}`}
                           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          onError={(e) => { e.target.style.display = 'none'; }}
+                          onError={(e) => {
+                            const fallback = img.downloadUrl || img.url;
+                            if (fallback && e.currentTarget.src !== fallback) {
+                              e.currentTarget.src = fallback;
+                            } else {
+                              e.currentTarget.style.display = 'none';
+                            }
+                          }}
                         />
                         <button
                           type="button"

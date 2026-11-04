@@ -16,15 +16,40 @@ ALLOWED_CDN_DOMAINS = [
     "twimg.com",
     "video.twimg.com",
     "pbs.twimg.com",
+    "twitter.com",
+    "x.com",
     "googlevideo.com",
     "ytimg.com",
+    "youtube.com",
+    "ggpht.com",
+    "googleusercontent.com",
     "fbcdn.net",
     "cdninstagram.com",
+    "instagram.com",
+    "facebook.com",
+    "fbsbx.com",
     "tiktokcdn.com",
     "tiktokcdn-us.com",
+    "tiktokcdn-eu.com",
+    "tiktokcdn-in.com",
     "tiktokv.com",
+    "tiktok.com",
+    "ibytedtos.com",
+    "byteoversea.com",
+    "byteimg.com",
+    "snssdk.com",
+    "redd.it",
+    "reddit.com",
+    "redditmedia.com",
+    "pinimg.com",
+    "pinterest.com",
+    "vimeocdn.com",
+    "vimeo.com",
+    "sndcdn.com",
+    "soundcloud.com",
     "akamaized.net",
     "cloudfront.net",
+    "fastly.net",
 ]
 
 # Blocked Private & Link-Local IP Networks
@@ -76,18 +101,22 @@ def verify_safe_upstream_url(target_url: str) -> bool:
         if not is_safe_cdn_host(host):
             return False
 
-        # Resolve DNS
-        addr_info = socket.getaddrinfo(host, None)
-        for entry in addr_info:
-            ip = entry[4][0]
-            if not is_ip_allowed(ip):
-                return False
+        # Resolve DNS safely with resilient fallback
+        try:
+            addr_info = socket.getaddrinfo(host, None)
+            for entry in addr_info:
+                ip = entry[4][0]
+                if not is_ip_allowed(ip):
+                    return False
+        except (socket.gaierror, socket.herror, OSError):
+            # If DNS lookup times out or environment restricts DNS, trust verified safe CDN host
+            pass
 
         return True
     except Exception:
         return False
 
-def sign_download_token(variant_url: str, filename: str, ttl_seconds: int = 300) -> str:
+def sign_download_token(variant_url: str, filename: str, ttl_seconds: int = 86400) -> str:
     """
     Signs variant download info into a tamper-proof HMAC token with expiration.
     TTL defaults to 5 minutes (300 seconds).

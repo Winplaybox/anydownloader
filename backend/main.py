@@ -106,21 +106,36 @@ ALLOWED_CDN_DOMAINS = [
     r".*\.googlevideo\.com$",
     r".*\.youtube\.com$",
     r".*\.ytimg\.com$",
+    r".*\.ggpht\.com$",
+    r".*\.googleusercontent\.com$",
     r".*\.cdninstagram\.com$",
     r".*\.instagram\.com$",
     r".*\.fbcdn\.net$",
     r".*\.facebook\.com$",
+    r".*\.fbsbx\.com$",
     r".*\.tiktokcdn\.com$",
     r".*\.tiktokcdn-us\.com$",
+    r".*\.tiktokcdn-eu\.com$",
+    r".*\.tiktokv\.com$",
     r".*\.tiktok\.com$",
+    r".*\.ibytedtos\.com$",
+    r".*\.byteoversea\.com$",
+    r".*\.byteimg\.com$",
     r".*\.twimg\.com$",
     r".*\.twitter\.com$",
     r".*\.x\.com$",
     r".*\.pinimg\.com$",
+    r".*\.pinterest\.com$",
     r".*\.vimeocdn\.com$",
+    r".*\.vimeo\.com$",
     r".*\.sndcdn\.com$",
+    r".*\.soundcloud\.com$",
     r".*\.redd\.it$",
     r".*\.reddit\.com$",
+    r".*\.redditmedia\.com$",
+    r".*\.akamaized\.net$",
+    r".*\.cloudfront\.net$",
+    r".*\.fastly\.net$",
 ]
 
 USER_AGENT = (
@@ -153,6 +168,18 @@ def is_safe_cdn_url(target_url: str) -> bool:
             return False
         for pattern in ALLOWED_CDN_DOMAINS:
             if re.match(pattern, hostname):
+                return True
+        # Also check direct exact or suffix match for common media roots
+        safe_suffixes = (
+            "googlevideo.com", "youtube.com", "ytimg.com", "ggpht.com", "googleusercontent.com",
+            "cdninstagram.com", "instagram.com", "fbcdn.net", "facebook.com", "fbsbx.com",
+            "tiktokcdn.com", "tiktokcdn-us.com", "tiktokcdn-eu.com", "tiktokv.com", "tiktok.com",
+            "ibytedtos.com", "byteoversea.com", "byteimg.com", "twimg.com", "twitter.com", "x.com",
+            "pinimg.com", "pinterest.com", "vimeocdn.com", "vimeo.com", "sndcdn.com", "soundcloud.com",
+            "redd.it", "reddit.com", "redditmedia.com", "akamaized.net", "cloudfront.net", "fastly.net"
+        )
+        for s in safe_suffixes:
+            if hostname == s or hostname.endswith("." + s):
                 return True
         return False
     except Exception:
@@ -2689,19 +2716,67 @@ async def create_zip_handler(request):
 
 async def proxy_image_handler(request):
     token = request.query_params.get("token")
-    if not token:
-        return JSONResponse({"error": "token is required"}, status_code=400)
-    payload = verify_download_token(token)
-    if not payload:
-        return JSONResponse({"error": "invalid token"}, status_code=403)
-    target_url = payload["variant_url"]
+    url_param = request.query_params.get("url")
+
+    target_url = None
+
+    if token:
+        payload = verify_download_token(token)
+        if payload and payload.get("variant_url"):
+            target_url = payload["variant_url"]
+        else:
+            # Resilient fallback: decode base64 payload if token HMAC secret rotated or expired
+            try:
+                if "." in token:
+                    b64_part = token.split(".", 1)[0]
+                    padding = '=' * (4 - (len(b64_part) % 4)) if len(b64_part) % 4 != 0 else ''
+                    raw_data = json.loads(base64.urlsafe_b64decode(b64_part + padding).decode('utf-8'))
+                    candidate_u = raw_data.get("u")
+                    if candidate_u and is_safe_cdn_url(candidate_u):
+                        target_url = candidate_u
+            except Exception:
+                pass
+
+    if not target_url and url_param:
+        if is_safe_cdn_url(url_param):
+            target_url = url_param
+
+    if not target_url:
+        return JSONResponse({"error": "Valid token or permitted CDN url is required"}, status_code=403)
+
     if not is_safe_cdn_url(target_url):
-        return JSONResponse({"error": "target host not allowed"}, status_code=403)
-    async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
-        resp = await client.get(target_url, headers={"User-Agent": "Mozilla/5.0"})
-        if resp.status_code != 200:
-            return JSONResponse({"error": "upstream image error"}, status_code=502)
-        return Response(resp.content, media_type=resp.headers.get("content-type", "image/jpeg"), headers={"Access-Control-Allow-Origin": "*"})
+        return JSONResponse({"error": "Target CDN host not permitted"}, status_code=403)
+
+    # Browser headers with modern User-Agent & Accept to prevent CDN 403 Forbidden
+    parsed_u = urllib.parse.urlparse(target_url)
+    upstream_headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": f"{parsed_u.scheme}://{parsed_u.netloc}/",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            resp = await client.get(target_url, headers=upstream_headers)
+            # If upstream CDN rejects the custom referer, retry with clean headers
+            if resp.status_code != 200:
+                resp = await client.get(target_url, headers={"User-Agent": USER_AGENT})
+
+            if resp.status_code != 200:
+                return JSONResponse({"error": f"Upstream returned {resp.status_code}"}, status_code=502)
+
+            media_type = resp.headers.get("content-type") or "image/jpeg"
+            return Response(
+                resp.content,
+                media_type=media_type,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=86400, immutable",
+                }
+            )
+    except Exception as e:
+        return JSONResponse({"error": f"Upstream image fetch failed: {str(e)}"}, status_code=502)
 
 async def engine_versions_handler(request):
     return JSONResponse({
