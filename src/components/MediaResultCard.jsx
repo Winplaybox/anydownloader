@@ -210,11 +210,18 @@ export default function MediaResultCard({ data, onReset }) {
   }, [activeJob]);
 
   function triggerDownload(item) {
+    const rawUrl = item.downloadUrl || item.url || item.streamUrl;
     if (item.token) {
-      const url = `${BACKEND_BASE}/api/download?token=${encodeURIComponent(item.token)}`;
-      window.location.href = url;
-    } else if (item.downloadUrl) {
-      window.open(item.downloadUrl, '_blank', 'noopener,noreferrer');
+      let downloadUrl = `${BACKEND_BASE}/api/download?token=${encodeURIComponent(item.token)}`;
+      if (rawUrl) {
+        downloadUrl += `&url=${encodeURIComponent(rawUrl)}`;
+      }
+      const ext = item.ext || (item.kind === 'audio' ? 'mp3' : item.kind === 'image' ? 'jpg' : 'mp4');
+      const cleanName = `${platform}_${item.label || 'media'}.${ext}`.replace(/[^a-zA-Z0-9._-]/g, '_');
+      downloadUrl += `&filename=${encodeURIComponent(cleanName)}`;
+      window.location.href = downloadUrl;
+    } else if (rawUrl) {
+      window.open(rawUrl, '_blank', 'noopener,noreferrer');
     }
   }
 
