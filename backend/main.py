@@ -1,5 +1,6 @@
 import os
 import sys
+import base64
 
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 _parent_dir = os.path.dirname(_current_dir)
@@ -3000,30 +3001,33 @@ async def ai_captions_handler(request):
 
 async def ai_voice_handler(request):
     try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    text = (body.get("text") or "").strip()
-    voice = body.get("voice") or "hi-IN-MadhurNeural"
-    if not text:
-        return JSONResponse({"ok": False, "error": "Text is required for voice generation."}, status_code=400)
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        text = (body.get("text") or "").strip()
+        voice = body.get("voice") or "hi-IN-MadhurNeural"
+        if not text:
+            return JSONResponse({"ok": False, "error": "Text is required for voice generation."}, status_code=400)
 
-    # Clean text to safe max 1500 chars for speech
-    sample_text = text[:1500]
-    res = await voice_service.synthesize_speech(text=sample_text, voice=voice)
-    audio_path = res.get("audio_path")
-    if audio_path and os.path.exists(audio_path):
-        with open(audio_path, "rb") as f:
-            audio_b64 = base64.b64encode(f.read()).decode("ascii")
-        data_uri = f"data:audio/mp3;base64,{audio_b64}"
-        return JSONResponse({
-            "ok": True,
-            "voice": voice,
-            "duration": res.get("duration", 0),
-            "data_uri": data_uri,
-            "word_timestamps": res.get("word_timestamps", [])
-        })
-    return JSONResponse({"ok": False, "error": "Voice synthesis failed."}, status_code=500)
+        # Clean text to safe max 1500 chars for speech
+        sample_text = text[:1500]
+        res = await voice_service.synthesize_speech(text=sample_text, voice=voice)
+        audio_path = res.get("audio_path")
+        if audio_path and os.path.exists(audio_path):
+            with open(audio_path, "rb") as f:
+                audio_b64 = base64.b64encode(f.read()).decode("ascii")
+            data_uri = f"data:audio/mp3;base64,{audio_b64}"
+            return JSONResponse({
+                "ok": True,
+                "voice": voice,
+                "duration": res.get("duration", 0),
+                "data_uri": data_uri,
+                "word_timestamps": res.get("word_timestamps", [])
+            })
+        return JSONResponse({"ok": False, "error": res.get("error") or "Voice synthesis failed."}, status_code=500)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"Voice synthesis error: {str(e)}"}, status_code=500)
 
 async def voice_list_handler(request):
     voices = voice_service.get_curated_voices()
