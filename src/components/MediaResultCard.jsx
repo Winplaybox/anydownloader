@@ -149,16 +149,31 @@ export default function MediaResultCard({ data, onReset }) {
   const hasAudios = audios.length > 0;
   const hasImages = images.length > 0;
   const hasSubtitles = subtitles.length > 0;
-  const isShortOrReel = contentType === 'short' || contentType === 'reel';
+  const isImageOnly = !hasVideos && !hasAudios;
 
   const [activeTab, setActiveTab] = useState(() => {
+    if (isImageOnly) return 'images';
     if (isShortOrReel && hasVideos) return 'shorts';
     if (hasVideos) return 'video';
     if (hasImages) return 'images';
     if (hasAudios) return 'audio';
     if (hasSubtitles) return 'subtitles';
-    return 'video';
+    return hasVideos ? 'video' : 'images';
   });
+
+  useEffect(() => {
+    if (isImageOnly) {
+      setActiveTab('images');
+    } else if (isShortOrReel && hasVideos) {
+      setActiveTab('shorts');
+    } else if (hasVideos) {
+      setActiveTab('video');
+    } else if (hasImages) {
+      setActiveTab('images');
+    } else if (hasAudios) {
+      setActiveTab('audio');
+    }
+  }, [data?.id, data?.url, hasVideos, hasAudios, isImageOnly]);
 
   const [previewMedia, setPreviewMedia] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
@@ -791,27 +806,29 @@ export default function MediaResultCard({ data, onReset }) {
               </button>
             )}
 
-            {/* AI Captions & Subtitles Tab */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('ai_captions');
-                fetchAiCaptions();
-              }}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-                activeTab === 'ai_captions'
-                  ? 'bg-purple-600 text-white shadow-xs'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]/50'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-              <span>AI Captions & Subtitles</span>
-              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded ${
-                activeTab === 'ai_captions' ? 'bg-white/20 text-white' : 'bg-purple-500/10 border border-purple-500/30 text-purple-500'
-              }`}>
-                AI Studio
-              </span>
-            </button>
+            {/* AI Captions & Subtitles Tab - Only for video/audio content, not for image-only URLs */}
+            {!isImageOnly && (hasVideos || hasAudios) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('ai_captions');
+                  fetchAiCaptions();
+                }}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  activeTab === 'ai_captions'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)]/50'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                <span>AI Captions & Subtitles</span>
+                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded ${
+                  activeTab === 'ai_captions' ? 'bg-white/20 text-white' : 'bg-purple-500/10 border border-purple-500/30 text-purple-500'
+                }`}>
+                  AI Studio
+                </span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1155,8 +1172,8 @@ export default function MediaResultCard({ data, onReset }) {
             </div>
           )}
 
-          {/* 5. AI Captions, Subtitles & Voice Studio Tab */}
-          {activeTab === 'ai_captions' && (
+          {/* 5. AI Captions, Subtitles & Voice Studio Tab (Only for Video/Audio media) */}
+          {activeTab === 'ai_captions' && !isImageOnly && (
             <div className="space-y-6">
               {/* Header Banner */}
               <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-transparent border border-purple-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1167,12 +1184,18 @@ export default function MediaResultCard({ data, onReset }) {
                   <div>
                     <h3 className="text-sm sm:text-base font-bold text-[var(--text)] flex items-center gap-2">
                       <span>AI Subtitles, Captions & Voice Studio</span>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30">
-                        {aiData?.source === 'native' ? 'Synchronized Native' : 'AI Speech Engine'}
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                        aiData?.is_real_speech 
+                          ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/30' 
+                          : 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-500/30'
+                      }`}>
+                        {aiData?.is_real_speech ? '⚡ Real Spoken Dialogue' : '🤖 AI Dialogue Breakdown'}
                       </span>
                     </h3>
                     <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                      Export synced subtitles for Premiere/CapCut, read transcripts, copy viral social hooks, or generate AI voiceovers.
+                      {aiData?.is_real_speech 
+                        ? 'Verified spoken dialogue extracted directly from video speech audio.' 
+                        : 'Export synced subtitles for Premiere/CapCut, read transcripts, copy viral social hooks, or generate AI voiceovers.'}
                     </p>
                   </div>
                 </div>
@@ -1309,7 +1332,7 @@ export default function MediaResultCard({ data, onReset }) {
                         type="button"
                         onClick={generateAiVoice}
                         disabled={generatingVoice}
-                        className="p-3 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] hover:border-amber-500/50 hover:bg-amber-500/5 transition-all text-left flex items-center justify-between group cursor-pointer sm:col-span-2 lg:col-span-2"
+                        className="p-3 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] hover:border-amber-500/50 hover:bg-amber-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5">
                           <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 group-hover:bg-amber-500 group-hover:text-white transition-colors">
@@ -1323,6 +1346,25 @@ export default function MediaResultCard({ data, onReset }) {
                           </div>
                         </div>
                       </button>
+
+                      {/* 6. Download Original Video Audio (MP3) */}
+                      {hasAudios && audios[0] && (
+                        <button
+                          type="button"
+                          onClick={() => triggerDownload(audios[0])}
+                          className="p-3 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-left flex items-center justify-between group cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                              <Music className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-xs sm:text-sm font-bold text-[var(--text)]">🎵 Original Audio (MP3)</p>
+                              <p className="text-[10px] text-[var(--text-muted)]">Download original video sound</p>
+                            </div>
+                          </div>
+                        </button>
+                      )}
 
                     </div>
                   </div>

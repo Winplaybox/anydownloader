@@ -2991,7 +2991,8 @@ async def ai_captions_handler(request):
     caption = (body.get("caption") or "").strip()
     platform = (body.get("platform") or "social").strip()
 
-    res = subtitles_service.get_full_media_captions(
+    res = await asyncio.to_thread(
+        subtitles_service.get_full_media_captions,
         media_url=media_url,
         title=title,
         caption=caption,

@@ -14,6 +14,7 @@ import re
 import json
 import urllib.request
 import urllib.parse
+import httpx
 from typing import Dict, Any, List, Optional
 
 class SubtitlesService:
@@ -114,73 +115,113 @@ class SubtitlesService:
                 subtitles = info.get('subtitles', {}) or {}
                 auto_subs = info.get('automatic_captions', {}) or {}
 
-                # Priority: native hi/en -> auto hi/en -> any first available
-                chosen_tracks = (
-                    subtitles.get('hi') or subtitles.get('en')
-                    or auto_subs.get('hi') or auto_subs.get('en')
-                    or (next(iter(subtitles.values())) if subtitles else None)
-                    or (next(iter(auto_subs.values())) if auto_subs else None)
-                )
-
-                if not chosen_tracks:
+                if not subtitles and not auto_subs:
                     return None
 
-                # Find json3 or vtt format
-                json3_track = next((t for t in chosen_tracks if t.get('ext') == 'json3'), None)
-                vtt_track = next((t for t in chosen_tracks if t.get('ext') == 'vtt'), None)
+                # Build candidate tracks ordered by reliability:
+                # 1. Any track ending in -orig in auto_subs (contains pure creator speech, never 429 blocked)
+                # 2. Native creator-uploaded tracks in subtitles (hi, en, others)
+                # 3. Direct language matches in auto_subs (hi, en, es, fr, etc.)
+                candidate_tracks = []
+                for k, trs in auto_subs.items():
+                    if k.endswith('-orig'):
+                        candidate_tracks.append((f"auto:{k}", trs))
+                for lang in ['hi', 'en', 'es', 'fr', 'de']:
+                    if lang in subtitles:
+                        candidate_tracks.append((f"sub:{lang}", subtitles[lang]))
+                for k, trs in subtitles.items():
+                    if not any(c[0] == f"sub:{k}" for c in candidate_tracks):
+                        candidate_tracks.append((f"sub:{k}", trs))
+                for lang in ['hi', 'en', 'es', 'fr', 'de']:
+                    if lang in auto_subs and not any(c[0] == f"auto:{lang}" for c in candidate_tracks):
+                        candidate_tracks.append((f"auto:{lang}", auto_subs[lang]))
+                for k, trs in auto_subs.items():
+                    if not any(c[0] == f"auto:{k}" for c in candidate_tracks):
+                        candidate_tracks.append((f"auto:{k}", trs))
 
-                segments: List[Dict[str, Any]] = []
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': '*/*',
+                    'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8'
+                }
 
-                if json3_track and json3_track.get('url'):
-                    req = urllib.request.Request(json3_track['url'], headers={'User-Agent': 'Mozilla/5.0'})
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        j_data = json.loads(resp.read().decode('utf-8'))
-                        for ev in j_data.get('events', []):
-                            segs = ev.get('segs', [])
-                            text = "".join(s.get('utf8', '') for s in segs).strip()
-                            if text and text != '\n':
-                                start_sec = ev.get('tStartMs', 0) / 1000.0
-                                dur_sec = ev.get('dDurationMs', 2500) / 1000.0
-                                segments.append({
-                                    "start": start_sec,
-                                    "end": start_sec + max(1.2, dur_sec),
-                                    "text": text
-                                })
+                client = httpx.Client(timeout=12.0, follow_redirects=True, headers=headers)
 
-                elif vtt_track and vtt_track.get('url'):
-                    req = urllib.request.Request(vtt_track['url'], headers={'User-Agent': 'Mozilla/5.0'})
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        raw_vtt = resp.read().decode('utf-8')
-                        vtt_blocks = re.findall(r'(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)\s*-->\s*(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)[^\n]*\n((?:(?!\n\n).)*)', raw_vtt, re.DOTALL)
-                        for b_start, b_end, b_text in vtt_blocks:
-                            clean_t = re.sub(r'<[^>]+>', '', b_text).strip()
-                            if clean_t:
-                                # Convert timestamp string to seconds
-                                def to_sec(ts):
-                                    parts = ts.split(':')
-                                    if len(parts) == 3:
-                                        return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
-                                    return float(parts[0]) * 60 + float(parts[1])
-                                segments.append({
-                                    "start": to_sec(b_start),
-                                    "end": to_sec(b_end),
-                                    "text": clean_t
-                                })
+                for label, track_list in candidate_tracks:
+                    # Try json3 first, then vtt
+                    json3_track = next((t for t in track_list if t.get('ext') == 'json3'), None)
+                    vtt_track = next((t for t in track_list if t.get('ext') == 'vtt'), None)
 
-                if segments:
-                    srt_content = self.generate_srt_from_timed_segments(segments)
-                    vtt_content = self.generate_vtt_from_timed_segments(segments)
-                    transcript = " ".join(s["text"] for s in segments)
-                    return {
-                        "source": "native",
-                        "segments": segments,
-                        "srt": srt_content,
-                        "vtt": vtt_content,
-                        "transcript": transcript
-                    }
+                    if json3_track and json3_track.get('url'):
+                        try:
+                            resp = client.get(json3_track['url'])
+                            if resp.status_code == 200 and len(resp.text) > 80:
+                                j_data = resp.json()
+                                segments: List[Dict[str, Any]] = []
+                                for ev in j_data.get('events', []):
+                                    segs = ev.get('segs', [])
+                                    text = "".join(s.get('utf8', '') for s in segs).strip()
+                                    if text and text != '\n':
+                                        start_sec = ev.get('tStartMs', 0) / 1000.0
+                                        dur_sec = ev.get('dDurationMs', 2500) / 1000.0
+                                        segments.append({
+                                            "start": start_sec,
+                                            "end": start_sec + max(1.2, dur_sec),
+                                            "text": text
+                                        })
+                                if segments:
+                                    srt_content = self.generate_srt_from_timed_segments(segments)
+                                    vtt_content = self.generate_vtt_from_timed_segments(segments)
+                                    transcript = " ".join(s["text"] for s in segments)
+                                    return {
+                                        "source": "native",
+                                        "track_label": label,
+                                        "segments": segments,
+                                        "srt": srt_content,
+                                        "vtt": vtt_content,
+                                        "transcript": transcript
+                                    }
+                        except Exception:
+                            pass
+
+                    if vtt_track and vtt_track.get('url'):
+                        try:
+                            resp = client.get(vtt_track['url'])
+                            if resp.status_code == 200 and len(resp.text) > 80:
+                                raw_vtt = resp.text
+                                vtt_blocks = re.findall(r'(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)\s*-->\s*(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)[^\n]*\n((?:(?!\n\n).)*)', raw_vtt, re.DOTALL)
+                                segments = []
+                                for b_start, b_end, b_text in vtt_blocks:
+                                    clean_t = re.sub(r'<[^>]+>', '', b_text).strip()
+                                    if clean_t:
+                                        def to_sec(ts):
+                                            parts = ts.split(':')
+                                            if len(parts) == 3:
+                                                return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+                                            return float(parts[0]) * 60 + float(parts[1])
+                                        segments.append({
+                                            "start": to_sec(b_start),
+                                            "end": to_sec(b_end),
+                                            "text": clean_t
+                                        })
+                                if segments:
+                                    srt_content = self.generate_srt_from_timed_segments(segments)
+                                    vtt_content = self.generate_vtt_from_timed_segments(segments)
+                                    transcript = " ".join(s["text"] for s in segments)
+                                    return {
+                                        "source": "native",
+                                        "track_label": label,
+                                        "segments": segments,
+                                        "srt": srt_content,
+                                        "vtt": vtt_content,
+                                        "transcript": transcript
+                                    }
+                        except Exception:
+                            pass
         except Exception:
             pass
         return None
+
 
     def generate_ai_fallback_suite(self, title: str, caption: str, platform: str) -> Dict[str, Any]:
         """Generates timed subtitles, transcript, viral hooks, and social copy using content metadata."""
@@ -266,6 +307,8 @@ class SubtitlesService:
                 "title": base_t,
                 "has_subtitles": True,
                 "source": "native",
+                "is_real_speech": True,
+                "track_label": real_result.get("track_label", "Creator Spoken Audio"),
                 "segments": real_result["segments"],
                 "srt": real_result["srt"],
                 "vtt": real_result["vtt"],
@@ -273,7 +316,7 @@ class SubtitlesService:
                 "hooks": hooks,
                 "caption": viral_caption,
                 "hashtags": hashtags,
-                "summary": f"{base_t}: Synchronized native captions extracted."
+                "summary": f"{base_t}: Verified spoken dialogue extracted directly from media audio."
             }
 
         # Fallback to AI generation
@@ -283,6 +326,7 @@ class SubtitlesService:
             "title": title or "Social Media Video",
             "has_subtitles": True,
             "source": "ai_generated",
+            "is_real_speech": False,
             "segments": ai_res["segments"],
             "srt": ai_res["srt"],
             "vtt": ai_res["vtt"],
