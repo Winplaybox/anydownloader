@@ -149,6 +149,7 @@ export default function MediaResultCard({ data, onReset }) {
   const hasAudios = audios.length > 0;
   const hasImages = images.length > 0;
   const hasSubtitles = subtitles.length > 0;
+  const isShortOrReel = contentType === 'short' || contentType === 'reel';
   const isImageOnly = !hasVideos && !hasAudios;
 
   const [activeTab, setActiveTab] = useState(() => {
