@@ -1,0 +1,4 @@
+All fonts in this folder are licensed under the SIL Open Font License 1.1 (https://openfontlicense.org).
+- Inter (Inter-Black.otf) - Copyright The Inter Project Authors (https://github.com/rsms/inter)
+- Noto Sans {Devanagari, Bengali, Gujarati, Gurmukhi, Tamil, Telugu, Kannada, Malayalam, Arabic} Black - Copyright The Noto Project Authors (https://github.com/notofonts)
+They are used to burn captions into videos rendered by the AI Video Editor.

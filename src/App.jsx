@@ -11,6 +11,7 @@ import SecurityPage from './pages/SecurityPage.jsx';
 import BlogsPage from './pages/BlogsPage.jsx';
 import UpdatesPage from './pages/UpdatesPage.jsx';
 import ExtensionPage from './pages/ExtensionPage.jsx';
+import VideoEditorPage from './pages/VideoEditorPage.jsx';
 import { pagesConfig } from './data/pagesConfig.js';
 import { initAttribution } from './utils/attribution.js';
 
@@ -27,7 +28,10 @@ function SEOHead() {
     let title = 'OVD - Fast Social Video & Image Downloader (Twitter, YouTube, Facebook, Instagram, TikTok, Pinterest, Reddit)';
     let desc = 'Download public videos and images from Twitter/X, YouTube, Facebook, Instagram, TikTok, Pinterest, Reddit and any website. 100% free with no sign-up.';
 
-    if (cleanPath.includes('twitter') || cleanPath.includes('x-')) {
+    if (cleanPath.includes('video-editor')) {
+      title = 'Free AI Video Editor - Voiceover, Auto Captions, Title & Tags - OVD';
+      desc = 'Upload a clip and get an AI voiceover, animated word-by-word captions, mastered audio, plus viral YouTube title, description and tags. Free, 2 videos a day.';
+    } else if (cleanPath.includes('twitter') || cleanPath.includes('x-')) {
       title = 'Twitter/X Video & Photo Downloader - OVD';
       desc = 'Download Twitter/X video clips, GIFs, and high-resolution photos in original quality for free.';
     } else if (cleanPath.includes('youtube')) {
@@ -89,6 +93,8 @@ export default function App() {
 
             {/* Blog & Updates */}
             <Route path="/extension" element={<ExtensionPage />} />
+            <Route path="/ai-video-editor" element={<VideoEditorPage />} />
+            <Route path="/video-editor" element={<Navigate to="/ai-video-editor" replace />} />
             <Route path="/chrome-extension" element={<Navigate to="/extension" replace />} />
             <Route path="/blog" element={<BlogsPage />} />
             <Route path="/updates" element={<UpdatesPage />} />

@@ -82,6 +82,40 @@ From this single YAML entry, OVD automatically:
 - `GET  /admin/engine-versions` — Inspect active yt-dlp, gallery-dl, and ffmpeg versions (Bearer token required)
 - `POST /admin/update-engines` — Hot-update extraction engines without restarting container
 
+### AI Video Editor (`/ai-video-editor` page)
+
+Upload a clip + a free-text brief → AI script from the video frames (Gemini vision via `llm_router`), Kokoro voiceover
+(Edge-TTS for languages Kokoro lacks), word-timed burned-in captions (5 styles), -14 LUFS master, plus title options,
+description, tags and any extra sections the brief asks for.
+
+- `GET  /api/editor/options` — languages, voices, caption styles, modes, limits and the caller's quota
+- `GET  /api/editor/quota` — `{limit, used, remaining, resets_at}`
+- `GET  /api/editor/voice-preview?voice=ID` — cached voice sample (wav)
+- `POST /api/editor/jobs` — multipart: `file`, `language`, `mode` (`ai_mix|ai_replace|original`), `voice`, `caption_style`
+  (`pop|single|box|karaoke|minimal|none`), `caption_script` (`roman|native`), `accent`, `format` (`vertical|original`),
+  `overlays`, `channel`, `brief`, `script`
+- `GET  /api/editor/jobs/{id}` — status/progress/result · `GET /api/editor/jobs/{id}/file/{video|srt|voiceover|metadata}`
+- `GET  /api/editor/health` — deploy self-check (ffmpeg `ass` filter, Kokoro, Whisper, fonts, quota store)
+- `POST /api/editor/warmup` — admin: pre-download the Kokoro model
+
+**Limits:** `EDITOR_DAILY_LIMIT` (default 2) videos per client IP per IST day; failed jobs are refunded; one active job per
+IP; admins (`X-Admin-Key`) unlimited. Set `REDIS_URL` or `UPSTASH_REDIS_REST_*` so the quota survives restarts.
+
+| Env | Default | Purpose |
+|---|---|---|
+| `EDITOR_DAILY_LIMIT` | `2` | free videos per IP per day |
+| `EDITOR_MAX_SECONDS` / `EDITOR_MAX_UPLOAD_MB` | `180` / `100` | upload limits |
+| `EDITOR_CONCURRENCY` | `1` | renders at the same time (others queue) |
+| `EDITOR_WORK_DIR` / `EDITOR_CACHE_DIR` | tmp | job files (auto-deleted after `EDITOR_RETENTION_HOURS`=6) / model cache |
+| `EDITOR_WHISPER_MODEL` | `base` | faster-whisper size for "keep original speech" captions |
+| `EDITOR_TRANSCRIBE_FOR_AI` | `1` | also transcribe in AI modes so the script respects real speech |
+| `EDITOR_X264_PRESET` / `EDITOR_OUTPUT_LONG_SIDE` | `veryfast` / `1920` | render speed vs quality |
+| `GEMINI_API_KEY` | – | vision script + metadata (falls back to text-only providers) |
+
+Hardware: Kokoro (~90 MB int8 model) + ffmpeg 1080×1920 needs ~1 GB RAM and real CPU; a 1-minute clip takes ~2–3 min on
+2 vCPU. Render's free 0.1 CPU / 512 MB instance is too small for this — run the API (Dockerfile) on a bigger box or a
+free 2-vCPU host for the editor.
+
 ---
 
 ## 4. Cookie Pool Setup

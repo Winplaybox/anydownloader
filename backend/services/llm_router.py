@@ -192,6 +192,54 @@ class LLMRouter:
         raise LLMError("all providers failed: " + ", ".join(errors or ["none configured"]))
 
 
+    async def complete_json_vision(self, system: str, user: str, images: List[bytes], *,
+                                   temperature: float = 0.6, max_tokens: int = 6000,
+                                   timeout_s: float = 120.0) -> tuple[Dict[str, Any], LLMResult]:
+        """Gemini multimodal (JPEG frames + text) -> JSON. Falls back to text-only providers
+        (without the images) when Gemini is not configured or fails."""
+        p = _providers()["gemini"]
+        if p.configured and self.breaker.available(p.name) and images:
+            t0 = time.monotonic()
+            try:
+                import base64
+
+                parts: List[Dict[str, Any]] = [{"inline_data": {"mime_type": "image/jpeg",
+                                                                "data": base64.b64encode(b).decode()}} for b in images]
+                parts.append({"text": user})
+                r = await self.client.post(
+                    p.url.format(model=p.model),
+                    headers={"x-goog-api-key": p.key, "Content-Type": "application/json"},
+                    timeout=httpx.Timeout(timeout_s, connect=10.0),
+                    json={
+                        "systemInstruction": {"parts": [{"text": system}]},
+                        "contents": [{"role": "user", "parts": parts}],
+                        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens,
+                                             "responseMimeType": "application/json",
+                                             **({"thinkingConfig": {"thinkingBudget": 1024}} if "2.5" in p.model else {})},
+                        # News/vlog footage (accidents, crowds) must not be refused outright.
+                        "safetySettings": [{"category": c, "threshold": "BLOCK_ONLY_HIGH"} for c in (
+                            "HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH",
+                            "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT")],
+                    },
+                )
+                r.raise_for_status()
+                data = r.json()
+                cands = data.get("candidates") or []
+                if not cands:
+                    raise LLMError(f"gemini blocked: {data.get('promptFeedback', {}).get('blockReason', 'empty')}")
+                text = "".join(part.get("text", "") for part in cands[0].get("content", {}).get("parts", []))
+                obj = extract_json(text)
+                self.breaker.success(p.name)
+                return obj, LLMResult(text, p.name, p.model, int((time.monotonic() - t0) * 1000))
+            except Exception as e:
+                self.breaker.failure(p.name)
+                log.warning("gemini vision failed %s", getattr(getattr(e, "response", None), "status_code", None)
+                            or type(e).__name__)
+        note = "\n\n(Note: video frames could not be shown to you; rely on the transcript and the creator's brief.)"
+        return await self.complete_json(system, user + note, temperature=temperature, max_tokens=max_tokens,
+                                        budget_s=timeout_s)
+
+
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
 
