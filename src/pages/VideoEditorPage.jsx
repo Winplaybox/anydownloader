@@ -11,8 +11,8 @@ const API = `${BACKEND_BASE}/api/editor`;
 const JOB_KEY = 'ovd_editor_job';
 
 const EXAMPLE_BRIEF = `I want to upload this on YouTube so it can go viral and trend.
-I want title, description and tags for YouTube for my Dhrusa Vlogs channel.
-All links value is https://bit.ly/m/DhrusaVlogs
+I want title, description and tags for YouTube for my [Channel Name] channel.
+All links value is [Your Link]
 Include in description:
 - Topics Covered in this Video (according to the video)
 - Expanded Keywords 20-30 (according to the video)
@@ -181,11 +181,12 @@ export default function VideoEditorPage() {
   function submit() {
     if (!file || fileError) return;
     setSubmitting(true); setSubmitError(''); setUploadPct(0);
+    const briefToSend = channel.trim() ? brief.replace(/\[Channel Name\]/gi, channel.trim()) : brief;
     const fd = new FormData();
     fd.append('file', file);
     Object.entries({
       language, mode, voice, caption_style: captionStyle, caption_script: captionScript, accent, format,
-      overlays: overlays ? '1' : '0', brief, channel, script: showScript ? ownScript : '',
+      overlays: overlays ? '1' : '0', brief: briefToSend, channel, script: showScript ? ownScript : '',
     }).forEach(([k, v]) => fd.append(k, v));
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${API}/jobs`);
@@ -271,10 +272,10 @@ export default function VideoEditorPage() {
 
           {/* 2. Brief */}
           <Section step={2} icon={Wand2} title="Tell us what you need"
-            right={<button type="button" onClick={() => { setBrief(EXAMPLE_BRIEF); if (!channel) setChannel('Dhrusa Vlogs'); }} className="text-xs font-semibold text-[var(--accent)] hover:underline">Use example</button>}>
+            right={<button type="button" onClick={() => setBrief(EXAMPLE_BRIEF)} className="text-xs font-semibold text-[var(--accent)] hover:underline">Use example</button>}>
             <div className="grid sm:grid-cols-3 gap-3 mb-3">
               <label className="sm:col-span-1 text-xs font-semibold text-[var(--text-muted)]">Channel name
-                <input value={channel} onChange={(e) => setChannel(e.target.value)} maxLength={120} placeholder="e.g. Dhrusa Vlogs"
+                <input value={channel} onChange={(e) => setChannel(e.target.value)} maxLength={120} placeholder="[Channel Name]"
                   className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]" />
               </label>
               <p className="sm:col-span-2 text-xs text-[var(--text-muted)] self-end leading-relaxed">
@@ -282,8 +283,11 @@ export default function VideoEditorPage() {
               </p>
             </div>
             <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={7} maxLength={4000}
-              placeholder={'e.g. Mira Road par raat ko accident hua. YouTube Shorts ke liye viral title, description, tags chahiye.\nLinks: https://bit.ly/...\nDescription mein Topics Covered, 20-30 keywords, 20-30 queries aur Disclaimer daalo.'}
+              placeholder={'e.g. [Place] par raat ko accident hua. YouTube Shorts ke liye viral title, description, tags chahiye.\nLinks: [Your Link]\nDescription mein Topics Covered, 20-30 keywords, 20-30 queries aur Disclaimer daalo.'}
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)] font-mono leading-relaxed" />
+            {/\[(Your Link|Place)\]/i.test(brief) && (
+              <p className="mt-1 text-[11px] font-semibold text-[var(--negative)]">Replace [Your Link] / [Place] in the brief with your real details.</p>
+            )}
             <div className="flex justify-between text-[11px] text-[var(--text-muted)] mt-1"><span>Facts you mention here (place, date, names) are used; the AI won't invent them.</span><span>{brief.length}/4000</span></div>
             <button type="button" onClick={() => setShowScript((v) => !v)} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--text)]">
               <ChevronDown className={`w-4 h-4 transition-transform ${showScript ? 'rotate-180' : ''}`} /> I have my own voiceover script (optional)
@@ -449,7 +453,7 @@ function JobView({ job, onReset }) {
             );
           })}
         </ol>
-        <p className="text-xs text-[var(--text-muted)] mt-6">You can close this tab. Your video stays ready on this device for about 6 hours.</p>
+        <p className="text-xs text-[var(--text-muted)] mt-6">Usually ready in 2–5 minutes. You can close this tab — open this page again on the same device and your video will be here.</p>
       </div>
     );
   }
@@ -473,6 +477,7 @@ function JobView({ job, onReset }) {
               {r.files?.voiceover && <a href={f('voiceover')} className="inline-flex items-center gap-2 px-3 py-2.5 rounded-xl border border-[var(--border)] text-sm font-semibold text-[var(--text)]"><Music2 className="w-4 h-4" />Voiceover .wav</a>}
               {r.files?.metadata && <a href={f('metadata')} className="inline-flex items-center gap-2 px-3 py-2.5 rounded-xl border border-[var(--border)] text-sm font-semibold text-[var(--text)]"><FileText className="w-4 h-4" />All text .txt</a>}
             </div>
+            <p className="text-xs text-[var(--text-muted)] mb-3 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />Download within 6 hours — after that the files are deleted from our server for your privacy.</p>
             {(job.warnings || []).map((w) => <p key={w} className="text-xs text-[var(--warning)] font-semibold mb-1">⚠ {w}</p>)}
             {r.script?.length > 0 && (
               <details className="mt-3">
