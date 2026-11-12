@@ -366,7 +366,10 @@ class ZeroTrustMiddleware(BaseHTTPMiddleware):
 
         if request.method != "OPTIONS":
             cl = request.headers.get("content-length")
-            if cl and cl.isdigit() and int(cl) > 50 * 1024 * 1024:
+            max_body = 50 * 1024 * 1024
+            if path == "/api/editor/jobs":  # video uploads; the route enforces its own exact limit
+                max_body = (int(os.environ.get("EDITOR_MAX_UPLOAD_MB", "100")) + 1) * 1024 * 1024
+            if cl and cl.isdigit() and int(cl) > max_body:
                 return error(request, 413, "PayloadTooLarge", "Request too large.")
             if path.startswith(ADMIN_ONLY_PATH_PREFIXES):
                 ip = client_ip(request)

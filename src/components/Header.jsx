@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Sun, Moon, Newspaper, ChevronDown } from 'lucide-react';
+import { Menu, X, Sun, Moon, Newspaper, ChevronDown, Wand2 } from 'lucide-react';
 import {
   TwitterXIcon,
   YoutubeIcon,
@@ -144,6 +144,19 @@ export default function Header() {
             )}
           </div>
 
+          {/* AI Video Editor */}
+          <Link
+            to="/ai-video-editor"
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-150 ${
+              location.pathname === '/ai-video-editor'
+                ? 'bg-[var(--primary)] text-[var(--on-primary)] shadow-sm'
+                : 'text-[var(--text)] hover:bg-[var(--bg-alt)] border border-transparent hover:border-[var(--border)]'
+            }`}
+          >
+            <Wand2 className="w-4 h-4 text-[var(--accent)]" />
+            <span>AI Editor</span>
+          </Link>
+
           {/* Extension */}
           <Link
             to="/extension"
@@ -223,6 +236,17 @@ export default function Header() {
           })}
           
           <div className="border-t border-[var(--border)] my-2 pt-2">
+            <Link
+              to="/ai-video-editor"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                location.pathname === '/ai-video-editor'
+                  ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                  : 'text-[var(--text)] hover:bg-[var(--bg-alt)]'
+              }`}
+            >
+              <Wand2 className="w-4 h-4 text-[var(--accent)]" />
+              <span>AI Video Editor</span>
+            </Link>
             <Link
               to="/blog"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
