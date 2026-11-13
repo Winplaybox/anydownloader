@@ -25,9 +25,14 @@ class YtDlpEngine:
                 "skip_download": True,
                 "noplaylist": True,
                 "socket_timeout": ctx.timeout,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "ios", "web"]
+                    }
+                },
                 "http_headers": {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                    "Accept-Language": "en-US,en;q=0.9",
+                    "Accept-Language": "en-US,en;q=0.9,hi;q=0.8",
                 }
             }
             if ctx.cookies_path and os.path.exists(ctx.cookies_path):

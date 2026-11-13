@@ -2172,18 +2172,42 @@ async def extract_handler(request):
 
 def run_download_video_task(source_url: str, height: int, output_template: str):
     """Download video stream with audio merged using yt-dlp and ffmpeg."""
+    cookie_path = None
+    pool = os.environ.get("COOKIE_POOL_PATH", "./cookies")
+    yt_cookie = os.path.join(pool, "youtube.txt")
+    if os.path.exists(yt_cookie):
+        cookie_path = yt_cookie
+
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
-        'format': f'bestvideo[height<={height}]+bestaudio/best',
+        'format': f'bestvideo[height<={height}]+bestaudio/best[height<={height}]/best',
         'outtmpl': output_template,
-        'merge_output_format': 'mp4'
+        'merge_output_format': 'mp4',
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'web']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
+        }
     }
+    if cookie_path:
+        ydl_opts['cookiefile'] = cookie_path
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([source_url])
 
 def run_download_audio_task(source_url: str, quality: str, output_template: str):
     """Download audio stream and extract MP3 using yt-dlp and ffmpeg."""
+    cookie_path = None
+    pool = os.environ.get("COOKIE_POOL_PATH", "./cookies")
+    yt_cookie = os.path.join(pool, "youtube.txt")
+    if os.path.exists(yt_cookie):
+        cookie_path = yt_cookie
+
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
@@ -2193,8 +2217,20 @@ def run_download_audio_task(source_url: str, quality: str, output_template: str)
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': quality,
-        }]
+        }],
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'web']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
+        }
     }
+    if cookie_path:
+        ydl_opts['cookiefile'] = cookie_path
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([source_url])
 
