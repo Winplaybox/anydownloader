@@ -125,3 +125,60 @@ def test_resolve_youtube_blocked_returns_degraded_fast(monkeypatch):
     assert d["degraded"] is True and d["data"]["notice"]["code"] == "SOURCE_BLOCKED"
     assert d["data"]["notice"]["downloads_available"] is False
     assert calls["legacy"] == 0  # no second yt-dlp run
+
+
+def test_download_video_blocked_returns_friendly_json(monkeypatch):
+    from starlette.testclient import TestClient
+    import main
+
+    def boom(*_a, **_k):
+        raise Exception("ERROR: [youtube] G3WASPVq54Q: Failed to extract any player response; please report this issue")
+    monkeypatch.setattr(main, "run_download_video_task", boom)
+    r = TestClient(main.app).get("/api/download_video", params={"url": "https://www.youtube.com/watch?v=G3WASPVq54Q", "height": "1080"},
+                                 headers={"Origin": "https://ovd.winplaybox.in"})
+    assert r.status_code == 503
+    j = r.json()
+    assert j["error"]["code"] == "SOURCE_BLOCKED" and "yt-dlp" not in j["error"]["message"] and "ERROR" not in j["error"]["message"]
+
+
+def test_download_falls_back_to_pytubefix_when_ytdlp_blocked(monkeypatch, tmp_path):
+    import main
+
+    class Blocked:
+        def __init__(self, *_a, **_k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def download(self, *_a, **_k):
+            raise Exception("ERROR: [youtube] x: Sign in to confirm you're not a bot")
+
+    called = {}
+
+    class FB:
+        @staticmethod
+        def download_video(url, height, out_dir):
+            called["args"] = (url, height, out_dir)
+            open(f"{out_dir}/media.mp4", "wb").write(b"x")
+
+    monkeypatch.setattr(main.yt_dlp, "YoutubeDL", Blocked)
+    monkeypatch.setattr(main, "_yt_fb", lambda: FB)
+    main.run_download_video_task("https://youtu.be/G3WASPVq54Q", 720, str(tmp_path / "media.%(ext)s"))
+    assert called["args"][1] == 720 and (tmp_path / "media.mp4").exists()
+
+
+def test_non_youtube_errors_are_not_swallowed(monkeypatch, tmp_path):
+    import main
+
+    class Fail:
+        def __init__(self, *_a, **_k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def download(self, *_a, **_k):
+            raise Exception("HTTP Error 404")
+
+    monkeypatch.setattr(main.yt_dlp, "YoutubeDL", Fail)
+    with pytest.raises(Exception):
+        main.run_download_video_task("https://vimeo.com/1", 720, str(tmp_path / "media.%(ext)s"))
+
+
+def test_node_from_wheel_added_to_path():
+    assert yo.ensure_node_on_path() is not None

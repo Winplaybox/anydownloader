@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Sun, Moon, Newspaper, ChevronDown, Wand2 } from 'lucide-react';
+import { Menu, X, Sun, Moon, Newspaper, ChevronDown, Wand2, BellPlus } from 'lucide-react';
 import {
   TwitterXIcon,
   YoutubeIcon,
@@ -58,6 +58,7 @@ export default function Header() {
     { label: 'Reddit', path: '/reddit-video-downloader', icon: RedditIcon },
     { label: 'Threads', path: '/threads-video-downloader', icon: ThreadsIcon },
     { label: 'Any Website', path: '/any-website-downloader', icon: GlobeIcon },
+    { label: 'YT Subscribe Link', path: '/youtube-subscribe-link-generator', icon: BellPlus },
   ];
 
   const isSecondaryActive = secondaryNavLinks.some(item => location.pathname === item.path);
