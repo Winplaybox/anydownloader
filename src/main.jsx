@@ -2,6 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
+import { startBackendWarmup } from './utils/warmBackend.js';
+
+startBackendWarmup();
 
 // Developer Console Security & Self-XSS Warning (Facebook / Discord format)
 if (typeof window !== 'undefined') {
