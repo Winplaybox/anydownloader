@@ -367,6 +367,8 @@ class ZeroTrustMiddleware(BaseHTTPMiddleware):
         if request.method != "OPTIONS":
             cl = request.headers.get("content-length")
             max_body = 50 * 1024 * 1024
+            if path == "/api/temp-media":  # automation video uploads; the route enforces TEMP_MEDIA_MAX_MB
+                max_body = (int(os.environ.get("TEMP_MEDIA_MAX_MB", "300")) + 1) * 1024 * 1024
             if path == "/api/editor/jobs":  # video uploads; the route enforces its own exact limit
                 max_body = (int(os.environ.get("EDITOR_MAX_UPLOAD_MB", "100")) + 1) * 1024 * 1024
             if cl and cl.isdigit() and int(cl) > max_body:

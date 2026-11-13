@@ -86,12 +86,14 @@ try:
     from backend.routes_autopilot import routes_autopilot
     from backend.routes_studio import routes_studio
     from backend.routes_editor import routes_editor
+    from backend.routes_temp_media import routes_temp_media
 except (ModuleNotFoundError, ImportError):
     from security.zero_trust import ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify
     from routes_v2 import routes_v2
     from routes_autopilot import routes_autopilot
     from routes_studio import routes_studio
     from routes_editor import routes_editor
+    from routes_temp_media import routes_temp_media
 
 # Security & Origin Configuration
 ALLOWED_ORIGINS = [
@@ -2397,6 +2399,9 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
         # OAuth sign-in redirects come from the platform (no allowed origin); the route checks its own signed state.
         if request.method == "GET" and request.url.path.startswith("/oauth/autopilot/"):
             return await call_next(request)
+        # Temp media for automations: Instagram/Facebook fetch these files (ids are random UUIDs).
+        if request.method in ("GET", "HEAD") and request.url.path.startswith("/api/temp-media/"):
+            return await call_next(request)
         # AI Video Editor: media GETs are opened by <video>/<audio>/download links (job ids are random UUIDs).
         if request.method == "GET" and (request.url.path == "/api/editor/voice-preview"
                                         or re.fullmatch(r"/api/editor/jobs/[0-9a-f-]{36}/file/[a-z]+", request.url.path)):
@@ -3786,7 +3791,7 @@ routes = [
     Route("/api/download_audio", download_audio_handler, methods=["GET"])
 ]
 
-routes = routes_v2 + routes_studio + routes_autopilot + routes_editor + routes
+routes = routes_v2 + routes_studio + routes_autopilot + routes_editor + routes_temp_media + routes
 
 # Order = outermost first: CORS -> Zero-Trust guard -> origin/extension gate
 middleware = [
