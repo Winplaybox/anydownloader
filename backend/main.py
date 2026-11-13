@@ -2176,13 +2176,75 @@ async def extract_handler(request):
         return JSONResponse({"success": False, "error": error_msg}, status_code=500)
 
 
-def _ytdlp_robust_opts() -> Dict[str, Any]:
-    """Shared yt-dlp options that survive YouTube datacenter-IP blocks better.
+def _find_js_runtimes() -> Dict[str, Dict[str, str]]:
+    """yt-dlp needs a JavaScript runtime to solve YouTube's player challenges.
 
-    - Tries several YouTube player clients instead of only the default one.
-    - Optional YTDLP_COOKIES (Netscape cookies.txt content) or YTDLP_COOKIES_FILE.
-    - Optional YTDLP_PROXY (e.g. http://user:pass@host:port).
+    Render's native Python runtime ships no Deno, so it comes from the `deno`
+    PyPI package (requirements.txt). Node is used as a fallback if present.
     """
+    runtimes: Dict[str, Dict[str, str]] = {}
+    deno_path = os.environ.get('YTDLP_DENO_PATH', '').strip() or shutil.which('deno')
+    if not deno_path:
+        try:
+            import deno as _deno_pkg  # type: ignore
+            deno_path = _deno_pkg.find_deno_bin()
+        except Exception:
+            deno_path = None
+    if deno_path:
+        runtimes['deno'] = {'path': deno_path}
+    node_path = shutil.which('node')
+    if node_path:
+        runtimes['node'] = {'path': node_path}
+    return runtimes
+
+
+def _normalize_netscape_cookies(text: str) -> str:
+    """Accept cookies pasted into a dashboard: literal \\n and spaces instead of tabs."""
+    text = text.replace('\\n', '\n').replace('\r', '')
+    out = []
+    for line in text.split('\n'):
+        stripped = line.strip()
+        if not stripped or (stripped.startswith('#') and not stripped.startswith('#HttpOnly_')):
+            out.append(stripped)
+            continue
+        if '\t' not in stripped:
+            parts = stripped.split(None, 6)
+            if len(parts) == 7:
+                stripped = '\t'.join(parts)
+        out.append(stripped)
+    body = '\n'.join(out).strip() + '\n'
+    if not body.startswith('# Netscape HTTP Cookie File'):
+        body = '# Netscape HTTP Cookie File\n' + body
+    return body
+
+
+def _ytdlp_cookiefile() -> Optional[str]:
+    """Writable copy of the YouTube cookies (yt-dlp rewrites the cookie file on exit).
+
+    Sources, in order: YTDLP_COOKIES_FILE (e.g. a Render Secret File at
+    /etc/secrets/youtube_cookies.txt), then YTDLP_COOKIES (file content as an env var).
+    """
+    src_text = None
+    src_file = os.environ.get('YTDLP_COOKIES_FILE', '').strip()
+    if src_file and os.path.isfile(src_file):
+        with open(src_file, 'r', encoding='utf-8', errors='ignore') as fh:
+            src_text = fh.read()
+    elif os.environ.get('YTDLP_COOKIES', '').strip():
+        src_text = os.environ['YTDLP_COOKIES']
+    if not src_text:
+        return None
+    dest = os.path.join(tempfile.gettempdir(), f'ovd_yt_cookies_{os.getpid()}.txt')
+    with open(dest, 'w', encoding='utf-8') as fh:
+        fh.write(_normalize_netscape_cookies(src_text))
+    return dest
+
+
+_YTDLP_SETUP_LOGGED = False
+
+
+def _ytdlp_robust_opts() -> Dict[str, Any]:
+    """Shared yt-dlp options that survive YouTube datacenter-IP blocks better."""
+    global _YTDLP_SETUP_LOGGED
     opts: Dict[str, Any] = {
         'quiet': True,
         'no_warnings': True,
@@ -2190,18 +2252,19 @@ def _ytdlp_robust_opts() -> Dict[str, Any]:
         'extractor_retries': 3,
         'extractor_args': {'youtube': {'player_client': ['default', 'tv', 'web_safari', 'mweb', 'android_vr']}},
     }
-    cookies_file = os.environ.get('YTDLP_COOKIES_FILE', '').strip()
-    cookies_text = os.environ.get('YTDLP_COOKIES', '').strip()
-    if not cookies_file and cookies_text:
-        cookies_file = os.path.join(tempfile.gettempdir(), 'ovd_yt_cookies.txt')
-        if not os.path.exists(cookies_file):
-            with open(cookies_file, 'w', encoding='utf-8') as fh:
-                fh.write(cookies_text.replace('\\n', '\n') + '\n')
-    if cookies_file and os.path.exists(cookies_file):
-        opts['cookiefile'] = cookies_file
+    runtimes = _find_js_runtimes()
+    if runtimes:
+        opts['js_runtimes'] = runtimes
+    cookiefile = _ytdlp_cookiefile()
+    if cookiefile:
+        opts['cookiefile'] = cookiefile
     proxy = os.environ.get('YTDLP_PROXY', '').strip()
     if proxy:
         opts['proxy'] = proxy
+    if not _YTDLP_SETUP_LOGGED:
+        _YTDLP_SETUP_LOGGED = True
+        print(f"[yt-dlp] version={yt_dlp.version.__version__} js_runtimes={sorted(runtimes) or 'NONE'} "
+              f"cookies={'yes' if cookiefile else 'no'} proxy={'yes' if proxy else 'no'}", flush=True)
     return opts
 
 
