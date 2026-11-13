@@ -7,6 +7,7 @@ from backend.engines.fxtwitter_engine import FxTwitterEngine
 from backend.engines.gallerydl_engine import GalleryDlEngine
 from backend.engines.reddit_engine import RedditEngine
 from backend.engines.remote_worker_engine import RemoteWorkerEngine
+from backend.engines.instagram_embed_engine import InstagramEmbedEngine
 from backend.utils.errors import AppError, ErrorCode
 
 logger = logging.getLogger("ovd.engines")
@@ -20,6 +21,7 @@ class EngineRegistry:
             "gallerydl": GalleryDlEngine(),
             "reddit_json": RedditEngine(),
             "remote_worker": RemoteWorkerEngine(),
+            "instagram_embed": InstagramEmbedEngine(),
         }
 
     def get(self, engine_id: str) -> Optional[Engine]:
