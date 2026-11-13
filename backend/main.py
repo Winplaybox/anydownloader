@@ -52,6 +52,7 @@ except ModuleNotFoundError:
     from utils.security import verify_download_token
     from extractors.registry import registry
 import html
+import hmac
 import os
 import re
 import sys
@@ -100,6 +101,9 @@ ALLOWED_ORIGINS = [
     ).split(",") if o.strip()
 ]
 EXTENSION_SECRET_KEY = os.environ.get("EXTENSION_SECRET_KEY", "wpb_ext_9f83e2a74c1048b9ad51f63cb7e90812")
+# Server-to-server key for automations (Make.com, n8n, cron). Send as `X-API-Key`.
+# Unset = disabled. Keep it out of the repo: set it only in the Render dashboard.
+AUTOMATION_API_KEY = os.environ.get("AUTOMATION_API_KEY", "").strip()
 ALLOWED_EXTENSION_IDS = [
     ext_id.strip() for ext_id in os.environ.get("ALLOWED_EXTENSION_IDS", "aifhpejlmiogofokpjclelmlohmlnjmm").split(",") if ext_id.strip()
 ]
@@ -2170,23 +2174,57 @@ async def extract_handler(request):
         return JSONResponse({"success": False, "error": error_msg}, status_code=500)
 
 
-def run_download_video_task(source_url: str, height: int, output_template: str):
-    """Download video stream with audio merged using yt-dlp and ffmpeg."""
-    ydl_opts = {
+def _ytdlp_robust_opts() -> Dict[str, Any]:
+    """Shared yt-dlp options that survive YouTube datacenter-IP blocks better.
+
+    - Tries several YouTube player clients instead of only the default one.
+    - Optional YTDLP_COOKIES (Netscape cookies.txt content) or YTDLP_COOKIES_FILE.
+    - Optional YTDLP_PROXY (e.g. http://user:pass@host:port).
+    """
+    opts: Dict[str, Any] = {
         'quiet': True,
         'no_warnings': True,
-        'format': f'bestvideo[height<={height}]+bestaudio/best',
-        'outtmpl': output_template,
-        'merge_output_format': 'mp4'
+        'retries': 3,
+        'extractor_retries': 3,
+        'extractor_args': {'youtube': {'player_client': ['default', 'tv', 'web_safari', 'mweb', 'android_vr']}},
     }
+    cookies_file = os.environ.get('YTDLP_COOKIES_FILE', '').strip()
+    cookies_text = os.environ.get('YTDLP_COOKIES', '').strip()
+    if not cookies_file and cookies_text:
+        cookies_file = os.path.join(tempfile.gettempdir(), 'ovd_yt_cookies.txt')
+        if not os.path.exists(cookies_file):
+            with open(cookies_file, 'w', encoding='utf-8') as fh:
+                fh.write(cookies_text.replace('\\n', '\n') + '\n')
+    if cookies_file and os.path.exists(cookies_file):
+        opts['cookiefile'] = cookies_file
+    proxy = os.environ.get('YTDLP_PROXY', '').strip()
+    if proxy:
+        opts['proxy'] = proxy
+    return opts
+
+
+def run_download_video_task(source_url: str, height: int, output_template: str):
+    """Download video stream with audio merged using yt-dlp and ffmpeg.
+
+    Prefers H.264 + AAC so the MP4 is accepted by Instagram/Facebook Reels APIs.
+    """
+    ydl_opts = _ytdlp_robust_opts()
+    ydl_opts.update({
+        'format': (
+            f'bv*[height<={height}][vcodec^=avc1]+ba[ext=m4a]/'
+            f'bv*[height<={height}]+ba/'
+            f'b[height<={height}]/b'
+        ),
+        'outtmpl': output_template,
+        'merge_output_format': 'mp4',
+    })
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([source_url])
 
 def run_download_audio_task(source_url: str, quality: str, output_template: str):
     """Download audio stream and extract MP3 using yt-dlp and ffmpeg."""
     ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
+        **_ytdlp_robust_opts(),
         'format': 'bestaudio/best',
         'outtmpl': output_template,
         'postprocessors': [{
@@ -2370,7 +2408,12 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
         ext_key = request.headers.get("x-extension-key", "")
 
         # A. Browser Extension Key check
-        if ext_key and ext_key == EXTENSION_SECRET_KEY:
+        if ext_key and hmac.compare_digest(ext_key.encode(), EXTENSION_SECRET_KEY.encode()):
+            return await call_next(request)
+
+        # A2. Automation key (Make.com and other server-side callers)
+        api_key = request.headers.get("x-api-key", "")
+        if AUTOMATION_API_KEY and api_key and hmac.compare_digest(api_key.encode(), AUTOMATION_API_KEY.encode()):
             return await call_next(request)
 
         # B. Browser Extension Origin check
