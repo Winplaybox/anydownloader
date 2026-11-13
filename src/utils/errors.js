@@ -7,6 +7,7 @@ export const ErrorCode = {
   RATE_LIMITED: 'RATE_LIMITED',
   GEO_BLOCKED: 'GEO_BLOCKED',
   EXTRACTION_FAILED: 'EXTRACTION_FAILED',
+  SOURCE_BLOCKED: 'SOURCE_BLOCKED',
 
   // Legacy Codes (Backward Compatibility)
   URL_MISSING: 'URL_MISSING',
@@ -38,6 +39,10 @@ export const ERROR_DETAILS = {
   },
   RATE_LIMITED: {
     message: 'Upstream rate limit reached. Please wait a minute and try again.',
+    retryable: true
+  },
+  SOURCE_BLOCKED: {
+    message: 'The platform is temporarily blocking our server for this link. Please retry in a few minutes.',
     retryable: true
   },
   GEO_BLOCKED: {

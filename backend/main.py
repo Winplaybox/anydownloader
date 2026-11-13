@@ -1,4 +1,5 @@
 import os
+import time
 import sys
 import base64
 
@@ -165,6 +166,14 @@ def find_node_path() -> Optional[str]:
     return None
 
 NODE_EXE = find_node_path()
+
+
+def _yo_extract_opts() -> Dict[str, Any]:
+    try:
+        from backend.utils.ytdlp_opts import robust_opts
+    except (ModuleNotFoundError, ImportError):
+        from utils.ytdlp_opts import robust_opts  # type: ignore
+    return robust_opts("extract")
 
 def is_safe_cdn_url(target_url: str) -> bool:
     """Validates target URL is a public web resource (http/https) and prevents SSRF."""
@@ -722,13 +731,8 @@ def extract_youtube_channel(url: str):
     else:
         videos_url = clean_url
 
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'extract_flat': True,
-        'playlist_items': '1-6',
-        'skip_download': True
-    }
+    ydl_opts = _yo_extract_opts()
+    ydl_opts.update({'extract_flat': True, 'playlist_items': '1-6', 'noplaylist': False})
 
     title = "YouTube Channel"
     uploader = "Creator"
@@ -1755,20 +1759,8 @@ def extract_media_base(url: str, forced_platform: Optional[str] = None):
     yt_m = re.search(r'(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})', url) if platform == "youtube" else None
     video_id = yt_m.group(1) if yt_m else ""
 
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "extract_flat": False,
-        "skip_download": True,
-        "noplaylist": True,
-        "socket_timeout": 8,
-        "http_headers": {
-            "User-Agent": USER_AGENT,
-            "Accept-Language": "en-US,en;q=0.9",
-        }
-    }
-    if NODE_EXE:
-        ydl_opts["js_runtimes"] = {"node": {"path": NODE_EXE}}
+    ydl_opts = _yo_extract_opts()
+    ydl_opts["extract_flat"] = False
 
     info = None
     try:
@@ -2176,96 +2168,19 @@ async def extract_handler(request):
         return JSONResponse({"success": False, "error": error_msg}, status_code=500)
 
 
-def _find_js_runtimes() -> Dict[str, Dict[str, str]]:
-    """yt-dlp needs a JavaScript runtime to solve YouTube's player challenges.
+# yt-dlp setup lives in utils/ytdlp_opts.py so resolve, extract and download share it.
+try:
+    from backend.utils import ytdlp_opts as _yo
+except (ModuleNotFoundError, ImportError):
+    from utils import ytdlp_opts as _yo  # type: ignore
 
-    Render's native Python runtime ships no Deno, so it comes from the `deno`
-    PyPI package (requirements.txt). Node is used as a fallback if present.
-    """
-    runtimes: Dict[str, Dict[str, str]] = {}
-    deno_path = os.environ.get('YTDLP_DENO_PATH', '').strip() or shutil.which('deno')
-    if not deno_path:
-        try:
-            import deno as _deno_pkg  # type: ignore
-            deno_path = _deno_pkg.find_deno_bin()
-        except Exception:
-            deno_path = None
-    if deno_path:
-        runtimes['deno'] = {'path': deno_path}
-    node_path = shutil.which('node')
-    if node_path:
-        runtimes['node'] = {'path': node_path}
-    return runtimes
-
-
-def _normalize_netscape_cookies(text: str) -> str:
-    """Accept cookies pasted into a dashboard: literal \\n and spaces instead of tabs."""
-    text = text.replace('\\n', '\n').replace('\r', '')
-    out = []
-    for line in text.split('\n'):
-        stripped = line.strip()
-        if not stripped or (stripped.startswith('#') and not stripped.startswith('#HttpOnly_')):
-            out.append(stripped)
-            continue
-        if '\t' not in stripped:
-            parts = stripped.split(None, 6)
-            if len(parts) == 7:
-                stripped = '\t'.join(parts)
-        out.append(stripped)
-    body = '\n'.join(out).strip() + '\n'
-    if not body.startswith('# Netscape HTTP Cookie File'):
-        body = '# Netscape HTTP Cookie File\n' + body
-    return body
-
-
-def _ytdlp_cookiefile() -> Optional[str]:
-    """Writable copy of the YouTube cookies (yt-dlp rewrites the cookie file on exit).
-
-    Sources, in order: YTDLP_COOKIES_FILE (e.g. a Render Secret File at
-    /etc/secrets/youtube_cookies.txt), then YTDLP_COOKIES (file content as an env var).
-    """
-    src_text = None
-    src_file = os.environ.get('YTDLP_COOKIES_FILE', '').strip()
-    if src_file and os.path.isfile(src_file):
-        with open(src_file, 'r', encoding='utf-8', errors='ignore') as fh:
-            src_text = fh.read()
-    elif os.environ.get('YTDLP_COOKIES', '').strip():
-        src_text = os.environ['YTDLP_COOKIES']
-    if not src_text:
-        return None
-    dest = os.path.join(tempfile.gettempdir(), f'ovd_yt_cookies_{os.getpid()}.txt')
-    with open(dest, 'w', encoding='utf-8') as fh:
-        fh.write(_normalize_netscape_cookies(src_text))
-    return dest
-
-
-_YTDLP_SETUP_LOGGED = False
+_find_js_runtimes = _yo.find_js_runtimes
+_normalize_netscape_cookies = _yo.normalize_netscape_cookies
+_ytdlp_cookiefile = _yo.cookiefile
 
 
 def _ytdlp_robust_opts() -> Dict[str, Any]:
-    """Shared yt-dlp options that survive YouTube datacenter-IP blocks better."""
-    global _YTDLP_SETUP_LOGGED
-    opts: Dict[str, Any] = {
-        'quiet': True,
-        'no_warnings': True,
-        'retries': 3,
-        'extractor_retries': 3,
-        'extractor_args': {'youtube': {'player_client': ['default', 'tv', 'web_safari', 'mweb', 'android_vr']}},
-    }
-    runtimes = _find_js_runtimes()
-    if runtimes:
-        opts['js_runtimes'] = runtimes
-    cookiefile = _ytdlp_cookiefile()
-    if cookiefile:
-        opts['cookiefile'] = cookiefile
-    proxy = os.environ.get('YTDLP_PROXY', '').strip()
-    if proxy:
-        opts['proxy'] = proxy
-    if not _YTDLP_SETUP_LOGGED:
-        _YTDLP_SETUP_LOGGED = True
-        print(f"[yt-dlp] version={yt_dlp.version.__version__} js_runtimes={sorted(runtimes) or 'NONE'} "
-              f"cookies={'yes' if cookiefile else 'no'} proxy={'yes' if proxy else 'no'}", flush=True)
-    return opts
+    return _yo.robust_opts("download")
 
 
 def run_download_video_task(source_url: str, height: int, output_template: str):
@@ -2805,6 +2720,52 @@ async def platforms_handler(request):
     data = platform_registry.get_platforms_api()
     return JSONResponse({"ok": True, "platforms": data})
 
+RESOLVE_BUDGET_S = float(os.environ.get("OVD_RESOLVE_BUDGET_S", "25"))
+_RESOLVE_CACHE: Dict[str, Any] = {}
+
+
+def _resolve_cache_get(key: str):
+    hit = _RESOLVE_CACHE.get(key)
+    if hit and hit[0] > time.time():
+        return hit[1]
+    _RESOLVE_CACHE.pop(key, None)
+    return None
+
+
+def _resolve_cache_put(key: str, payload: Dict[str, Any], ttl: int) -> None:
+    if len(_RESOLVE_CACHE) > 500:
+        for k in sorted(_RESOLVE_CACHE, key=lambda k: _RESOLVE_CACHE[k][0])[:100]:
+            _RESOLVE_CACHE.pop(k, None)
+    _RESOLVE_CACHE[key] = (time.time() + ttl, payload)
+
+
+async def _resolve_degraded(resolved_url: str, platform_def: Dict[str, Any], ae: "AppError", cache_key: str):
+    """Video formats unavailable: still return metadata + thumbnails, with an explicit notice
+    so the UI can tell the user instead of silently showing photos only."""
+    pid = platform_def.get("id")
+    notice = {"code": ae.code.value, "message": ae.message, "retryable": ae.retryable,
+              "downloads_available": False}
+    if pid == "youtube":
+        m = re.search(r'(?:v=|youtu\.be/|shorts/|live/|embed/)([a-zA-Z0-9_-]{11})', resolved_url)
+        if m:
+            try:
+                loop = asyncio.get_event_loop()
+                legacy = await loop.run_in_executor(None, extract_youtube_fallback, resolved_url, m.group(1))
+                data = map_legacy_to_normalized(legacy, pid, resolved_url)
+                data["notice"] = notice
+                data["status"] = "degraded"
+                data["warnings"] = [
+                    "YouTube is temporarily blocking video downloads from our server for this link. "
+                    "Thumbnails and details are available now - please retry the video in a few minutes."
+                ]
+                payload = {"ok": True, "success": True, "degraded": True, "data": data}
+                _resolve_cache_put(cache_key, payload, ttl=90)  # short: retry soon
+                return JSONResponse(payload)
+            except Exception:
+                pass
+    return ae.to_response()
+
+
 async def unified_extract_handler(request):
     try:
         body = await request.json()
@@ -2837,16 +2798,28 @@ async def unified_extract_handler(request):
         attribution=body.get("attribution")
     )
 
+    cache_key = f"{platform_def['id']}|{content_type}|{resolved_url}"
+    cached = _resolve_cache_get(cache_key)
+    if cached is not None:
+        return JSONResponse(cached, headers={"X-OVD-Cache": "hit"})
+
     try:
-        raw_result = await engine_registry.execute_chain(
-            resolved_url,
-            platform_def.get("routes", {}),
-            content_type,
-            ctx
+        # Hard budget so the browser (35 s abort) always gets an answer.
+        raw_result = await asyncio.wait_for(
+            engine_registry.execute_chain(resolved_url, platform_def.get("routes", {}), content_type, ctx),
+            timeout=RESOLVE_BUDGET_S,
         )
         normalized = normalize_raw_result(raw_result, platform_def, content_type)
-        return JSONResponse({"ok": True, "success": True, "data": normalized.to_dict()})
+        payload = {"ok": True, "success": True, "data": normalized.to_dict()}
+        _resolve_cache_put(cache_key, payload, ttl=600)
+        return JSONResponse(payload)
+    except asyncio.TimeoutError:
+        ae_timeout = AppError(ErrorCode.TIMEOUT, "The platform is slow to respond. Please try again.")
+        return await _resolve_degraded(resolved_url, platform_def, ae_timeout, cache_key)
     except AppError as ae:
+        if ae.code in (ErrorCode.SOURCE_BLOCKED,) or platform_def.get("id") == "youtube":
+            # Do NOT re-run yt-dlp in the legacy path (that doubled the wait to ~60 s).
+            return await _resolve_degraded(resolved_url, platform_def, ae, cache_key)
         try:
             loop = asyncio.get_event_loop()
             legacy_data = await loop.run_in_executor(None, extract_media, resolved_url)

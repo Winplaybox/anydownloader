@@ -12,6 +12,8 @@ class ErrorCode(str, Enum):
     UPSTREAM_FAILED = "UPSTREAM_FAILED"
     TIMEOUT = "TIMEOUT"
     INTERNAL = "INTERNAL"
+    LOGIN_REQUIRED = "LOGIN_REQUIRED"
+    SOURCE_BLOCKED = "SOURCE_BLOCKED"
 
 ERROR_COPY = {
     ErrorCode.URL_MISSING: ("Paste a link to get started.", 400, False),
@@ -24,6 +26,8 @@ ERROR_COPY = {
     ErrorCode.UPSTREAM_FAILED: ("The platform didn't respond. Try again.", 502, True),
     ErrorCode.TIMEOUT: ("That took too long. Try again.", 504, True),
     ErrorCode.INTERNAL: ("Something went wrong on our side.", 500, True),
+    ErrorCode.LOGIN_REQUIRED: ("This content needs a logged-in account to view.", 403, False),
+    ErrorCode.SOURCE_BLOCKED: ("The platform is temporarily blocking our server. Please retry in a few minutes.", 503, True),
 }
 
 def get_error_message(code: ErrorCode) -> str:

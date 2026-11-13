@@ -1,0 +1,60 @@
+name: OVD health monitor
+
+# Every hour: resolve one real YouTube and one real Instagram link through the public API.
+# On failure a single "OVD health" issue is opened/updated (GitHub emails the repo owner);
+# it is closed automatically when everything passes again.
+on:
+  schedule:
+    - cron: "17 1-19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  API: https://anydownloader-backend-vvbj.onrender.com
+  ORIGIN: https://ovd.winplaybox.in
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Resolve test links
+        id: run
+        run: |
+          set +e
+          check() {
+            name="$1"; url="$2"
+            body=$(curl -s -m 60 -X POST "$API/api/resolve" -H "Content-Type: application/json" \
+                   -H "Origin: $ORIGIN" -d "{\"url\":\"$url\"}")
+            videos=$(echo "$body" | jq '[.data.items[]? | select(.kind=="video")] | length' 2>/dev/null)
+            notice=$(echo "$body" | jq -r '.data.notice.code // .error.code // empty' 2>/dev/null)
+            echo "$name: videos=${videos:-0} notice=${notice:-none}"
+            if [ "${videos:-0}" -gt 0 ] 2>/dev/null; then echo "| $name | OK | ${videos} video variants |" >> report.md; return 0; fi
+            echo "| $name | FAIL | ${notice:-no video variants} |" >> report.md; return 1
+          }
+          curl -s -o /dev/null -m 70 "$API/health"   # wake up
+          echo "| Platform | Status | Detail |" > report.md
+          echo "|---|---|---|" >> report.md
+          fail=0
+          check YouTube   "https://www.youtube.com/watch?v=jNQXAC9IVRw" || fail=1
+          check Instagram "https://www.instagram.com/dhrusavlogs/reel/De1j7WADf_8/" || fail=1
+          cat report.md
+          echo "fail=$fail" >> "$GITHUB_OUTPUT"
+
+      - name: Open / update / close health issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAIL: ${{ steps.run.outputs.fail }}
+        run: |
+          num=$(gh issue list -R "$GITHUB_REPOSITORY" --label ovd-health --state open --json number -q '.[0].number' 2>/dev/null)
+          if [ "$FAIL" = "1" ]; then
+            gh label create ovd-health -R "$GITHUB_REPOSITORY" --color B60205 2>/dev/null || true
+            body="$(printf 'Automated check at %s UTC\n\n' "$(date -u '+%F %T')"; cat report.md)"
+            if [ -n "$num" ]; then gh issue comment "$num" -R "$GITHUB_REPOSITORY" --body "$body"
+            else gh issue create -R "$GITHUB_REPOSITORY" --title "OVD health: downloads failing" --label ovd-health --body "$body"; fi
+          elif [ -n "$num" ]; then
+            gh issue close "$num" -R "$GITHUB_REPOSITORY" --comment "Recovered at $(date -u '+%F %T') UTC"
+          fi

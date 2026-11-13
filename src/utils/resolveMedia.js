@@ -217,19 +217,19 @@ export async function resolveMedia(rawInput) {
 
     clearTimeout(timeoutId);
 
-    if (resp.ok) {
-      const json = await resp.json();
-      if (json.ok && json.data) {
-        return { ok: true, data: json.data };
-      }
-      if (json.error) {
-        return { ok: false, code: json.error.code, error: getErrorMessage(json.error.code, json.error.message) };
-      }
+    let json = null;
+    try { json = await resp.json(); } catch (_) { json = null; }
+    if (resp.ok && json && json.ok && json.data) {
+      return { ok: true, data: json.data };
     }
-
-    // If 404 (endpoint not deployed on current backend instance), fall through to /api/extract
+    // /api/resolve and /api/extract are the SAME backend handler: a definitive error from
+    // resolve must not trigger a second identical (slow) attempt. Only 404/405 falls through.
+    if (json && json.error && resp.status !== 404 && resp.status !== 405) {
+      const code = json.error.code || ErrorCode.UPSTREAM_FAILED;
+      return { ok: false, code, retryable: !!json.error.retryable, error: getErrorMessage(code, json.error.message) };
+    }
   } catch (e) {
-    // Network error or abort, proceed to fallback attempt
+    // Network error or abort (e.g. Render cold start) -> one retry below
   }
 
   // 2. Secondary Attempt: /api/extract (legacy gateway)

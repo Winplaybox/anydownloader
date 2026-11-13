@@ -63,15 +63,18 @@
     regex: instagram\.com/stories/([^/]+)/([0-9]+)
   routes:
     reel:
+    - instagram_embed
     - ytdlp
     - gallerydl
     - polaris
     - remote_worker
     post:
+    - instagram_embed
     - gallerydl
     - polaris
     - instaloader
     carousel:
+    - instagram_embed
     - gallerydl
     - polaris
     - instaloader
