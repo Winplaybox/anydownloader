@@ -38,6 +38,7 @@ export default function Footer() {
               <li><Link to="/reddit-video-downloader" className="hover:text-[var(--accent)] transition-colors">Reddit Video with Audio</Link></li>
               <li><Link to="/threads-video-downloader" className="hover:text-[var(--accent)] transition-colors">Threads Video & Photos</Link></li>
               <li><Link to="/any-website-downloader" className="hover:text-[var(--accent)] transition-colors">Any Website Downloader</Link></li>
+              <li><Link to="/youtube-subscribe-link-generator" className="hover:text-[var(--accent)] transition-colors">YouTube Subscribe Link Generator</Link></li>
             </ul>
           </div>
 

@@ -12,6 +12,7 @@ import BlogsPage from './pages/BlogsPage.jsx';
 import UpdatesPage from './pages/UpdatesPage.jsx';
 import ExtensionPage from './pages/ExtensionPage.jsx';
 import VideoEditorPage from './pages/VideoEditorPage.jsx';
+import YouTubeSubscribeLinkPage from './pages/YouTubeSubscribeLinkPage.jsx';
 import { pagesConfig } from './data/pagesConfig.js';
 import { initAttribution } from './utils/attribution.js';
 
@@ -28,7 +29,10 @@ function SEOHead() {
     let title = 'OVD - Fast Social Video & Image Downloader (Twitter, YouTube, Facebook, Instagram, TikTok, Pinterest, Reddit)';
     let desc = 'Download public videos and images from Twitter/X, YouTube, Facebook, Instagram, TikTok, Pinterest, Reddit and any website. 100% free with no sign-up.';
 
-    if (cleanPath.includes('video-editor')) {
+    if (cleanPath.includes('subscribe-link')) {
+      title = 'YouTube Subscribe Link Generator (Auto Subscribe Popup) - Free | OVD';
+      desc = 'Create a YouTube auto-subscribe link that opens the Subscribe popup instantly. Free sub_confirmation link, QR code and HTML button for any channel - no login.';
+    } else if (cleanPath.includes('video-editor')) {
       title = 'Free AI Video Editor - Voiceover, Auto Captions, Title & Tags - OVD';
       desc = 'Upload a clip and get an AI voiceover, animated word-by-word captions, mastered audio, plus viral YouTube title, description and tags. Free, 2 videos a day.';
     } else if (cleanPath.includes('twitter') || cleanPath.includes('x-')) {
@@ -94,6 +98,9 @@ export default function App() {
             {/* Blog & Updates */}
             <Route path="/extension" element={<ExtensionPage />} />
             <Route path="/ai-video-editor" element={<VideoEditorPage />} />
+            <Route path="/youtube-subscribe-link-generator" element={<YouTubeSubscribeLinkPage />} />
+            <Route path="/youtube-subscribe-link" element={<Navigate to="/youtube-subscribe-link-generator" replace />} />
+            <Route path="/youtube-auto-subscribe-link" element={<Navigate to="/youtube-subscribe-link-generator" replace />} />
             <Route path="/video-editor" element={<Navigate to="/ai-video-editor" replace />} />
             <Route path="/chrome-extension" element={<Navigate to="/extension" replace />} />
             <Route path="/blog" element={<BlogsPage />} />

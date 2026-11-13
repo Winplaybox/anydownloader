@@ -40,6 +40,24 @@ DESKTOP_UA = (
 )
 
 
+def ensure_node_on_path() -> Optional[str]:
+    """Node from the `nodejs-wheel-binaries` package is not on PATH on Render; add it so
+    yt-dlp and pytubefix (BotGuard PO tokens) can use it. Returns the node path or None."""
+    node = shutil.which("node")
+    if node:
+        return node
+    try:
+        from nodejs_wheel import executable as _nw  # type: ignore
+        bin_dir = os.path.join(_nw.ROOT_DIR, "bin")
+        cand = os.path.join(bin_dir, "node.exe" if os.name == "nt" else "node")
+        if os.path.exists(cand):
+            os.environ["PATH"] = bin_dir + os.pathsep + os.environ.get("PATH", "")
+            return cand
+    except Exception:
+        pass
+    return None
+
+
 def find_js_runtimes() -> Dict[str, Dict[str, str]]:
     """Deno (from the `deno` PyPI package on Render) first, Node as fallback. Cached."""
     global _runtimes_cache
@@ -55,13 +73,7 @@ def find_js_runtimes() -> Dict[str, Dict[str, str]]:
             deno_path = None
     if deno_path:
         runtimes["deno"] = {"path": deno_path}
-    node_path = shutil.which("node")
-    if not node_path:
-        try:
-            from nodejs_wheel import executable as _nw  # type: ignore
-            node_path = getattr(_nw, "node_path", None) or None
-        except Exception:
-            node_path = None
+    node_path = ensure_node_on_path()
     if node_path:
         runtimes["node"] = {"path": node_path}
     _runtimes_cache = runtimes

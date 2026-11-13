@@ -196,6 +196,8 @@ export default function MediaResultCard({ data, onReset }) {
   const [activeJob, setActiveJob] = useState(null);
   const [jobError, setJobError] = useState(null);
   const [isZipping, setIsZipping] = useState(false);
+  // Per-button download state: { key, progress (0-100 | null) }
+  const [busyDownload, setBusyDownload] = useState(null);
 
   const viewsCount = formatMetricCount(stats.views);
   const likesCount = formatMetricCount(stats.likes);
@@ -336,17 +338,68 @@ export default function MediaResultCard({ data, onReset }) {
     return () => clearInterval(interval);
   }, [activeJob]);
 
-  function triggerDownload(item) {
-    if (!item) return;
+  async function fetchWithProgress(fullUrl, key, fallbackName) {
+    setJobError(null);
+    setBusyDownload({ key, progress: null });
+    try {
+      const resp = await fetch(fullUrl);
+      if (!resp.ok) {
+        let message = 'We could not prepare this download. Please try again.';
+        try {
+          const j = await resp.json();
+          message = (j.error && (j.error.message || j.error)) || message;
+        } catch (_) { /* non-JSON error body */ }
+        setJobError(typeof message === 'string' ? message : 'Download failed. Please try again.');
+        return;
+      }
+      const total = Number(resp.headers.get('content-length')) || 0;
+      const disposition = resp.headers.get('content-disposition') || '';
+      const match = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      const filename = match ? decodeURIComponent(match[1]) : fallbackName;
+      const reader = resp.body.getReader();
+      const chunks = [];
+      let received = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (total) setBusyDownload({ key, progress: Math.round((received / total) * 100) });
+      }
+      const blob = new Blob(chunks, { type: resp.headers.get('content-type') || 'application/octet-stream' });
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(href), 30000);
+    } catch (e) {
+      setJobError('Network problem while downloading. Please check your connection and try again.');
+    } finally {
+      setBusyDownload(null);
+    }
+  }
 
-    // Check if item points to a specialized stream endpoint
+  function triggerDownload(item, key) {
+    if (!item) return;
+    const busyKey = key || item.downloadUrl || item.url || item.label;
+    if (busyDownload) return;
+
+    // Server-processed endpoints (video+audio / mp3): show spinner + progress, friendly errors
     if (item.downloadUrl && (item.downloadUrl.includes('/api/download_video') || item.downloadUrl.includes('/api/download_audio'))) {
       const fullUrl = item.downloadUrl.startsWith('http')
         ? item.downloadUrl
         : `${BACKEND_BASE}${item.downloadUrl.startsWith('/') ? '' : '/'}${item.downloadUrl}`;
-      window.location.href = fullUrl;
+      const isAudio = item.downloadUrl.includes('/api/download_audio');
+      fetchWithProgress(fullUrl, busyKey, `${platform || 'ovd'}_${item.label || 'media'}.${isAudio ? 'mp3' : 'mp4'}`.replace(/[^a-zA-Z0-9._-]/g, '_'));
       return;
     }
+
+    // Direct streams start immediately in the browser; brief spinner as click feedback
+    setBusyDownload({ key: busyKey, progress: null });
+    setTimeout(() => setBusyDownload(null), 2500);
 
     const rawUpstream = (typeof item.url === 'string' && item.url.startsWith('http')) 
       ? item.url 
@@ -850,7 +903,7 @@ export default function MediaResultCard({ data, onReset }) {
                 <p className="text-xs sm:text-sm font-semibold">
                   {activeJob.status === 'done' 
                     ? 'Media Merged & Ready! Downloading to device...' 
-                    : (activeJob.action === 'merge' ? 'Merging Video & Audio Tracks with ffmpeg...' : 'Processing Media...')}
+                    : (activeJob.action === 'merge' ? 'Preparing your HD video...' : 'Preparing your download...')}
                 </p>
                 <p className="text-xs text-[var(--text-muted)]">
                   {activeJob.status === 'done' ? 'Completed 100%' : `Status: ${activeJob.status} (${activeJob.progress}%)`}
@@ -945,7 +998,7 @@ export default function MediaResultCard({ data, onReset }) {
                             {sizeFormatted && <span>{sizeFormatted}</span>}
                             <span>&bull;</span>
                             {needsMerge ? (
-                              <span className="text-amber-600 dark:text-amber-400 font-medium">Merging needed</span>
+                              <span className="text-[var(--positive)] font-medium">HD with audio</span>
                             ) : hasAudio ? (
                               <span className="text-[var(--positive)] font-medium">Audio included</span>
                             ) : (
@@ -961,19 +1014,27 @@ export default function MediaResultCard({ data, onReset }) {
                           <button
                             type="button"
                             onClick={() => triggerMergeJob(vid)}
-                            className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[var(--accent)] text-white hover:opacity-90 font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs transition-opacity"
+                            disabled={!!activeJob}
+                            aria-busy={!!activeJob}
+                            className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 disabled:opacity-60 font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs transition-opacity"
                           >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Merge & Download</span>
+                            {activeJob ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                            <span>{activeJob ? 'Preparing...' : `Download (${ext})`}</span>
                           </button>
                         ) : (
                           <button
                             type="button"
-                            onClick={() => triggerDownload(vid)}
-                            className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs transition-opacity"
+                            onClick={() => triggerDownload(vid, `vid_${idx}`)}
+                            disabled={!!busyDownload}
+                            aria-busy={busyDownload?.key === `vid_${idx}`}
+                            className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 disabled:opacity-60 font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs transition-opacity"
                           >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Download ({ext})</span>
+                            {busyDownload?.key === `vid_${idx}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                            <span>
+                              {busyDownload?.key === `vid_${idx}`
+                                ? (busyDownload.progress != null ? `Downloading ${busyDownload.progress}%` : 'Preparing...')
+                                : `Download (${ext})`}
+                            </span>
                           </button>
                         )}
                       </div>
@@ -1128,11 +1189,13 @@ export default function MediaResultCard({ data, onReset }) {
 
                       <button
                         type="button"
-                        onClick={() => triggerDownload(aud)}
-                        className="px-3.5 py-1.5 rounded-lg bg-[var(--positive)] text-white hover:opacity-90 font-semibold text-xs flex items-center gap-1.5 transition-opacity shadow-xs"
+                        onClick={() => triggerDownload(aud, `aud_${idx}`)}
+                        disabled={!!busyDownload}
+                        aria-busy={busyDownload?.key === `aud_${idx}`}
+                        className="px-3.5 py-1.5 rounded-lg bg-[var(--positive)] text-white hover:opacity-90 disabled:opacity-60 font-semibold text-xs flex items-center gap-1.5 transition-opacity shadow-xs"
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Download Audio</span>
+                        {busyDownload?.key === `aud_${idx}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                        <span>{busyDownload?.key === `aud_${idx}` ? (busyDownload.progress != null ? `${busyDownload.progress}%` : 'Preparing...') : 'Download Audio'}</span>
                       </button>
                     </div>
                   );

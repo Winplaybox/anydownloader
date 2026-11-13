@@ -2198,8 +2198,43 @@ def run_download_video_task(source_url: str, height: int, output_template: str):
         'outtmpl': output_template,
         'merge_output_format': 'mp4',
     })
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([source_url])
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([source_url])
+    except Exception as exc:
+        if not (_is_youtube_url(source_url) and _yo.is_youtube_block(str(exc))):
+            raise
+        print(f"[download] yt-dlp blocked, trying pytubefix: {str(exc)[:120]}", flush=True)
+        _yt_fb().download_video(source_url, height, os.path.dirname(output_template))
+
+
+def _is_youtube_url(u: str) -> bool:
+    return bool(re.search(r"(youtube\.com|youtu\.be)", u or "", re.I))
+
+
+def _yt_fb():
+    try:
+        from backend.services import yt_fallback
+    except (ModuleNotFoundError, ImportError):
+        from services import yt_fallback  # type: ignore
+    return yt_fallback
+
+
+def _download_error_response(exc: Exception) -> JSONResponse:
+    """Friendly JSON error for the UI (never leak raw yt-dlp/ffmpeg text to users)."""
+    msg = str(exc)
+    if _yo.is_youtube_block(msg):
+        code, status, text = "SOURCE_BLOCKED", 503, ("YouTube is temporarily blocking downloads from our server for this video. "
+                                                    "Please try again in a few minutes.")
+    elif "private" in msg.lower():
+        code, status, text = "PRIVATE_CONTENT", 403, "This video is private or restricted by the creator."
+    elif "unavailable" in msg.lower() or "not found" in msg.lower():
+        code, status, text = "NOT_FOUND", 404, "This video is unavailable or was removed."
+    else:
+        code, status, text = "DOWNLOAD_FAILED", 502, "We couldn't prepare this download. Please try again or pick another quality."
+    print(f"[download] error {code}: {msg[:300]}", flush=True)
+    return JSONResponse({"ok": False, "error": {"code": code, "message": text, "retryable": status in (502, 503)}},
+                        status_code=status)
 
 def run_download_audio_task(source_url: str, quality: str, output_template: str):
     """Download audio stream and extract MP3 using yt-dlp and ffmpeg."""
@@ -2213,8 +2248,14 @@ def run_download_audio_task(source_url: str, quality: str, output_template: str)
             'preferredquality': quality,
         }]
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([source_url])
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([source_url])
+    except Exception as exc:
+        if not (_is_youtube_url(source_url) and _yo.is_youtube_block(str(exc))):
+            raise
+        print(f"[download] yt-dlp blocked (audio), trying pytubefix: {str(exc)[:120]}", flush=True)
+        _yt_fb().download_audio(source_url, quality, os.path.dirname(output_template))
 
 async def download_video_handler(request):
     """Handler that merges video and audio with ffmpeg, streaming genuine audio-enabled MP4."""
@@ -2245,7 +2286,7 @@ async def download_video_handler(request):
                 final_mp4 = files[0]
             else:
                 shutil.rmtree(temp_dir, ignore_errors=True)
-                return Response("Failed to generate video with audio", status_code=500)
+                return _download_error_response(RuntimeError("no output file"))
         
         return FileResponse(
             final_mp4,
@@ -2255,7 +2296,7 @@ async def download_video_handler(request):
         )
     except Exception as exc:
         shutil.rmtree(temp_dir, ignore_errors=True)
-        return Response(f"Error processing video download: {str(exc)}", status_code=500)
+        return _download_error_response(exc)
 
 async def download_audio_handler(request):
     """Handler that extracts pure audio MP3 with tags using ffmpeg, streaming MP3 with sound."""
@@ -2281,7 +2322,7 @@ async def download_audio_handler(request):
                 final_mp3 = files[0]
             else:
                 shutil.rmtree(temp_dir, ignore_errors=True)
-                return Response("Failed to generate audio mp3", status_code=500)
+                return _download_error_response(RuntimeError("no output file"))
         
         return FileResponse(
             final_mp3,
@@ -2291,7 +2332,7 @@ async def download_audio_handler(request):
         )
     except Exception as exc:
         shutil.rmtree(temp_dir, ignore_errors=True)
-        return Response(f"Error processing audio download: {str(exc)}", status_code=500)
+        return _download_error_response(exc)
 
 async def stream_download_handler(request):
     target_url = request.query_params.get("url")
