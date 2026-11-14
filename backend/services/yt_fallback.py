@@ -30,13 +30,18 @@ def _open(url: str):
 
     ensure_node_on_path()
     last: Optional[Exception] = None
+    px = os.environ.get("YTDLP_PROXY", "").strip()
+    proxies = {"http": px, "https": px} if px else None
     for client in CLIENTS:
         try:
-            yt = YouTube(url, client=client)
+            yt = YouTube(url, client=client, proxies=proxies) if proxies else YouTube(url, client=client)
             _ = yt.streams  # forces player fetch; raises if blocked
             return yt
         except Exception as e:  # try next client
             last = e
+            # 429 = this IP is rate limited: more clients only dig the hole deeper
+            if "429" in str(e) or "too many requests" in str(e).lower():
+                break
     raise RuntimeError(f"pytubefix failed for all clients: {last}")
 
 

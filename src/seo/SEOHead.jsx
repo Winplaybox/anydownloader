@@ -28,6 +28,7 @@ const STATIC_META = {
   '/privacy': { title: 'Privacy Policy | OVD', description: 'How OVD handles your data: no accounts, no stored media.' },
   '/terms': { title: 'Terms of Service | OVD', description: 'The rules for using OVD.' },
   '/dmca': { title: 'DMCA and Security | OVD', description: 'Report copyright concerns or security issues with OVD.' },
+  '/ovd-admin': { title: 'OVD Admin', description: 'Private dashboard.', noindex: true },
 };
 
 function clip(text, max = 158) {
@@ -87,7 +88,7 @@ export default function SEOHead() {
 
   useEffect(() => {
     const meta = getPageMeta(pathname);
-    const known = !!meta;
+    const known = !!meta && !meta.noindex;
     const m = meta || {
       title: 'Page not found | OVD',
       description: 'This page does not exist. Paste a link on the OVD home page to download videos and photos.',
