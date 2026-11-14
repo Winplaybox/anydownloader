@@ -64,7 +64,7 @@ export default function Header() {
   const [drawer, setDrawer] = useState(false);
   const { pathname } = useLocation();
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('ovd_theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+    try { return localStorage.getItem('ovd_theme') || 'light'; }
     catch { return 'light'; }
   });
 

@@ -1,18 +1,18 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
 /* OVD design tokens. Light is the default; dark applies via data-theme or OS preference. */
 :root {
-  --bg: #F5F7FB;
-  --bg-alt: #EBEFF6;
+  --bg: #FFFFFF;
+  --bg-alt: #F4F4F5;
   --surface: #FFFFFF;
-  --text: #0D1321;
-  --text-muted: #566078;
-  --border: #DCE2EE;
-  --border-strong: #0D1321;
-  --primary: #3347FF;
+  --text: #0A0A0A;
+  --text-muted: #52525B;
+  --border: #E4E4E7;
+  --border-strong: #0A0A0A;
+  --primary: #0A0A0A;
   --on-primary: #FFFFFF;
-  --accent: #3347FF;
-  --accent-bg: #E8EBFF;
+  --accent: #0A0A0A;
+  --accent-bg: #F4F4F5;
   --positive: #0B8F5B;
   --positive-bg: #E1F5EC;
   --negative: #D92D3A;
@@ -23,9 +23,9 @@
   --r-md: 12px;
   --r-lg: 18px;
   --r-pill: 999px;
-  --shadow-1: 0 1px 2px rgba(13, 19, 33, .06), 0 1px 3px rgba(13, 19, 33, .06);
-  --shadow-2: 0 10px 30px -10px rgba(13, 19, 33, .25);
-  --glow: 0 0 0 4px rgba(51, 71, 255, .14);
+  --shadow-1: 0 1px 2px rgba(0,0,0,.05), 0 4px 14px -6px rgba(0,0,0,.10);
+  --shadow-2: 0 12px 32px -12px rgba(0,0,0,.22);
+  --glow: 0 0 0 4px rgba(10,10,10,.12);
   --font: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-display: 'Bricolage Grotesque', 'Instrument Sans', system-ui, sans-serif;
   --header-h: 64px;
@@ -33,17 +33,17 @@
 
 :root[data-theme='dark'],
 .dark {
-  --bg: #0A0E1A;
-  --bg-alt: #111729;
-  --surface: #151C31;
-  --text: #F2F5FC;
-  --text-muted: #9AA6C0;
-  --border: #263050;
-  --border-strong: #F2F5FC;
-  --primary: #6C7BFF;
-  --on-primary: #0A0E1A;
-  --accent: #8F9BFF;
-  --accent-bg: #1B2352;
+  --bg: #0A0A0A;
+  --bg-alt: #141414;
+  --surface: #171717;
+  --text: #FAFAFA;
+  --text-muted: #A1A1AA;
+  --border: #2A2A2E;
+  --border-strong: #FAFAFA;
+  --primary: #FAFAFA;
+  --on-primary: #0A0A0A;
+  --accent: #FAFAFA;
+  --accent-bg: #1F1F22;
   --positive: #3DD598;
   --positive-bg: #0F2E24;
   --negative: #FF6B75;
@@ -52,7 +52,7 @@
   --warning-bg: #35280F;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
   --shadow-2: 0 14px 40px -12px rgba(0, 0, 0, .7);
-  --glow: 0 0 0 4px rgba(108, 123, 255, .22);
+  --glow: 0 0 0 4px rgba(250,250,250,.2);
 }
 
 @layer base {
