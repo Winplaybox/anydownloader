@@ -1,448 +1,188 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Download, 
-  Clipboard, 
-  X, 
-  Loader2, 
-  AlertCircle,
-  RefreshCw,
-  Sparkles,
-  AlertTriangle,
-  Check,
-  ChevronLeft,
-  ChevronRight
-} from 'lucide-react';
-import { 
-  TwitterXIcon,
-  YoutubeIcon, 
-  FacebookIcon,
-  InstagramIcon, 
-  TiktokIcon,
-  PinterestIcon,
-  RedditIcon,
-  ThreadsIcon,
-  GlobeIcon
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowDown, Check, Clipboard, Link2, Loader2, RotateCw, TriangleAlert, X } from 'lucide-react';
+import {
+  TwitterXIcon, YoutubeIcon, FacebookIcon, InstagramIcon, TiktokIcon,
+  PinterestIcon, RedditIcon, ThreadsIcon, GlobeIcon,
 } from './BrandIcons.jsx';
 import { normalizeUrl } from '../utils/normalizeUrl.js';
+import { PLATFORM_LABEL } from '../data/toolRoutes.js';
 
-const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : 'https://anydownloader-backend-vvbj.onrender.com';
+const ICONS = {
+  twitter: TwitterXIcon, youtube: YoutubeIcon, facebook: FacebookIcon, instagram: InstagramIcon,
+  tiktok: TiktokIcon, pinterest: PinterestIcon, reddit: RedditIcon, threads: ThreadsIcon, generic: GlobeIcon,
+};
 
-const DEFAULT_PLATFORMS = [
-  { id: 'all', name: 'Auto-Detect', icon: null, status: 'ok', tier: 'A', seo: { slug: '' } },
-  { id: 'twitter', name: 'X (Twitter)', icon: TwitterXIcon, status: 'ok', tier: 'A', seo: { slug: 'twitter-video-downloader' } },
-  { id: 'youtube', name: 'YouTube', icon: YoutubeIcon, status: 'ok', tier: 'A', seo: { slug: 'youtube-video-downloader' } },
-  { id: 'facebook', name: 'Facebook', icon: FacebookIcon, status: 'ok', tier: 'A', seo: { slug: 'facebook-video-downloader' } },
-  { id: 'instagram', name: 'Instagram', icon: InstagramIcon, status: 'ok', tier: 'A', seo: { slug: 'instagram-video-downloader' } },
-  { id: 'tiktok', name: 'TikTok', icon: TiktokIcon, status: 'ok', tier: 'A', seo: { slug: 'tiktok-video-downloader' } },
-  { id: 'pinterest', name: 'Pinterest', icon: PinterestIcon, status: 'ok', tier: 'A', seo: { slug: 'pinterest-video-downloader' } },
-  { id: 'reddit', name: 'Reddit', icon: RedditIcon, status: 'ok', tier: 'A', seo: { slug: 'reddit-video-downloader' } },
-  { id: 'threads', name: 'Threads', icon: ThreadsIcon, status: 'ok', tier: 'A', seo: { slug: 'threads-video-downloader' } },
-  { id: 'generic', name: 'Any Website', icon: GlobeIcon, status: 'beta', tier: 'B', seo: { slug: 'any-website-downloader' } }
+const CHIPS = [
+  { id: 'youtube', to: '/youtube-video-downloader' },
+  { id: 'instagram', to: '/instagram-video-downloader' },
+  { id: 'tiktok', to: '/tiktok-video-downloader' },
+  { id: 'facebook', to: '/facebook-video-downloader' },
+  { id: 'twitter', to: '/twitter-video-downloader' },
+  { id: 'pinterest', to: '/pinterest-video-downloader' },
+  { id: 'reddit', to: '/reddit-video-downloader' },
+  { id: 'threads', to: '/threads-video-downloader' },
+  { id: 'generic', to: '/any-website-downloader' },
 ];
 
-function getIconForPlatform(id) {
-  const p = (id || '').toLowerCase();
-  if (p === 'twitter' || p === 'x') return TwitterXIcon;
-  if (p === 'youtube') return YoutubeIcon;
-  if (p === 'facebook') return FacebookIcon;
-  if (p === 'instagram') return InstagramIcon;
-  if (p === 'tiktok') return TiktokIcon;
-  if (p === 'pinterest') return PinterestIcon;
-  if (p === 'reddit') return RedditIcon;
-  if (p === 'threads') return ThreadsIcon;
-  return GlobeIcon;
+const WAIT_MESSAGES = [
+  [0, 'Finding your media...'],
+  [6000, 'Still working. Large videos take a few more seconds...'],
+  [15000, 'Waking up the download server. The first request can take up to a minute.'],
+];
+
+function useWaitMessage(loading) {
+  const [msg, setMsg] = useState('');
+  useEffect(() => {
+    if (!loading) { setMsg(''); return undefined; }
+    const timers = WAIT_MESSAGES.map(([ms, text]) => setTimeout(() => setMsg(text), ms));
+    return () => timers.forEach(clearTimeout);
+  }, [loading]);
+  return msg;
 }
 
-export default function HeroDownloader({ 
-  url = '', 
-  setUrl = () => {}, 
-  onFetch = () => {}, 
-  loading = false, 
-  error = '',
-  errorCode = null,
-  onClear = () => {},
-  activeCategory = 'all',
-  setActiveCategory = () => {},
-  pageH1 = null,
-  pageDesc = null
+export default function HeroDownloader({
+  url, setUrl, onSubmit, loading, error, errorCode, retryable = true, onClear,
+  title, subtitle, platform = 'all',
 }) {
   const inputRef = useRef(null);
-  const chipsScrollRef = useRef(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [pasted, setPasted] = useState(false);
+  const waitMsg = useWaitMessage(loading);
 
-  const checkScroll = () => {
-    const el = chipsScrollRef.current;
-    if (!el) return;
-    const { scrollLeft, scrollWidth, clientWidth } = el;
-    setCanScrollLeft(scrollLeft > 4);
-    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4);
-  };
+  const detected = useMemo(() => {
+    if (!url || url.trim().length < 6) return null;
+    const n = normalizeUrl(url);
+    return n.ok ? n.platform : null;
+  }, [url]);
 
-  const scrollChips = (direction) => {
-    if (chipsScrollRef.current) {
-      const offset = direction === 'left' ? -220 : 220;
-      chipsScrollRef.current.scrollBy({ left: offset, behavior: 'smooth' });
-    }
-  };
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const [platformList, setPlatformList] = useState(DEFAULT_PLATFORMS);
-  const [pasteNotice, setPasteNotice] = useState('');
-  const [detectedPlatform, setDetectedPlatform] = useState(null);
-  const [wakeNotice, setWakeNotice] = useState('');
-  const [clipboardPasted, setClipboardPasted] = useState(false);
+  const GlyphIcon = (detected && ICONS[detected]) || (platform !== 'all' && ICONS[platform]) || Link2;
+  const hintLabel = detected ? `${PLATFORM_LABEL[detected] || 'Link'} link detected` : null;
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 768 && inputRef.current) {
-      inputRef.current.focus();
-    }
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches) inputRef.current?.focus();
   }, []);
 
-  // Fetch dynamic registry & health from /api/platforms
-  useEffect(() => {
-    let isMounted = true;
-    async function loadPlatforms() {
-      try {
-        const resp = await fetch(`${BACKEND_BASE}/api/platforms`);
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data && Array.isArray(data.platforms) && isMounted) {
-            const dynamicList = [
-              { id: 'all', name: 'Auto-Detect', icon: null, status: 'ok', tier: 'A' },
-              ...data.platforms.map(p => ({
-                id: p.id,
-                name: p.name || p.id,
-                tier: p.tier || 'A',
-                status: p.status || (p.tier === 'B' ? 'beta' : 'ok'),
-                icon: getIconForPlatform(p.id),
-                seo: p.seo || { slug: `${p.id}-video-downloader` }
-              }))
-            ];
-            setPlatformList(dynamicList);
-          }
-        }
-      } catch (e) {
-        // Fallback to default platforms
-      }
-    }
-    loadPlatforms();
-    return () => { isMounted = false; };
-  }, []);
-
-  // Cold start feedback
-  useEffect(() => {
-    let timer;
-    if (loading) {
-      timer = setTimeout(() => {
-        setWakeNotice('Extractor engine is resolving streams and metadata...');
-      }, 2500);
-    } else {
-      setWakeNotice('');
-    }
-    return () => clearTimeout(timer);
-  }, [loading]);
-
-  // URL auto-detect & platform switch
-  useEffect(() => {
-    if (url && typeof url === 'string' && url.trim().length > 4) {
-      const norm = normalizeUrl(url);
-      if (norm.ok && norm.platform) {
-        setDetectedPlatform(norm.platform);
-        if (norm.multipleFound) {
-          setPasteNotice('Multiple links found. Using the first URL.');
-        } else {
-          setPasteNotice('');
-        }
-
-        if (activeCategory && activeCategory !== 'all' && norm.platform !== 'generic' && norm.platform !== activeCategory) {
-          if (typeof setActiveCategory === 'function') {
-            setActiveCategory(norm.platform);
-          }
-        }
-      } else {
-        setDetectedPlatform(null);
-      }
-    } else {
-      setDetectedPlatform(null);
-      setPasteNotice('');
-    }
-  }, [url, activeCategory, setActiveCategory]);
-
-  // Handle Paste
   async function handlePaste() {
     try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        const clean = text.trim();
-        setUrl(clean);
-        setClipboardPasted(true);
-        setTimeout(() => setClipboardPasted(false), 2000);
-
-        const norm = normalizeUrl(clean);
-        if (norm.ok) {
-          setDetectedPlatform(norm.platform);
-          if (activeCategory && activeCategory !== 'all' && norm.platform !== 'generic' && norm.platform !== activeCategory) {
-            if (typeof setActiveCategory === 'function') {
-              setActiveCategory(norm.platform);
-            }
-          }
-        }
-
-        // Auto-extract immediately on paste passing the clean URL
-        if (typeof onFetch === 'function') {
-          onFetch(clean);
-        }
-      }
-    } catch (e) {
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
+      const text = (await navigator.clipboard.readText()).trim();
+      if (!text) { inputRef.current?.focus(); return; }
+      setUrl(text);
+      setPasted(true);
+      setTimeout(() => setPasted(false), 1600);
+      onSubmit(text);
+    } catch {
+      inputRef.current?.focus(); // clipboard permission denied: let the user paste manually
     }
   }
 
-  function handleKeyDown(e) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (typeof onFetch === 'function') {
-        onFetch(url);
-      }
-    }
+  function submit(e) {
+    e.preventDefault();
+    if (loading) return;
+    onSubmit(url);
   }
-
-  function handleChipClick(platformItem) {
-    const pId = platformItem.id;
-    if (typeof setActiveCategory === 'function') {
-      setActiveCategory(pId);
-    }
-
-    if (location.pathname === '/') {
-      return;
-    }
-
-    if (pId === 'all') {
-      navigate('/');
-    } else if (platformItem.seo?.slug) {
-      navigate(`/${platformItem.seo.slug}`);
-    } else {
-      navigate(`/${pId}-video-downloader`);
-    }
-  }
-
-  const path = location.pathname.toLowerCase();
-  let routePlatform = 'all';
-  if (path.includes('twitter') || path.includes('/x')) routePlatform = 'twitter';
-  else if (path.includes('youtube')) routePlatform = 'youtube';
-  else if (path.includes('facebook')) routePlatform = 'facebook';
-  else if (path.includes('instagram')) routePlatform = 'instagram';
-  else if (path.includes('tiktok')) routePlatform = 'tiktok';
-  else if (path.includes('pinterest')) routePlatform = 'pinterest';
-  else if (path.includes('reddit')) routePlatform = 'reddit';
-  else if (path.includes('threads')) routePlatform = 'threads';
-  else if (path.includes('any-website') || path.includes('website')) routePlatform = 'generic';
-
-  const currentActivePlatform = detectedPlatform || (activeCategory !== 'all' ? activeCategory : routePlatform) || 'all';
-    useEffect(() => {
-    checkScroll();
-    const t1 = setTimeout(checkScroll, 100);
-    const t2 = setTimeout(checkScroll, 400);
-    const el = chipsScrollRef.current;
-    if (el) {
-      el.addEventListener('scroll', checkScroll, { passive: true });
-      window.addEventListener('resize', checkScroll);
-    }
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      if (el) el.removeEventListener('scroll', checkScroll);
-      window.removeEventListener('resize', checkScroll);
-    };
-  }, [platformList]);
-
-  const activePlatformData = platformList.find(p => p.id === currentActivePlatform);
-  const isPlatformDegraded = activePlatformData?.status === 'degraded';
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 pt-10 pb-6">
-      
-      {/* Title & Description */}
-      <div className="text-center mb-8">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-[var(--text)] tracking-tight leading-tight">
-          {pageH1 || 'Download Social Videos & Photos'}
+    <section className="w-full max-w-3xl mx-auto px-4 pt-8 sm:pt-14 pb-4">
+      <div className="text-center mb-7 sm:mb-9">
+        <h1 className="font-extrabold text-[2rem] leading-[1.08] sm:text-5xl md:text-[3.4rem] text-[var(--text)] text-balance">
+          {title}
         </h1>
-        <p className="mt-3 text-sm sm:text-base md:text-lg text-[var(--text-muted)] max-w-2xl mx-auto">
-          {pageDesc || 'Fast, 100% free extractor for Twitter, YouTube, Instagram, TikTok, Facebook, Reddit, Pinterest, and any website.'}
-        </p>
+        <p className="mt-4 text-base sm:text-lg text-[var(--text-muted)] max-w-xl mx-auto text-pretty">{subtitle}</p>
       </div>
 
-      {/* Main Search / URL Box - Base Design System Input Pattern */}
-      <div className="relative bg-[var(--surface)] border border-[var(--border)] focus-within:border-[var(--border-strong)] rounded-xl shadow-xs transition-colors">
-        <div className="flex items-center p-1.5 sm:p-2">
-          <input
-            ref={inputRef}
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Paste media link here (YouTube, Twitter, TikTok, Instagram...)"
-            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-transparent text-[var(--text)] placeholder-[var(--text-muted)] text-sm sm:text-base outline-none"
-            aria-label="Social media post or video URL"
-          />
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+      <form onSubmit={submit} noValidate>
+        <div className="ovd-paste relative" data-busy={loading}>
+          <div className="flex items-center gap-2 p-2 sm:p-2.5">
+            <span
+              className="hidden sm:flex shrink-0 w-11 h-11 rounded-2xl bg-[var(--bg-alt)] items-center justify-center text-[var(--text)]"
+              aria-hidden="true"
+            >
+              <GlyphIcon className="w-5 h-5" />
+            </span>
+            <label htmlFor="ovd-url" className="sr-only">Link to the video or photo</label>
+            <input
+              id="ovd-url"
+              ref={inputRef}
+              type="text"
+              inputMode="url"
+              enterKeyHint="go"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="Paste link here"
+              className="min-w-0 flex-1 bg-transparent text-[var(--text)] placeholder:text-[var(--text-muted)] text-base sm:text-lg px-2 py-3 outline-none"
+            />
             {url ? (
-              <button
-                type="button"
-                onClick={onClear}
-                className="p-2 text-[var(--text-muted)] hover:text-[var(--text)] rounded-lg transition-colors"
-                aria-label="Clear input"
-              >
-                <X className="w-4 h-4" />
+              <button type="button" onClick={onClear} aria-label="Clear link"
+                className="shrink-0 w-10 h-10 grid place-items-center rounded-xl text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-alt)] transition-colors">
+                <X className="w-5 h-5" />
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={handlePaste}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[var(--text)] bg-[var(--bg-alt)] hover:bg-[var(--border)] rounded-lg border border-[var(--border)] transition-colors"
-              >
-                {clipboardPasted ? <Check className="w-3.5 h-3.5 text-[var(--positive)]" /> : <Clipboard className="w-3.5 h-3.5" />}
-                <span className="hidden sm:inline">{clipboardPasted ? 'Pasted!' : 'Paste'}</span>
+              <button type="button" onClick={handlePaste}
+                aria-label="Paste link from clipboard" className="shrink-0 h-11 px-3 min-[420px]:px-3.5 rounded-xl border border-[var(--border)] bg-[var(--bg-alt)] text-sm font-semibold text-[var(--text)] flex items-center gap-1.5 hover:border-[var(--accent)] transition-colors">
+                {pasted ? <Check className="w-4 h-4 text-[var(--positive)]" /> : <Clipboard className="w-4 h-4" />}
+                <span className="hidden min-[420px]:inline">{pasted ? 'Pasted' : 'Paste'}</span>
               </button>
             )}
-
-            {/* Submit / Extract Button - Base Design System Primary */}
-            <button
-              type="button"
-              onClick={() => onFetch(url)}
-              disabled={loading}
-              className="flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] hover:opacity-90 font-semibold text-sm sm:text-base shadow-xs transition-opacity disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="hidden sm:inline">Extracting...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  <span>Download</span>
-                </>
-              )}
+            <button type="submit" disabled={loading}
+              className="shrink-0 h-11 sm:h-12 px-4 sm:px-6 rounded-2xl bg-[var(--primary)] text-[var(--on-primary)] font-bold text-base flex items-center gap-2 hover:brightness-110 active:scale-[.98] transition disabled:opacity-70">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowDown className="w-5 h-5" />}
+              <span className="hidden sm:inline">{loading ? 'Working' : 'Download'}</span>
+              <span className="sm:hidden">{loading ? '' : 'Go'}</span>
             </button>
           </div>
+          <div className="ovd-progress" aria-hidden="true" />
         </div>
 
-        {/* Notices */}
-        {pasteNotice && (
-          <div className="px-4 py-1.5 text-xs text-amber-600 dark:text-amber-400 border-t border-[var(--border)] flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>{pasteNotice}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Engine Wake Notice */}
-      {wakeNotice && (
-        <div className="mt-3 px-4 py-2 text-xs text-[var(--accent)] bg-[var(--accent-bg)] rounded-lg border border-[var(--accent)]/20 flex items-center justify-center gap-2 animate-pulse">
-          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-          <span>{wakeNotice}</span>
+        <div className="min-h-[1.75rem] mt-3 text-sm text-center" aria-live="polite">
+          {loading && <p className="text-[var(--text-muted)]">{waitMsg}</p>}
+          {!loading && hintLabel && !error && <p className="text-[var(--positive)] font-medium">{hintLabel}</p>}
         </div>
-      )}
+      </form>
 
-      {/* Error Message Box - Base Design System Negative Token */}
       {error && (
-        <div className="mt-4 p-3.5 rounded-lg bg-[var(--negative-bg)] border border-[var(--negative)]/20 text-[var(--negative)] text-sm flex items-start gap-2.5">
-          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold">{error}</p>
-            {errorCode && (
-              <p className="text-xs opacity-80 mt-0.5 font-mono">Error Code: {errorCode}</p>
+        <div role="alert" className="mt-2 rounded-2xl border border-[var(--negative)]/30 bg-[var(--negative-bg)] p-4 flex items-start gap-3 animate-fadeIn">
+          <TriangleAlert className="w-5 h-5 shrink-0 mt-0.5 text-[var(--negative)]" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-[var(--text)]">{error}</p>
+            {errorCode === 'SOURCE_BLOCKED' && (
+              <p className="text-sm text-[var(--text-muted)] mt-1">This is temporary. Retrying in a minute usually works.</p>
             )}
           </div>
+          {retryable && url && (
+            <button type="button" onClick={() => onSubmit(url)}
+              className="shrink-0 h-9 px-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-sm font-semibold flex items-center gap-1.5 hover:border-[var(--accent)]">
+              <RotateCw className="w-4 h-4" /> Retry
+            </button>
+          )}
         </div>
       )}
 
-      {/* Degraded Platform Warning */}
-      {isPlatformDegraded && (
-        <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-500" />
-          <span>
-            <strong>{activePlatformData.name}</strong> is currently experiencing elevated upstream delays. Our fallback engines are engaged.
-          </span>
-        </div>
-      )}
-
-      {/* Dynamic Platform Chips with Left / Right Scroll Controls */}
-      <div className="mt-6 relative flex items-center max-w-full">
-        {canScrollLeft && (
-          <button
-            type="button"
-            onClick={() => scrollChips('left')}
-            aria-label="Scroll platforms left"
-            className="absolute -left-2 sm:-left-3 z-20 w-7 h-7 rounded-full bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] border border-[var(--border)] shadow-md flex items-center justify-center transition-all hover:scale-105 hover:bg-[var(--bg-alt)]"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-        )}
-
-        <div
-          ref={chipsScrollRef}
-          className="flex items-center justify-start sm:justify-center gap-1.5 overflow-x-auto no-scrollbar py-2 w-full px-1 scroll-smooth"
-        >
-          {platformList.map((p) => {
-            const isActive = currentActivePlatform === p.id;
-            const Icon = p.icon;
-            const isBeta = p.status === 'beta' || p.tier === 'B';
-            const isDegraded = p.status === 'degraded';
-
+      <nav aria-label="Supported platforms" className="mt-5">
+        <ul className="snap-row no-scrollbar gap-2 sm:justify-center py-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
+          {CHIPS.map(({ id, to }) => {
+            const Icon = ICONS[id];
+            const active = (detected || platform) === id;
             return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleChipClick(p)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0 ${
-                  isActive
-                    ? 'bg-[var(--primary)] text-[var(--on-primary)] shadow-xs'
-                    : 'bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] border border-[var(--border)] hover:bg-[var(--bg-alt)]'
-                }`}
-              >
-                {Icon && <Icon className="w-3.5 h-3.5" />}
-                <span>{p.name}</span>
-
-                {isBeta && (
-                  <span className={`text-[9px] font-mono font-bold px-1 py-0.2 rounded border ${
-                    isActive ? 'border-[var(--on-primary)]/40 text-[var(--on-primary)]' : 'border-[var(--border)] text-[var(--text-muted)] bg-[var(--bg-alt)]'
+              <li key={id}>
+                <Link to={to}
+                  aria-current={active ? 'page' : undefined}
+                  className={`h-10 px-3.5 rounded-full text-sm font-semibold whitespace-nowrap flex items-center gap-2 border transition-colors ${
+                    active
+                      ? 'bg-[var(--text)] text-[var(--bg)] border-[var(--text)]'
+                      : 'bg-[var(--surface)] text-[var(--text)] border-[var(--border)] hover:border-[var(--accent)]'
                   }`}>
-                    BETA
-                  </span>
-                )}
-                {isDegraded && (
-                  <span className="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                    DEGRADED
-                  </span>
-                )}
-              </button>
+                  <Icon className="w-4 h-4" />
+                  {PLATFORM_LABEL[id]}
+                </Link>
+              </li>
             );
           })}
-        </div>
-
-        {canScrollRight && (
-          <button
-            type="button"
-            onClick={() => scrollChips('right')}
-            aria-label="Scroll platforms right"
-            className="absolute -right-2 sm:-right-3 z-20 w-7 h-7 rounded-full bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] border border-[var(--border)] shadow-md flex items-center justify-center transition-all hover:scale-105 hover:bg-[var(--bg-alt)]"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-
-    </div>
+        </ul>
+      </nav>
+    </section>
   );
 }

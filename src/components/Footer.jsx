@@ -1,73 +1,51 @@
-﻿import React from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, Lock, FileText, Mail, Newspaper, Sparkles } from 'lucide-react';
+
+const COLS = [
+  { title: 'Downloaders', links: [
+    ['YouTube', '/youtube-video-downloader'], ['Instagram', '/instagram-video-downloader'], ['TikTok', '/tiktok-video-downloader'],
+    ['Facebook', '/facebook-video-downloader'], ['X (Twitter)', '/twitter-video-downloader'], ['Pinterest', '/pinterest-video-downloader'],
+    ['Reddit', '/reddit-video-downloader'], ['Threads', '/threads-video-downloader'], ['Any website', '/any-website-downloader'],
+  ] },
+  { title: 'Tools', links: [
+    ['YouTube thumbnails', '/youtube-thumbnail-downloader'], ['YouTube Shorts', '/youtube-shorts-downloader'],
+    ['Instagram Reels', '/instagram-reels-downloader'], ['YouTube Subscribe Link', '/youtube-subscribe-link-generator'],
+    ['AI Video Editor', '/ai-video-editor'], ['Chrome Extension', '/extension'],
+  ] },
+  { title: 'Company', links: [
+    ['Blog and guides', '/blog'], ['Updates', '/updates'], ['Contact', '/contact'],
+    ['Terms of Service', '/terms'], ['Privacy Policy', '/privacy'], ['DMCA and security', '/dmca'],
+  ] },
+];
 
 export default function Footer() {
   return (
-    <footer className="w-full border-t border-[var(--border)] bg-[var(--surface)] text-[var(--text)] transition-colors mt-auto">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
-
-                    {/* Brand Col - Pure Text OVD */}
-          <div className="space-y-3 md:col-span-2">
-            <Link to="/" className="inline-block group select-none" title="OVD">
-              <span className="font-black text-2xl tracking-tighter text-[var(--text)] group-hover:opacity-80 transition-opacity">
-                OVD
-              </span>
-            </Link>
-            <p className="text-xs text-[var(--text-muted)] max-w-sm leading-relaxed">
-              Free, fast social media video and image downloader. Works with any public post from Twitter/X, YouTube, Facebook, Instagram, TikTok, Pinterest, Reddit, Threads, and any open web URL.
-            </p>
-            <div className="text-xs text-[var(--text-muted)]">
-              Supported: X (Twitter) &bull; YouTube &bull; Facebook &bull; Instagram &bull; TikTok &bull; Pinterest &bull; Reddit &bull; Threads &bull; Any Website
-            </div>
-          </div>
-
-          {/* Platform Links */}
-          <div className="space-y-3">
-            <div className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-              Platforms
-            </div>
-            <ul className="space-y-2 text-xs font-semibold">
-              <li><Link to="/twitter-video-downloader" className="hover:text-[var(--accent)] transition-colors">Twitter/X Video & Photos</Link></li>
-              <li><Link to="/youtube-video-downloader" className="hover:text-[var(--accent)] transition-colors">YouTube Videos & Thumbnails</Link></li>
-              <li><Link to="/facebook-video-downloader" className="hover:text-[var(--accent)] transition-colors">Facebook Videos & Reels</Link></li>
-              <li><Link to="/instagram-video-downloader" className="hover:text-[var(--accent)] transition-colors">Instagram Reels & Carousels</Link></li>
-              <li><Link to="/tiktok-video-downloader" className="hover:text-[var(--accent)] transition-colors">TikTok Videos (No Watermark)</Link></li>
-              <li><Link to="/pinterest-video-downloader" className="hover:text-[var(--accent)] transition-colors">Pinterest Video & Photos</Link></li>
-              <li><Link to="/reddit-video-downloader" className="hover:text-[var(--accent)] transition-colors">Reddit Video with Audio</Link></li>
-              <li><Link to="/threads-video-downloader" className="hover:text-[var(--accent)] transition-colors">Threads Video & Photos</Link></li>
-              <li><Link to="/any-website-downloader" className="hover:text-[var(--accent)] transition-colors">Any Website Downloader</Link></li>
-              <li><Link to="/youtube-subscribe-link-generator" className="hover:text-[var(--accent)] transition-colors">YouTube Subscribe Link Generator</Link></li>
-            </ul>
-          </div>
-
-          {/* Legal & Resources */}
-          <div className="space-y-3">
-            <div className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-              Resources
-            </div>
-            <ul className="space-y-2 text-xs font-semibold">
-              <li><Link to="/extension" className="hover:text-[var(--accent)] transition-colors font-bold text-[var(--text)]">Chrome Extension (PRO)</Link></li>
-              <li><Link to="/blog" className="hover:text-[var(--accent)] transition-colors">Blog & Guides</Link></li>
-              <li><Link to="/updates" className="hover:text-[var(--accent)] transition-colors">Updates & Changelog</Link></li>
-              <li><Link to="/terms" className="hover:text-[var(--accent)] transition-colors">Terms of Service</Link></li>
-              <li><Link to="/privacy" className="hover:text-[var(--accent)] transition-colors">Privacy Policy</Link></li>
-              <li><Link to="/security" className="hover:text-[var(--accent)] transition-colors">DMCA & Security</Link></li>
-              <li><Link to="/contact" className="hover:text-[var(--accent)] transition-colors">Contact Support</Link></li>
-            </ul>
-          </div>
-
+    <footer className="mt-16 border-t border-[var(--border)] bg-[var(--surface)]" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 grid gap-10 md:grid-cols-[1.3fr_repeat(3,1fr)]">
+        <div>
+          <Link to="/" className="inline-flex items-center gap-2" aria-label="OVD home">
+            <span className="w-9 h-9 rounded-xl bg-[var(--primary)] text-[var(--on-primary)] grid place-items-center font-extrabold text-lg" style={{ fontFamily: 'var(--font-display)' }}>o</span>
+            <span className="font-extrabold text-xl tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>ovd</span>
+          </Link>
+          <p className="mt-3 text-sm text-[var(--text-muted)] max-w-xs leading-relaxed">
+            Free video and photo downloader for public posts. No account, no app, nothing stored on our servers.
+          </p>
         </div>
-
-        {/* Bottom Disclaimer & Copyright */}
-        <div className="pt-8 border-t border-[var(--border)] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[var(--text-muted)]">
-          <p>
-            © {new Date().getFullYear()} OVD Downloader (ovd.winplaybox.in). All rights reserved.
-          </p>
-          <p className="text-center sm:text-right max-w-md">
-            Disclaimer: OVD is an independent web tool and does not host copyrighted media. Users must ensure they have authorization to download content.
-          </p>
+        {COLS.map((c) => (
+          <nav key={c.title} aria-label={c.title}>
+            <h2 className="text-sm font-bold text-[var(--text)]" style={{ fontFamily: 'var(--font)' }}>{c.title}</h2>
+            <ul className="mt-3 space-y-2.5">
+              {c.links.map(([label, to]) => (
+                <li key={to}><Link to={to} className="text-sm text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors">{label}</Link></li>
+              ))}
+            </ul>
+          </nav>
+        ))}
+      </div>
+      <div className="border-t border-[var(--border)]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between text-xs text-[var(--text-muted)]">
+          <p>© {new Date().getFullYear()} OVD (ovd.winplaybox.in)</p>
+          <p className="max-w-lg">OVD is an independent tool and does not host media. Only download content you own or have permission to save.</p>
         </div>
       </div>
     </footer>

@@ -142,7 +142,7 @@ export default function YouTubeSubscribeLinkPage() {
             spellCheck={false}
             value={input}
             onChange={(e) => setInput(e.target.value.slice(0, 300))}
-            placeholder="https://www.youtube.com/@YourChannel"
+            placeholder="youtube.com/@YourChannel"
             className="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           />
           <p className="mt-2 text-xs text-[var(--text-muted)]">Examples: youtube.com/@MrBeast · @dhrusavlogs · UC…  (channel links only, not video links)</p>
