@@ -35,7 +35,7 @@ class YtDlpEngine:
             # Bot-check / IP block must be checked BEFORE "sign in" (it is not a private video)
             if is_youtube_block(err_str):
                 raise AppError(ErrorCode.SOURCE_BLOCKED, "YouTube is temporarily blocking our server for this video. Please retry in a few minutes.")
-            if "private" in err_str or "login" in err_str or "sign in" in err_str:
+            if any(k in err_str for k in ("private", "login", "sign in", "certain audiences", "isn't available to everyone", "age-restricted", "confirm your age")):
                 raise AppError(ErrorCode.PRIVATE_OR_RESTRICTED, "This content is private or requires login.")
             if "not found" in err_str or "deleted" in err_str or "unavailable" in err_str:
                 raise AppError(ErrorCode.NOT_FOUND, "This post was deleted or does not exist.")
