@@ -51,6 +51,8 @@ MAX_HEIGHT = int(os.environ.get("MAX_HEIGHT", "1080"))
 DOWNLOAD_TIMEOUT_S = int(os.environ.get("DOWNLOAD_TIMEOUT_S", "240"))
 COOKIES_FILE = os.environ.get("COOKIES_FILE", "").strip()
 
+NGROK_DOMAIN = os.environ.get("NGROK_DOMAIN", "").strip()
+
 _LOCK = threading.Lock()  # one download at a time keeps the PC responsive
 
 
@@ -178,13 +180,48 @@ class Handler(BaseHTTPRequestHandler):
             _LOCK.release()
 
 
+def _find_ngrok() -> str:
+    for name in ("ngrok.exe", "ngrok"):
+        local = os.path.join(HERE, name)
+        if os.path.isfile(local):
+            return local
+    return shutil.which("ngrok") or ""
+
+
+def start_ngrok():
+    """Start the ngrok tunnel ourselves so one double-click runs everything."""
+    if not NGROK_DOMAIN or "PASTE-YOUR" in NGROK_DOMAIN:
+        log("NGROK_DOMAIN not set in worker.env -> tunnel NOT started (Make cannot reach this PC)")
+        return None
+    exe = _find_ngrok()
+    if not exe:
+        log("ngrok.exe not found -> put ngrok.exe in this folder (https://ngrok.com/download)")
+        return None
+    kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if os.name == "nt":
+        kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
+    proc = subprocess.Popen([exe, "http", f"--url={NGROK_DOMAIN}", str(PORT)], **kwargs)
+    time.sleep(3)
+    if proc.poll() is not None:
+        log("ngrok exited immediately -> run once: ngrok.exe config add-authtoken <token>, and check NGROK_DOMAIN")
+        return None
+    log(f"ngrok tunnel: https://{NGROK_DOMAIN}  ->  http://127.0.0.1:{PORT}")
+    log(f"check it:     https://{NGROK_DOMAIN}/health")
+    return proc
+
+
 def main() -> None:
     missing = [k for k, v in {"WORKER_KEY": WORKER_KEY, "OVD_API_KEY": OVD_API_KEY}.items() if not v]
     if missing:
         sys.exit(f"Missing in worker.env: {', '.join(missing)}")
     _ffmpeg_dir()
     log(f"OVD PC worker on http://127.0.0.1:{PORT}  (max {MAX_HEIGHT}p, uploads to {OVD_BASE})")
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    tunnel = start_ngrok()
+    try:
+        ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    finally:
+        if tunnel and tunnel.poll() is None:
+            tunnel.terminate()
 
 
 if __name__ == "__main__":
