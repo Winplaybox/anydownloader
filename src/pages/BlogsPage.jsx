@@ -95,7 +95,7 @@ export default function BlogsPage() {
       <div className="text-center max-w-3xl mx-auto mb-10">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--bg-alt)] border border-[var(--border)] text-xs text-[var(--text-muted)] font-semibold mb-3">
           <Sparkles className="w-3.5 h-3.5 text-[var(--accent)]" />
-          <span>Autonomous Daily Content Scheduler Active</span>
+          <span>New guides every week</span>
         </div>
         <h1 className="text-3xl sm:text-5xl font-black text-[var(--text)] tracking-tight mb-3">
           Social Media Guides & Trends

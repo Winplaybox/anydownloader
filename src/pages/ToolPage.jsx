@@ -1,97 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
-import HeroDownloader from '../components/HeroDownloader.jsx';
-import MediaResultCard from '../components/MediaResultCard.jsx';
-import HowItWorks from '../components/HowItWorks.jsx';
-import Faq from '../components/Faq.jsx';
-import { resolveMedia } from '../utils/resolveMedia.js';
-import { extractIncomingUrl } from '../utils/extractIncomingUrl.js';
+import React from 'react';
+import DownloaderPage from './DownloaderPage.jsx';
+import { pagesConfig } from '../data/pagesConfig.js';
 
-export default function ToolPage({ config = {} }) {
-  const safeConfig = config || {};
-  const [url, setUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [errorCode, setErrorCode] = useState(null);
-  const [mediaData, setMediaData] = useState(null);
-  const location = useLocation();
-  const lastFetchedRef = useRef('');
+const firstSentences = (t = '', max = 170) => {
+  const s = t.replace(/\s+/g, ' ').trim();
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  return cut.slice(0, Math.max(cut.lastIndexOf(' '), 100)) + '...';
+};
 
-  // Auto-ingest search / url parameters from query string (?url=, ?link=, ?q=, ?search=, ?https://...)
-  useEffect(() => {
-    const incoming = extractIncomingUrl(location);
-    if (incoming && incoming !== lastFetchedRef.current) {
-      lastFetchedRef.current = incoming;
-      setUrl(incoming);
-      fetchMedia(incoming);
-    }
-  }, [location.search, location.hash, location.pathname]);
-
-  async function fetchMedia(overrideUrl = null) {
-    const rawTarget = typeof overrideUrl === 'string' && overrideUrl.trim() 
-      ? overrideUrl.trim() 
-      : (typeof url === 'string' ? url.trim() : '');
-
-    if (!rawTarget) {
-      setError('Paste a link to get started.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setErrorCode(null);
-    setMediaData(null);
-
-    try {
-      const result = await resolveMedia(rawTarget);
-      if (result.ok && result.data) {
-        setMediaData(result.data);
-      } else {
-        setErrorCode(result.code);
-        setError(result.error);
-      }
-    } catch (e) {
-      setError('Connection interrupted. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleReset() {
-    setUrl('');
-    setError('');
-    setErrorCode(null);
-    setMediaData(null);
-  }
-
+export default function ToolPage({ route }) {
+  const cfg = pagesConfig[route.key] || {};
   return (
-    <div className="min-h-screen flex flex-col justify-between">
-      <div>
-        {/* Hero Downloader with Page Config Title & Description */}
-        <HeroDownloader
-          url={url}
-          setUrl={(newUrl) => { setUrl(newUrl); if (error) setError(''); }}
-          onFetch={(target) => fetchMedia(target)}
-          loading={loading}
-          error={error}
-          errorCode={errorCode}
-          onClear={handleReset}
-          pageH1={safeConfig.h1}
-          pageDesc={safeConfig.description}
-        />
-
-        {/* Media Result Card */}
-        {mediaData && (
-          <MediaResultCard 
-            data={mediaData} 
-            onReset={handleReset} 
-          />
-        )}
-
-        {/* Platform How It Works & FAQ */}
-        <HowItWorks customSteps={safeConfig.steps} />
-        <Faq customFaqs={safeConfig.faqs} />
-      </div>
-    </div>
+    <DownloaderPage
+      title={cfg.title || 'Video Downloader'}
+      subtitle={firstSentences(cfg.guideIntro) || 'Paste a link, pick a quality and download. Free, with no sign-up.'}
+      platform={route.platform}
+      cfg={cfg}
+      faqs={cfg.faqs}
+      route={route.path}
+    />
   );
 }

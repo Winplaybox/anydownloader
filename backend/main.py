@@ -365,10 +365,10 @@ def extract_youtube_fallback(url: str, video_id: str):
         "id": video_id,
         "title": title_clean,
         "thumbnail": thumb,
-        "duration": "YouTube Video",
+        "duration": None,
         "uploader": author,
         "platform": "youtube",
-        "views": "Verified",
+        "views": None,
         "video_formats": video_formats,
         "audio_formats": audio_formats,
         "thumbnails": thumbnails,
@@ -2183,6 +2183,41 @@ def _ytdlp_robust_opts() -> Dict[str, Any]:
     return _yo.robust_opts("download")
 
 
+
+# ---- download guards (free tier: 512 MB RAM, so only a couple of ffmpeg jobs at once) ----
+_DL_SEM = asyncio.Semaphore(int(os.environ.get("OVD_MAX_DOWNLOADS", "2")))
+DOWNLOAD_TIMEOUT_S = float(os.environ.get("OVD_DOWNLOAD_TIMEOUT_S", "300"))
+
+
+def _is_public_http_url(u: str) -> bool:
+    """Only public http(s) pages may be handed to yt-dlp (blocks SSRF to localhost / cloud metadata)."""
+    import ipaddress
+    import socket
+    try:
+        pu = urllib.parse.urlparse(u)
+        if pu.scheme not in ("http", "https") or not pu.hostname:
+            return False
+        infos = socket.getaddrinfo(pu.hostname, pu.port or (443 if pu.scheme == "https" else 80))
+        for info in infos:
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return False
+        return True
+    except Exception:
+        return False
+
+
+async def _run_download_limited(fn, *args):
+    """Run a blocking download with a concurrency cap and an overall deadline."""
+    try:
+        await asyncio.wait_for(_DL_SEM.acquire(), timeout=45)
+    except asyncio.TimeoutError:
+        raise RuntimeError("server busy: too many downloads in progress")
+    try:
+        await asyncio.wait_for(asyncio.to_thread(fn, *args), timeout=DOWNLOAD_TIMEOUT_S)
+    finally:
+        _DL_SEM.release()
+
 def run_download_video_task(source_url: str, height: int, output_template: str):
     """Download video stream with audio merged using yt-dlp and ffmpeg.
 
@@ -2226,6 +2261,10 @@ def _download_error_response(exc: Exception) -> JSONResponse:
     if _yo.is_youtube_block(msg):
         code, status, text = "SOURCE_BLOCKED", 503, ("YouTube is temporarily blocking downloads from our server for this video. "
                                                     "Please try again in a few minutes.")
+    elif "server busy" in msg.lower():
+        code, status, text = "SERVER_BUSY", 503, "Many downloads are running right now. Please try again in a minute."
+    elif isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
+        code, status, text = "DOWNLOAD_TIMEOUT", 504, "This file is taking too long to prepare. Try a lower quality."
     elif "private" in msg.lower():
         code, status, text = "PRIVATE_CONTENT", 403, "This video is private or restricted by the creator."
     elif "unavailable" in msg.lower() or "not found" in msg.lower():
@@ -2233,7 +2272,7 @@ def _download_error_response(exc: Exception) -> JSONResponse:
     else:
         code, status, text = "DOWNLOAD_FAILED", 502, "We couldn't prepare this download. Please try again or pick another quality."
     print(f"[download] error {code}: {msg[:300]}", flush=True)
-    return JSONResponse({"ok": False, "error": {"code": code, "message": text, "retryable": status in (502, 503)}},
+    return JSONResponse({"ok": False, "error": {"code": code, "message": text, "retryable": status in (502, 503, 504)}},
                         status_code=status)
 
 def run_download_audio_task(source_url: str, quality: str, output_template: str):
@@ -2264,7 +2303,9 @@ async def download_video_handler(request):
     title = request.query_params.get("title") or "video"
     
     if not source_url:
-        return Response("Missing video url parameter", status_code=400)
+        return error_response(ErrorCode.URL_MISSING, "Missing video link.")
+    if not await asyncio.to_thread(_is_public_http_url, source_url):
+        return error_response(ErrorCode.URL_INVALID, "That link can't be downloaded.")
     
     try:
         height = int(height_str)
@@ -2278,7 +2319,7 @@ async def download_video_handler(request):
     out_tmpl = os.path.join(temp_dir, "media.%(ext)s")
     
     try:
-        await asyncio.to_thread(run_download_video_task, source_url, height, out_tmpl)
+        await _run_download_limited(run_download_video_task, source_url, height, out_tmpl)
         final_mp4 = os.path.join(temp_dir, "media.mp4")
         if not os.path.exists(final_mp4):
             files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if not f.endswith(('.part', '.ytdl'))]
@@ -2305,7 +2346,9 @@ async def download_audio_handler(request):
     title = request.query_params.get("title") or "audio"
     
     if not source_url:
-        return Response("Missing audio url parameter", status_code=400)
+        return error_response(ErrorCode.URL_MISSING, "Missing audio link.")
+    if not await asyncio.to_thread(_is_public_http_url, source_url):
+        return error_response(ErrorCode.URL_INVALID, "That link can't be downloaded.")
     
     clean_title = re.sub(r'[\/*?:"<>|]', "", title).strip() or "audio"
     safe_filename = f"{clean_title}_{quality}kbps.mp3"
@@ -2314,7 +2357,7 @@ async def download_audio_handler(request):
     out_tmpl = os.path.join(temp_dir, "media.%(ext)s")
     
     try:
-        await asyncio.to_thread(run_download_audio_task, source_url, quality, out_tmpl)
+        await _run_download_limited(run_download_audio_task, source_url, quality, out_tmpl)
         final_mp3 = os.path.join(temp_dir, "media.mp3")
         if not os.path.exists(final_mp3):
             files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.endswith('.mp3')]
@@ -2697,6 +2740,22 @@ def map_legacy_to_normalized(legacy_data: Dict[str, Any], platform_id: str, url:
             hasAudio=vf.get("has_audio", True)
         ).to_dict())
 
+    audios = []
+    for idx, af in enumerate(legacy_data.get("audio_formats") or []):
+        if not (af.get("stream_url") or af.get("url")):
+            continue
+        br = None
+        m_br = re.search(r"(\d{2,3})\s*kbps", af.get("quality") or "")
+        if m_br:
+            br = int(m_br.group(1))
+        fn = f"{platform_id}_audio_{idx+1}.mp3"
+        audios.append(AudioVariant(
+            label=af.get("quality") or "MP3 Audio",
+            token=sign_download_token(af.get("stream_url") or af.get("url"), fn),
+            ext="mp3",
+            bitrate=br
+        ).to_dict())
+
     def _unwrap_url(u: Optional[str]) -> str:
         if not u:
             return ""
@@ -2750,10 +2809,11 @@ def map_legacy_to_normalized(legacy_data: Dict[str, Any], platform_id: str, url:
         "author": {"username": uploader, "displayName": uploader, "avatar": thumb},
         "stats": stats if stats else None,
         "videos": videos,
-        "audios": [],
+        "audios": audios,
         "images": images,
         "thumbnails": thumbnails,
         "subtitles": [],
+        "duration": legacy_data.get("duration") if isinstance(legacy_data.get("duration"), (int, float)) else None,
         "warnings": []
     }
 
@@ -2780,6 +2840,24 @@ def _resolve_cache_put(key: str, payload: Dict[str, Any], ttl: int) -> None:
     _RESOLVE_CACHE[key] = (time.time() + ttl, payload)
 
 
+
+def _apply_pytubefix_info(legacy: Dict[str, Any], info: Dict[str, Any], video_id: str) -> None:
+    """Overlay real pytubefix metadata + only the qualities that really exist."""
+    if info.get("title"):
+        legacy["title"] = re.sub(r'[\\/*?:"<>|]', "", info["title"]).strip() or legacy["title"]
+    if info.get("author"):
+        legacy["uploader"] = info["author"]
+    if info.get("thumbnail"):
+        legacy["thumbnail"] = info["thumbnail"]
+    legacy["duration"] = info.get("duration") or None
+    legacy["views"] = info.get("views") or None
+    heights = [h for h in info.get("heights", []) if h <= 1080]
+    if heights:
+        top = heights[0]
+        legacy["video_formats"] = [vf for vf in legacy["video_formats"]
+                                   if vf["height"] <= top and any(h >= vf["height"] for h in heights)]
+
+
 async def _resolve_degraded(resolved_url: str, platform_def: Dict[str, Any], ae: "AppError", cache_key: str):
     """Video formats unavailable: still return metadata + thumbnails, with an explicit notice
     so the UI can tell the user instead of silently showing photos only."""
@@ -2792,6 +2870,19 @@ async def _resolve_degraded(resolved_url: str, platform_def: Dict[str, Any], ae:
             try:
                 loop = asyncio.get_event_loop()
                 legacy = await loop.run_in_executor(None, extract_youtube_fallback, resolved_url, m.group(1))
+                info = None
+                try:
+                    info = await asyncio.wait_for(asyncio.to_thread(_yt_fb().resolve_info, resolved_url), timeout=14)
+                except Exception as fb_err:
+                    print(f"[resolve] pytubefix resolve failed: {str(fb_err)[:160]}", flush=True)
+                if info:
+                    _apply_pytubefix_info(legacy, info, m.group(1))
+                    data = map_legacy_to_normalized(legacy, pid, resolved_url)
+                    data["status"] = "ok"
+                    payload = {"ok": True, "success": True, "data": data}
+                    _resolve_cache_put(cache_key, payload, ttl=600)
+                    print("[resolve] youtube resolved via pytubefix", flush=True)
+                    return JSONResponse(payload)
                 data = map_legacy_to_normalized(legacy, pid, resolved_url)
                 data["notice"] = notice
                 data["status"] = "degraded"
@@ -2802,8 +2893,8 @@ async def _resolve_degraded(resolved_url: str, platform_def: Dict[str, Any], ae:
                 payload = {"ok": True, "success": True, "degraded": True, "data": data}
                 _resolve_cache_put(cache_key, payload, ttl=90)  # short: retry soon
                 return JSONResponse(payload)
-            except Exception:
-                pass
+            except Exception as degraded_err:
+                print(f"[resolve] degraded build failed: {degraded_err!r}", flush=True)
     return ae.to_response()
 
 

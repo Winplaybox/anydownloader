@@ -134,6 +134,7 @@ def test_download_video_blocked_returns_friendly_json(monkeypatch):
     def boom(*_a, **_k):
         raise Exception("ERROR: [youtube] G3WASPVq54Q: Failed to extract any player response; please report this issue")
     monkeypatch.setattr(main, "run_download_video_task", boom)
+    monkeypatch.setattr(main, "_is_public_http_url", lambda u: True)
     r = TestClient(main.app).get("/api/download_video", params={"url": "https://www.youtube.com/watch?v=G3WASPVq54Q", "height": "1080"},
                                  headers={"Origin": "https://ovd.winplaybox.in"})
     assert r.status_code == 503
@@ -182,3 +183,47 @@ def test_non_youtube_errors_are_not_swallowed(monkeypatch, tmp_path):
 
 def test_node_from_wheel_added_to_path():
     assert yo.ensure_node_on_path() is not None
+
+
+def test_ssrf_guard_blocks_private_targets():
+    import main
+    for bad in ("http://127.0.0.1/x", "http://169.254.169.254/latest/meta-data", "file:///etc/passwd",
+                "http://localhost:8000/", "ftp://example.com/x", "not a url"):
+        assert main._is_public_http_url(bad) is False, bad
+
+
+def test_download_endpoint_rejects_private_url():
+    from starlette.testclient import TestClient
+    import main
+    r = TestClient(main.app).get("/api/download_video", params={"url": "http://169.254.169.254/x", "height": "720"},
+                                 headers={"Origin": "https://ovd.winplaybox.in"})
+    assert r.status_code == 400 and r.json()["error"]["code"] == "URL_INVALID"
+
+
+def test_resolve_uses_pytubefix_when_ytdlp_blocked(monkeypatch):
+    from starlette.testclient import TestClient
+    import main
+
+    async def blocked(*_a, **_k):
+        raise AppError(ErrorCode.SOURCE_BLOCKED, "blocked")
+
+    class FB:
+        @staticmethod
+        def resolve_info(url):
+            return {"title": "Real Title", "author": "Real Channel", "duration": 125, "views": 4200,
+                    "thumbnail": "https://i.ytimg.com/vi/G3WASPVq54Q/hqdefault.jpg", "heights": [720, 480, 360]}
+
+    monkeypatch.setattr(main.engine_registry, "execute_chain", blocked)
+    monkeypatch.setattr(main, "_yt_fb", lambda: FB)
+    monkeypatch.setattr(main, "extract_youtube_fallback", main.extract_youtube_fallback)
+    main._RESOLVE_CACHE.clear()
+    r = TestClient(main.app).post("/api/resolve", json={"url": "https://youtu.be/G3WASPVq54Q"},
+                                  headers={"Origin": "https://ovd.winplaybox.in"})
+    d = r.json()
+    assert r.status_code == 200 and d["ok"] and not d.get("degraded")
+    data = d["data"]
+    assert data["title"] == "Real Title" and data["author"]["displayName"] == "Real Channel"
+    assert data["duration"] == 125 and data["stats"]["views"] == 4200
+    labels = [v["label"] for v in data["videos"]]
+    assert len(labels) == 3 and not any("1080" in l for l in labels)  # only qualities that exist
+    assert len(data["audios"]) == 2 and data["audios"][0]["bitrate"] == 320

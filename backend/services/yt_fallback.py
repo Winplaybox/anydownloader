@@ -84,3 +84,25 @@ def download_audio(url: str, quality: str, out_dir: str) -> str:
     except OSError:
         pass
     return out
+
+
+def resolve_info(url: str) -> dict:
+    """Metadata + available MP4 heights via pytubefix (used when yt-dlp is blocked on resolve)."""
+    yt = _open(url)
+    heights = set()
+    for st in yt.streams:
+        res = getattr(st, "resolution", None)
+        if st.type == "video" and res and res.endswith("p") and res[:-1].isdigit():
+            heights.add(int(res[:-1]))
+    try:
+        views = int(yt.views or 0)
+    except Exception:
+        views = 0
+    return {
+        "title": yt.title,
+        "author": yt.author,
+        "duration": int(yt.length or 0),
+        "views": views,
+        "thumbnail": yt.thumbnail_url,
+        "heights": sorted(heights, reverse=True),
+    }

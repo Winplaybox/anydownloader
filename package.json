@@ -9,7 +9,8 @@
     "backend": "python backend/main.py",
     "check:extractors": "python scripts/check_extractors.py",
     "test": "python -m unittest discover tests",
-    "build:seo": "npm run build && node scripts/prerender.mjs"
+    "sitemap": "node scripts/gen-sitemap.mjs",
+    "build:seo": "npm run sitemap && npm run build && node scripts/prerender.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
