@@ -2171,8 +2171,10 @@ async def extract_handler(request):
 # yt-dlp setup lives in utils/ytdlp_opts.py so resolve, extract and download share it.
 try:
     from backend.utils import ytdlp_opts as _yo
+    from backend.services import analytics as _analytics, yt_guard as _yt_guard
 except (ModuleNotFoundError, ImportError):
     from utils import ytdlp_opts as _yo  # type: ignore
+    from services import analytics as _analytics, yt_guard as _yt_guard  # type: ignore
 
 _find_js_runtimes = _yo.find_js_runtimes
 _normalize_netscape_cookies = _yo.normalize_netscape_cookies
@@ -2255,6 +2257,14 @@ def _yt_fb():
     return yt_fallback
 
 
+def _youtube_cooldown_response() -> JSONResponse:
+    wait = _yt_guard.retry_after()
+    return JSONResponse({"ok": False, "error": {
+        "code": "SOURCE_BLOCKED", "retryable": True, "retry_after_s": wait,
+        "message": "YouTube is temporarily limiting downloads from our server. Please try again in a few minutes."}},
+        status_code=503, headers={"Retry-After": str(max(wait, 1))})
+
+
 def _download_error_response(exc: Exception) -> JSONResponse:
     """Friendly JSON error for the UI (never leak raw yt-dlp/ffmpeg text to users)."""
     msg = str(exc)
@@ -2314,12 +2324,16 @@ async def download_video_handler(request):
 
     clean_title = re.sub(r'[\/*?:"<>|]', "", title).strip() or "video"
     safe_filename = f"{clean_title}_{height}p.mp4"
+    if _is_youtube_url(source_url) and _yt_guard.retry_after() > 0:
+        return _youtube_cooldown_response()   # do not hammer YouTube while it is blocking us
     
     temp_dir = tempfile.mkdtemp(prefix="wpb_vid_")
     out_tmpl = os.path.join(temp_dir, "media.%(ext)s")
     
     try:
         await _run_download_limited(run_download_video_task, source_url, height, out_tmpl)
+        if _is_youtube_url(source_url):
+            _yt_guard.success()
         final_mp4 = os.path.join(temp_dir, "media.mp4")
         if not os.path.exists(final_mp4):
             files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if not f.endswith(('.part', '.ytdl'))]
@@ -2337,6 +2351,8 @@ async def download_video_handler(request):
         )
     except Exception as exc:
         shutil.rmtree(temp_dir, ignore_errors=True)
+        if _is_youtube_url(source_url) and _yo.is_youtube_block(str(exc)):
+            _yt_guard.failure()
         return _download_error_response(exc)
 
 async def download_audio_handler(request):
@@ -2352,12 +2368,16 @@ async def download_audio_handler(request):
     
     clean_title = re.sub(r'[\/*?:"<>|]', "", title).strip() or "audio"
     safe_filename = f"{clean_title}_{quality}kbps.mp3"
-    
+    if _is_youtube_url(source_url) and _yt_guard.retry_after() > 0:
+        return _youtube_cooldown_response()
+
     temp_dir = tempfile.mkdtemp(prefix="wpb_aud_")
     out_tmpl = os.path.join(temp_dir, "media.%(ext)s")
     
     try:
         await _run_download_limited(run_download_audio_task, source_url, quality, out_tmpl)
+        if _is_youtube_url(source_url):
+            _yt_guard.success()
         final_mp3 = os.path.join(temp_dir, "media.mp3")
         if not os.path.exists(final_mp3):
             files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.endswith('.mp3')]
@@ -2375,6 +2395,8 @@ async def download_audio_handler(request):
         )
     except Exception as exc:
         shutil.rmtree(temp_dir, ignore_errors=True)
+        if _is_youtube_url(source_url) and _yo.is_youtube_block(str(exc)):
+            _yt_guard.failure()
         return _download_error_response(exc)
 
 async def stream_download_handler(request):
@@ -2872,6 +2894,8 @@ async def _resolve_degraded(resolved_url: str, platform_def: Dict[str, Any], ae:
                 legacy = await loop.run_in_executor(None, extract_youtube_fallback, resolved_url, m.group(1))
                 info = None
                 try:
+                    if _yt_guard.retry_after() > 0:
+                        raise RuntimeError("cooldown active, skipping pytubefix")
                     info = await asyncio.wait_for(asyncio.to_thread(_yt_fb().resolve_info, resolved_url), timeout=14)
                 except Exception as fb_err:
                     print(f"[resolve] pytubefix resolve failed: {str(fb_err)[:160]}", flush=True)
@@ -2935,6 +2959,10 @@ async def unified_extract_handler(request):
     if cached is not None:
         return JSONResponse(cached, headers={"X-OVD-Cache": "hit"})
 
+    if platform_def.get("id") == "youtube" and _yt_guard.retry_after() > 0:
+        return await _resolve_degraded(resolved_url, platform_def, AppError(
+            ErrorCode.SOURCE_BLOCKED, "YouTube is temporarily limiting requests from our server. Please try again in a few minutes."), cache_key)
+
     try:
         # Hard budget so the browser (35 s abort) always gets an answer.
         raw_result = await asyncio.wait_for(
@@ -2944,11 +2972,15 @@ async def unified_extract_handler(request):
         normalized = normalize_raw_result(raw_result, platform_def, content_type)
         payload = {"ok": True, "success": True, "data": normalized.to_dict()}
         _resolve_cache_put(cache_key, payload, ttl=600)
+        if platform_def.get("id") == "youtube":
+            _yt_guard.success()
         return JSONResponse(payload)
     except asyncio.TimeoutError:
         ae_timeout = AppError(ErrorCode.TIMEOUT, "The platform is slow to respond. Please try again.")
         return await _resolve_degraded(resolved_url, platform_def, ae_timeout, cache_key)
     except AppError as ae:
+        if ae.code in (ErrorCode.SOURCE_BLOCKED,) and platform_def.get("id") == "youtube":
+            _yt_guard.failure()
         if ae.code in (ErrorCode.SOURCE_BLOCKED,) or platform_def.get("id") == "youtube":
             # Do NOT re-run yt-dlp in the legacy path (that doubled the wait to ~60 s).
             return await _resolve_degraded(resolved_url, platform_def, ae, cache_key)
@@ -3908,6 +3940,41 @@ async def generate_reel_handler(request):
         traceback.print_exc()
         return JSONResponse({"ok": False, "error": f"Internal error during video generation: {str(e)}"}, status_code=500)
 
+def _tracked(kind: str, impl):
+    """Wrap a handler so every resolve/download is recorded in analytics (never affects the response)."""
+    async def handler(request):
+        t0 = time.perf_counter()
+        resp = None
+        exc_seen = None
+        try:
+            resp = await impl(request)
+            return resp
+        except BaseException as e:
+            exc_seen = e
+            raise
+        finally:
+            asyncio.get_running_loop().create_task(
+                _analytics.track_request(kind, request, resp, (time.perf_counter() - t0) * 1000, exc_seen))
+    handler.__name__ = getattr(impl, "__name__", "handler") + "_tracked"
+    return handler
+
+
+async def admin_analytics_handler(request):
+    # /admin/* is already guarded by ZeroTrustMiddleware (x-admin-key = WPB_ADMIN_KEY, lockout on failures).
+    try:
+        days = max(1, min(90, int(request.query_params.get("days", "7"))))
+    except ValueError:
+        days = 7
+    try:
+        rows = await _analytics.fetch_rows(days)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"Could not read analytics: {e}"}, status_code=502)
+    return JSONResponse({"ok": True, **_analytics.summarize(rows, days, _yt_guard.state())},
+                        headers={"Cache-Control": "no-store"})
+
+
+routes_analytics = [Route("/admin/analytics", admin_analytics_handler, methods=["GET"])]
+
 routes = [
         # --- Sovereign Zero-Trust & AI Services Gateway ---
     Route('/api/v1/auth/token', issue_token_handler, methods=['POST']),
@@ -3930,12 +3997,12 @@ routes = [
     Route('/api/v1/video/generate-reel', generate_reel_handler, methods=['POST']),
     Route('/api/v1/video/download', video_download_handler, methods=['GET']),
     Route('/api/v1/audio/download', audio_download_handler, methods=['GET']),
-    Route('/api/resolve', unified_extract_handler, methods=['POST']),
-    Route('/api/extract', unified_extract_handler, methods=['POST']),
+    Route('/api/resolve', _tracked('resolve', unified_extract_handler), methods=['POST']),
+    Route('/api/extract', _tracked('resolve', unified_extract_handler), methods=['POST']),
     Route('/api/ai/captions', ai_captions_handler, methods=['POST']),
     Route('/api/ai/voice', ai_voice_handler, methods=['POST']),
     Route('/api/platforms', platforms_handler, methods=['GET']),
-    Route('/api/download', download_proxy_handler, methods=['GET']),
+    Route('/api/download', _tracked('download', download_proxy_handler), methods=['GET']),
     Route('/api/jobs', create_job_handler, methods=['POST']),
     Route('/api/jobs/{id}', get_job_handler, methods=['GET']),
     Route('/api/jobs/{id}/file', get_job_file_handler, methods=['GET']),
@@ -3954,12 +4021,13 @@ routes = [
     Route("/api/health", health_handler, methods=["GET"]),
     Route("/api/{platform}/extract", platform_extract_handler, methods=["POST"]),
     Route("/api/{platform}/{feature}", platform_extract_handler, methods=["POST"]),
-    Route("/api/stream", stream_download_handler, methods=["GET"]),
-    Route("/api/download_video", download_video_handler, methods=["GET"]),
-    Route("/api/download_audio", download_audio_handler, methods=["GET"])
+    Route("/api/stream", _tracked("download", stream_download_handler), methods=["GET"]),
+    Route("/api/download_video", _tracked("download", download_video_handler), methods=["GET"]),
+    Route("/api/download_audio", _tracked("download", download_audio_handler), methods=["GET"])
 ]
 
-routes = routes_v2 + routes_studio + routes_autopilot + routes_editor + routes_temp_media + routes
+
+routes = routes_v2 + routes_analytics + routes_studio + routes_autopilot + routes_editor + routes_temp_media + routes
 
 # Order = outermost first: CORS -> Zero-Trust guard -> origin/extension gate
 middleware = [

@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /api/
+Disallow: /ovd-admin
 
 Sitemap: https://ovd.winplaybox.in/sitemap.xml

@@ -15,6 +15,7 @@ import UpdatesPage from './pages/UpdatesPage.jsx';
 import ExtensionPage from './pages/ExtensionPage.jsx';
 import VideoEditorPage from './pages/VideoEditorPage.jsx';
 import YouTubeSubscribeLinkPage from './pages/YouTubeSubscribeLinkPage.jsx';
+import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
 import { TOOL_ROUTES, TOOL_REDIRECTS } from './data/toolRoutes.js';
 import { initAttribution } from './utils/attribution.js';
 
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/dmca" element={<SecurityPage />} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/ovd-admin" element={<AdminDashboardPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </main>
