@@ -110,7 +110,7 @@ export default function AdminDashboardPage() {
     try {
       const r = await fetch(`${BACKEND_BASE}/api/ovd/analytics?days=${d}`, { headers: { Authorization: `Bearer ${k}` }, signal: ctl.signal });
       const j = await r.json().catch(() => ({}));
-      if (r.status === 401) { setErr('This Google account is not allowed, or the session ended. Sign in again.'); setKey(''); try { sessionStorage.removeItem(TOKEN_STORE); } catch { /* ignore */ } return; }
+      if (r.status === 401) { setErr(j?.error || 'The session ended. Sign in again.'); setKey(''); try { sessionStorage.removeItem(TOKEN_STORE); } catch { /* ignore */ } return; }
       if (r.status === 429) { setErr('Too many failed attempts. Wait a few minutes.'); return; }
       if (!r.ok || !j.ok) { setErr(j?.error?.message || j?.error || `Server error ${r.status}`); return; }
       setData(j);

@@ -58,9 +58,10 @@ def test_download_error_is_tracked_and_dashboard_requires_login(monkeypatch):
     assert c.get("/api/ovd/analytics", headers=ORIGIN).status_code == 401      # no login
 
     async def fake(request):                                                   # Google login check result
-        return OWNER if request.headers.get("authorization") == "Bearer good.token.x" else None
-    monkeypatch.setattr(m, "_google_admin_email", fake)
-    assert c.get("/api/ovd/analytics", headers={**ORIGIN, "Authorization": "Bearer other.token.x"}).status_code == 401
+        return (OWNER, "ok") if request.headers.get("authorization") == "Bearer good.token.x" else (None, "email_not_allowed")
+    monkeypatch.setattr(m, "_google_admin_check", fake)
+    bad = c.get("/api/ovd/analytics", headers={**ORIGIN, "Authorization": "Bearer other.token.x"})
+    assert bad.status_code == 401 and bad.json()["reason"] == "email_not_allowed" and "WPB_ADMIN_EMAILS" in bad.json()["error"]
     ok = c.get("/api/ovd/analytics", headers={**ORIGIN, "Authorization": "Bearer good.token.x"}, params={"days": 7})
     assert ok.status_code == 200
     j = ok.json()
@@ -96,10 +97,15 @@ def test_google_admin_allowlist(monkeypatch):
 
     class Req:
         def __init__(self, t): self.headers = {"authorization": f"Bearer {t}"}
-    assert asyncio.run(m._google_admin_email(Req("t1.a.b"))) == OWNER
-    assert asyncio.run(m._google_admin_email(Req("t2.a.b"))) is None
-    assert asyncio.run(m._google_admin_email(Req("t3.a.b"))) is None
-    assert asyncio.run(m._google_admin_email(Req("garbage"))) is None
+    assert asyncio.run(m._google_admin_check(Req("t1.a.b"))) == (OWNER, "ok")
+    assert asyncio.run(m._google_admin_check(Req("t2.a.b"))) == (None, "email_not_allowed")
+    assert asyncio.run(m._google_admin_check(Req("t3.a.b"))) == (None, "email_not_verified")
+    assert asyncio.run(m._google_admin_check(Req("garbage")))[1] == "no_token"
+    monkeypatch.setenv("WPB_ADMIN_EMAILS", "")
+    m._ADMIN_TOKEN_CACHE.clear()
+    assert asyncio.run(m._google_admin_check(Req("t1.a.b"))) == (None, "no_admin_emails")
+    monkeypatch.delenv("SUPABASE_URL")
+    assert asyncio.run(m._google_admin_check(Req("t1.a.b"))) == (None, "auth_not_configured")
 
 
 def test_youtube_download_skipped_while_cooling_down(monkeypatch):

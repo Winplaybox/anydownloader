@@ -3972,44 +3972,69 @@ def _admin_emails() -> set:
     return {e.strip().lower() for e in os.environ.get("WPB_ADMIN_EMAILS", "").split(",") if e.strip()}
 
 
-async def _google_admin_email(request) -> Optional[str]:
-    """Supabase (Google) login -> admin email. The token is verified by Supabase itself, so any signing
-    algorithm works. Only emails in the allow-list (owner + WPB_ADMIN_EMAILS) get in."""
+async def _google_admin_check(request) -> tuple:
+    """Supabase (Google) login -> (admin email | None, reason). The token is verified by Supabase itself,
+    so any signing algorithm works. Only emails in WPB_ADMIN_EMAILS get in."""
     token = _zt_bearer(request)
     if not token or token.startswith("wpb") or token.count(".") != 2:
-        return None
+        return None, "no_token"
     base, key = os.environ.get("SUPABASE_URL", "").rstrip("/"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     if not base or not key:
-        return None
+        print("[analytics] admin login: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing on this server", flush=True)
+        return None, "auth_not_configured"
     ck = hashlib.sha256(token.encode()).hexdigest()
     hit = _ADMIN_TOKEN_CACHE.get(ck)
     if hit and hit[1] > time.time():
-        return hit[0]
+        return hit[0], "ok"
     try:
         async with httpx.AsyncClient(timeout=8) as c:
             r = await c.get(f"{base}/auth/v1/user", headers={"apikey": key, "Authorization": f"Bearer {token}"})
         if r.status_code != 200:
-            return None
+            print(f"[analytics] admin login: Supabase rejected the session ({r.status_code})", flush=True)
+            return None, "token_rejected"
         u = r.json()
         email = (u.get("email") or "").lower()
-        if email in _admin_emails() and (u.get("email_confirmed_at") or u.get("confirmed_at")):
-            if len(_ADMIN_TOKEN_CACHE) > 50:
-                _ADMIN_TOKEN_CACHE.clear()
-            _ADMIN_TOKEN_CACHE[ck] = (email, time.time() + 300)
-            return email
+        allowed = _admin_emails()
+        if not allowed:
+            print("[analytics] admin login: WPB_ADMIN_EMAILS is empty on this server", flush=True)
+            return None, "no_admin_emails"
+        if email not in allowed:
+            print(f"[analytics] admin login: signed-in account is not in WPB_ADMIN_EMAILS ({len(allowed)} allowed)", flush=True)
+            return None, "email_not_allowed"
+        if not (u.get("email_confirmed_at") or u.get("confirmed_at")):
+            return None, "email_not_verified"
+        if len(_ADMIN_TOKEN_CACHE) > 50:
+            _ADMIN_TOKEN_CACHE.clear()
+        _ADMIN_TOKEN_CACHE[ck] = (email, time.time() + 300)
+        return email, "ok"
     except Exception as e:
         print(f"[analytics] admin token check failed: {e}", flush=True)
-    return None
+        return None, "check_failed"
+
+
+_LOGIN_MESSAGES = {
+    "auth_not_configured": "The server is missing its Supabase settings (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY).",
+    "no_admin_emails": "The server has no admin emails set (WPB_ADMIN_EMAILS).",
+    "email_not_allowed": "You are signed in with Google, but this account is not in the server's admin email list (WPB_ADMIN_EMAILS).",
+    "email_not_verified": "This Google account's email is not verified.",
+    "token_rejected": "Supabase rejected the session. Sign in again.",
+    "check_failed": "Could not reach Supabase to check the login. Try again in a minute.",
+}
 
 
 async def ovd_analytics_handler(request):
     ip = _zt_client_ip(request)
     if await asyncio.to_thread(_zt_admin_locked, ip):
         return JSONResponse({"ok": False, "error": "Too many failed attempts. Try again later."}, status_code=429)
-    who = _zt_authenticate_admin(request) or await _google_admin_email(request)
+    who = _zt_authenticate_admin(request)
+    reason = "ok"
     if not who:
-        await asyncio.to_thread(_zt_admin_failure, ip)
-        return JSONResponse({"ok": False, "error": "Sign in with the admin Google account."}, status_code=401)
+        who, reason = await _google_admin_check(request)
+    if not who:
+        if reason in ("no_token", "token_rejected", "email_not_allowed"):
+            await asyncio.to_thread(_zt_admin_failure, ip)      # only count real failed attempts toward the lockout
+        return JSONResponse({"ok": False, "reason": reason,
+                             "error": _LOGIN_MESSAGES.get(reason, "Sign in with the admin Google account.")}, status_code=401)
     try:
         days = max(1, min(90, int(request.query_params.get("days", "7"))))
     except ValueError:
