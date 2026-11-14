@@ -42,18 +42,26 @@ def _client():
     return TestClient(app)
 
 
-def test_download_error_is_tracked_and_dashboard_needs_key():
+ORIGIN = {"Origin": "https://ovd.winplaybox.in"}
+OWNER = "owner@example.com"
+
+
+def test_download_error_is_tracked_and_dashboard_requires_login(monkeypatch):
+    import backend.main as m
     c = _client()
-    KEY = os.environ["WPB_ADMIN_KEY"]
-    # invalid/unsafe URL -> tracked as a failed download with its code
     r = c.get("/api/download_video", params={"url": "http://127.0.0.1/x", "height": "720"})
     assert r.status_code == 400
     time.sleep(0.2)
     assert analytics._MEM and analytics._MEM[-1]["kind"] == "download" and analytics._MEM[-1]["status"] == "fail"
     assert analytics._MEM[-1]["code"] == "URL_INVALID"
 
-    assert c.get("/admin/analytics").status_code == 401
-    ok = c.get("/admin/analytics", headers={"x-admin-key": KEY}, params={"days": 7})
+    assert c.get("/api/ovd/analytics", headers=ORIGIN).status_code == 401      # no login
+
+    async def fake(request):                                                   # Google login check result
+        return OWNER if request.headers.get("authorization") == "Bearer good.token.x" else None
+    monkeypatch.setattr(m, "_google_admin_email", fake)
+    assert c.get("/api/ovd/analytics", headers={**ORIGIN, "Authorization": "Bearer other.token.x"}).status_code == 401
+    ok = c.get("/api/ovd/analytics", headers={**ORIGIN, "Authorization": "Bearer good.token.x"}, params={"days": 7})
     assert ok.status_code == 200
     j = ok.json()
     assert j["ok"] and j["source"] == "memory" and j["storage_warning"]
@@ -61,6 +69,37 @@ def test_download_error_is_tracked_and_dashboard_needs_key():
     assert j["youtube"]["breaker"]["open"] is False
     assert len(j["daily"]) == 7 and sum(j["hourly_ist"]) == 1
     assert "127.0.0.1" not in str(j["recent"])      # no IPs leak into the dashboard payload
+
+
+def test_google_admin_allowlist(monkeypatch):
+    import backend.main as m
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "svc")
+    monkeypatch.setenv("WPB_ADMIN_EMAILS", OWNER)
+    users = {"t1.a.b": {"email": OWNER, "email_confirmed_at": "2026-01-01"},
+             "t2.a.b": {"email": "intruder@example.com", "email_confirmed_at": "2026-01-01"},
+             "t3.a.b": {"email": OWNER, "email_confirmed_at": None}}
+
+    class R:
+        status_code = 200
+        def __init__(self, tok): self.tok = tok
+        def json(self): return users[self.tok]
+
+    class C:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, url, headers=None): return R(headers["Authorization"].split()[1])
+
+    monkeypatch.setattr(m.httpx, "AsyncClient", C)
+    m._ADMIN_TOKEN_CACHE.clear()
+
+    class Req:
+        def __init__(self, t): self.headers = {"authorization": f"Bearer {t}"}
+    assert asyncio.run(m._google_admin_email(Req("t1.a.b"))) == OWNER
+    assert asyncio.run(m._google_admin_email(Req("t2.a.b"))) is None
+    assert asyncio.run(m._google_admin_email(Req("t3.a.b"))) is None
+    assert asyncio.run(m._google_admin_email(Req("garbage"))) is None
 
 
 def test_youtube_download_skipped_while_cooling_down(monkeypatch):

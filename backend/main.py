@@ -53,6 +53,7 @@ except ModuleNotFoundError:
     from utils.security import verify_download_token
     from extractors.registry import registry
 import html
+import hashlib
 import hmac
 import os
 import re
@@ -82,6 +83,8 @@ from starlette.middleware.cors import CORSMiddleware
 try:
     from backend.security.zero_trust import (
         ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify,
+        authenticate_admin as _zt_authenticate_admin, admin_locked as _zt_admin_locked,
+        record_admin_failure as _zt_admin_failure, client_ip as _zt_client_ip, bearer as _zt_bearer,
     )
     from backend.routes_v2 import routes_v2
     from backend.routes_autopilot import routes_autopilot
@@ -90,6 +93,8 @@ try:
     from backend.routes_temp_media import routes_temp_media
 except (ModuleNotFoundError, ImportError):
     from security.zero_trust import ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify
+    from security.zero_trust import (authenticate_admin as _zt_authenticate_admin, admin_locked as _zt_admin_locked,
+                                     record_admin_failure as _zt_admin_failure, client_ip as _zt_client_ip, bearer as _zt_bearer)
     from routes_v2 import routes_v2
     from routes_autopilot import routes_autopilot
     from routes_studio import routes_studio
@@ -3959,8 +3964,52 @@ def _tracked(kind: str, impl):
     return handler
 
 
-async def admin_analytics_handler(request):
-    # /admin/* is already guarded by ZeroTrustMiddleware (x-admin-key = WPB_ADMIN_KEY, lockout on failures).
+_ADMIN_TOKEN_CACHE: Dict[str, tuple] = {}
+
+
+def _admin_emails() -> set:
+    # Same allow-list the other WinPlayBox admin tools use (comma separated Google account emails).
+    return {e.strip().lower() for e in os.environ.get("WPB_ADMIN_EMAILS", "").split(",") if e.strip()}
+
+
+async def _google_admin_email(request) -> Optional[str]:
+    """Supabase (Google) login -> admin email. The token is verified by Supabase itself, so any signing
+    algorithm works. Only emails in the allow-list (owner + WPB_ADMIN_EMAILS) get in."""
+    token = _zt_bearer(request)
+    if not token or token.startswith("wpb") or token.count(".") != 2:
+        return None
+    base, key = os.environ.get("SUPABASE_URL", "").rstrip("/"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not base or not key:
+        return None
+    ck = hashlib.sha256(token.encode()).hexdigest()
+    hit = _ADMIN_TOKEN_CACHE.get(ck)
+    if hit and hit[1] > time.time():
+        return hit[0]
+    try:
+        async with httpx.AsyncClient(timeout=8) as c:
+            r = await c.get(f"{base}/auth/v1/user", headers={"apikey": key, "Authorization": f"Bearer {token}"})
+        if r.status_code != 200:
+            return None
+        u = r.json()
+        email = (u.get("email") or "").lower()
+        if email in _admin_emails() and (u.get("email_confirmed_at") or u.get("confirmed_at")):
+            if len(_ADMIN_TOKEN_CACHE) > 50:
+                _ADMIN_TOKEN_CACHE.clear()
+            _ADMIN_TOKEN_CACHE[ck] = (email, time.time() + 300)
+            return email
+    except Exception as e:
+        print(f"[analytics] admin token check failed: {e}", flush=True)
+    return None
+
+
+async def ovd_analytics_handler(request):
+    ip = _zt_client_ip(request)
+    if await asyncio.to_thread(_zt_admin_locked, ip):
+        return JSONResponse({"ok": False, "error": "Too many failed attempts. Try again later."}, status_code=429)
+    who = _zt_authenticate_admin(request) or await _google_admin_email(request)
+    if not who:
+        await asyncio.to_thread(_zt_admin_failure, ip)
+        return JSONResponse({"ok": False, "error": "Sign in with the admin Google account."}, status_code=401)
     try:
         days = max(1, min(90, int(request.query_params.get("days", "7"))))
     except ValueError:
@@ -3973,7 +4022,7 @@ async def admin_analytics_handler(request):
                         headers={"Cache-Control": "no-store"})
 
 
-routes_analytics = [Route("/admin/analytics", admin_analytics_handler, methods=["GET"])]
+routes_analytics = [Route("/api/ovd/analytics", ovd_analytics_handler, methods=["GET"])]
 
 routes = [
         # --- Sovereign Zero-Trust & AI Services Gateway ---
