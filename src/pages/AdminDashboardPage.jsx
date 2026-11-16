@@ -3,34 +3,17 @@ import { RefreshCw, Lock, LogOut, Activity, Users, Download, Search, TriangleAle
 import { BACKEND_BASE } from '../utils/resolveMedia.js';
 
 const TOKEN_STORE = 'ovd_admin_token';
-const SUPABASE_URL = 'https://xatbfyiytcnogfbtfsym.supabase.co';
 const RANGES = [[1, 'Today'], [7, '7 days'], [30, '30 days'], [90, '90 days']];
 
 function readToken() {
   try {
     const t = sessionStorage.getItem(TOKEN_STORE) || '';
     if (!t) return '';
-    const exp = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp;
-    if (exp && exp * 1000 < Date.now() + 30000) { sessionStorage.removeItem(TOKEN_STORE); return ''; }
+    const body = t.split('.')[1] || '';
+    const exp = Number(atob(body.replace(/-/g, '+').replace(/_/g, '/')).split('|')[1]);
+    if (!exp || exp * 1000 < Date.now() + 30000) { sessionStorage.removeItem(TOKEN_STORE); return ''; }
     return t;
   } catch { return ''; }
-}
-
-// Back from Google: Supabase puts the session in the URL hash (#access_token=...)
-function takeTokenFromHash() {
-  try {
-    const h = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const t = h.get('access_token');
-    if (t) {
-      sessionStorage.setItem(TOKEN_STORE, t);
-      window.history.replaceState(null, '', window.location.pathname);
-    }
-  } catch { /* ignore */ }
-}
-
-function signInWithGoogle() {
-  const back = encodeURIComponent(`${window.location.origin}/ovd-admin`);
-  window.location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${back}`;
 }
 
 const fmt = (n) => (n == null ? '-' : Number(n).toLocaleString('en-IN'));
@@ -95,12 +78,30 @@ function Top({ rows }) {
 }
 
 export default function AdminDashboardPage() {
-  const [key, setKey] = useState(() => { takeTokenFromHash(); return readToken(); });
+  const [key, setKey] = useState(() => readToken());
   const [days, setDays] = useState(7);
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
   const abort = useRef(null);
+  const [user, setUser] = useState('');
+  const [pass, setPass] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const signIn = async (e) => {
+    e.preventDefault();
+    setBusy(true); setErr('');
+    try {
+      const r = await fetch(`${BACKEND_BASE}/api/ovd/admin-login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user.trim(), password: pass }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.token) { setErr(j?.error || `Server error ${r.status}`); return; }
+      try { sessionStorage.setItem(TOKEN_STORE, j.token); } catch { /* ignore */ }
+      setPass(''); setKey(j.token);
+    } catch { setErr('Could not reach the server. It may be waking up, try again in a minute.'); }
+    finally { setBusy(false); }
+  };
 
   const load = useCallback(async (k = key, d = days) => {
     if (!k) return;
@@ -110,7 +111,7 @@ export default function AdminDashboardPage() {
     try {
       const r = await fetch(`${BACKEND_BASE}/api/ovd/analytics?days=${d}`, { headers: { Authorization: `Bearer ${k}` }, signal: ctl.signal });
       const j = await r.json().catch(() => ({}));
-      if (r.status === 401) { setErr(j?.error || 'The session ended. Sign in again.'); setKey(''); try { sessionStorage.removeItem(TOKEN_STORE); } catch { /* ignore */ } return; }
+      if (r.status === 401) { setErr(j?.error || 'Session ended. Sign in again.'); setKey(''); try { sessionStorage.removeItem(TOKEN_STORE); } catch { /* ignore */ } return; }
       if (r.status === 429) { setErr('Too many failed attempts. Wait a few minutes.'); return; }
       if (!r.ok || !j.ok) { setErr(j?.error?.message || j?.error || `Server error ${r.status}`); return; }
       setData(j);
@@ -129,16 +130,22 @@ export default function AdminDashboardPage() {
   if (!key) {
     return (
       <div className="max-w-sm mx-auto px-4 py-20">
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow-2)] space-y-4">
+        <form onSubmit={signIn} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow-2)] space-y-4">
           <div className="flex items-center gap-2 font-bold text-lg"><Lock className="w-5 h-5" />OVD dashboard</div>
-          <p className="text-sm text-[var(--text-muted)]">Private. Sign in with the admin Google account.</p>
+          <label className="block text-sm font-semibold">Username
+            <input name="username" autoComplete="username" required value={user} onChange={(e) => setUser(e.target.value)}
+              className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 font-normal" />
+          </label>
+          <label className="block text-sm font-semibold">Password
+            <input name="password" type="password" autoComplete="current-password" required value={pass} onChange={(e) => setPass(e.target.value)}
+              className="mt-1 w-full h-11 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 font-normal" />
+          </label>
           {err && <p role="alert" className="text-sm text-[var(--negative)]">{err}</p>}
-          <button type="button" onClick={signInWithGoogle}
-            className="w-full h-12 rounded-xl bg-[var(--primary)] text-[var(--on-primary)] font-bold flex items-center justify-center gap-2.5">
-            <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true"><path fill="#fff" d="M21.35 11.1H12v2.9h5.35c-.5 2.4-2.5 3.6-5.35 3.6a6 6 0 1 1 0-12c1.5 0 2.8.55 3.85 1.45l2.1-2.1A9 9 0 1 0 12 21c5.2 0 8.6-3.65 8.6-8.8 0-.4-.05-.8-.15-1.1z"/></svg>
-            Continue with Google
+          <button type="submit" disabled={busy}
+            className="w-full h-12 rounded-xl bg-[var(--primary)] text-[var(--on-primary)] font-bold disabled:opacity-60">
+            {busy ? 'Signing in...' : 'Sign in'}
           </button>
-        </div>
+        </form>
       </div>
     );
   }
