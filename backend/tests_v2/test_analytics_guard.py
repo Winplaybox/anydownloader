@@ -128,3 +128,20 @@ def test_summarize_rates():
     s = analytics.summarize(rows, 1)
     assert s["totals"]["visitors"] == 2 and s["totals"]["download_ok_pct"] == 50.0
     assert s["youtube"]["ok_pct_24h"] == 50.0 and s["top_content"][0]["url"] == "u1"
+
+
+def test_password_login_and_session(monkeypatch):
+    import backend.main as m
+    monkeypatch.setenv("OVD_ADMIN_USER", "admin")
+    monkeypatch.setenv("OVD_ADMIN_PASS", "s3cret-pass")
+    c = _client()
+    bad = c.post("/api/ovd/admin-login", headers=ORIGIN, json={"username": "admin", "password": "nope"})
+    assert bad.status_code == 401
+    ok = c.post("/api/ovd/admin-login", headers=ORIGIN, json={"username": "admin", "password": "s3cret-pass"})
+    assert ok.status_code == 200 and ok.json()["token"].startswith("ovdadm.")
+    tok = ok.json()["token"]
+    assert c.get("/api/ovd/analytics", headers={**ORIGIN, "Authorization": f"Bearer {tok}"}).status_code == 200
+    forged = tok[:-4] + ("0000" if not tok.endswith("0000") else "1111")
+    assert c.get("/api/ovd/analytics", headers={**ORIGIN, "Authorization": f"Bearer {forged}"}).status_code == 401
+    monkeypatch.delenv("OVD_ADMIN_PASS")
+    assert c.post("/api/ovd/admin-login", headers=ORIGIN, json={"username": "admin", "password": "x"}).status_code == 503

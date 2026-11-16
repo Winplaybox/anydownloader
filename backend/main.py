@@ -4022,12 +4022,67 @@ _LOGIN_MESSAGES = {
 }
 
 
+# ---- OVD dashboard: username + password login (set OVD_ADMIN_USER / OVD_ADMIN_PASS on the server) ----
+_SESSION_TTL_S = 12 * 3600
+
+
+def _session_secret() -> bytes:
+    k = os.environ.get("WPB_ADMIN_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or ""
+    return hashlib.sha256(b"ovd-admin-session|" + k.encode()).digest() if k else b""
+
+
+def _make_session(user: str) -> str:
+    exp = int(time.time()) + _SESSION_TTL_S
+    body = base64.urlsafe_b64encode(f"{user}|{exp}".encode()).decode().rstrip("=")
+    sig = hmac.new(_session_secret(), body.encode(), hashlib.sha256).hexdigest()
+    return f"ovdadm.{body}.{sig}"
+
+
+def _verify_session(token: str) -> Optional[str]:
+    try:
+        tag, body, sig = token.split(".")
+        sec = _session_secret()
+        if tag != "ovdadm" or not sec:
+            return None
+        if not hmac.compare_digest(sig, hmac.new(sec, body.encode(), hashlib.sha256).hexdigest()):
+            return None
+        user, exp = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)).decode().rsplit("|", 1)
+        return user if int(exp) > time.time() else None
+    except Exception:
+        return None
+
+
+async def ovd_admin_login_handler(request):
+    ip = _zt_client_ip(request)
+    if await asyncio.to_thread(_zt_admin_locked, ip):
+        return JSONResponse({"ok": False, "error": "Too many failed attempts. Try again later."}, status_code=429)
+    want_u, want_p = os.environ.get("OVD_ADMIN_USER", ""), os.environ.get("OVD_ADMIN_PASS", "")
+    if not want_u or not want_p or not _session_secret():
+        print("[analytics] password login: OVD_ADMIN_USER / OVD_ADMIN_PASS (or WPB_ADMIN_KEY) not set on this server", flush=True)
+        return JSONResponse({"ok": False, "error": "Login is not set up on the server yet (OVD_ADMIN_USER and OVD_ADMIN_PASS)."}, status_code=503)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    u, p = str(body.get("username", ""))[:128], str(body.get("password", ""))[:256]
+    ok_u = hmac.compare_digest(u.encode(), want_u.encode())
+    ok_p = hmac.compare_digest(p.encode(), want_p.encode())
+    if not (ok_u and ok_p):
+        await asyncio.sleep(0.6)
+        await asyncio.to_thread(_zt_admin_failure, ip)
+        return JSONResponse({"ok": False, "error": "Wrong username or password."}, status_code=401)
+    return JSONResponse({"ok": True, "token": _make_session(u), "expires_in": _SESSION_TTL_S}, headers={"Cache-Control": "no-store"})
+
+
 async def ovd_analytics_handler(request):
     ip = _zt_client_ip(request)
     if await asyncio.to_thread(_zt_admin_locked, ip):
         return JSONResponse({"ok": False, "error": "Too many failed attempts. Try again later."}, status_code=429)
     who = _zt_authenticate_admin(request)
     reason = "ok"
+    if not who:
+        tok = _zt_bearer(request)
+        who = _verify_session(tok) if tok and tok.startswith("ovdadm.") else None
     if not who:
         who, reason = await _google_admin_check(request)
     if not who:
@@ -4047,7 +4102,8 @@ async def ovd_analytics_handler(request):
                         headers={"Cache-Control": "no-store"})
 
 
-routes_analytics = [Route("/api/ovd/analytics", ovd_analytics_handler, methods=["GET"])]
+routes_analytics = [Route("/api/ovd/analytics", ovd_analytics_handler, methods=["GET"]),
+                    Route("/api/ovd/admin-login", ovd_admin_login_handler, methods=["POST"])]
 
 routes = [
         # --- Sovereign Zero-Trust & AI Services Gateway ---
