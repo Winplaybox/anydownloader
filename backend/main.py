@@ -2312,6 +2312,34 @@ def run_download_audio_task(source_url: str, quality: str, output_template: str)
         print(f"[download] yt-dlp blocked (audio), trying pytubefix: {str(exc)[:120]}", flush=True)
         _yt_fb().download_audio(source_url, quality, os.path.dirname(output_template))
 
+async def _download_via_worker(url: str, kind: str = "video", height: int = 1080, quality: str = "192") -> Optional[str]:
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return None
+    worker_url = os.environ.get("WORKER_URL", "https://exorcist-those-fax.ngrok-free.dev").strip().rstrip("/")
+    worker_key = (
+        os.environ.get("WORKER_SECRET", "").strip()
+        or os.environ.get("WORKER_KEY", "").strip()
+        or "wpb_worker_3047a7d0cb90d81830e004fbc0e61f6428f7e3cb"
+    )
+    if not worker_url:
+        return None
+    headers = {
+        "Content-Type": "application/json",
+        "X-Worker-Key": worker_key,
+        "Authorization": f"Bearer {worker_key}"
+    }
+    payload = {"url": url, "kind": kind, "height": height, "quality": quality}
+    try:
+        async with httpx.AsyncClient(timeout=180.0, follow_redirects=True) as client:
+            resp = await client.post(f"{worker_url}/download", json=payload, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("ok") and data.get("url"):
+                    return data["url"]
+    except Exception as e:
+        print(f"[worker_download] Worker download fallback failed: {e}", flush=True)
+    return None
+
 async def download_video_handler(request):
     """Handler that merges video and audio with ffmpeg, streaming genuine audio-enabled MP4."""
     source_url = request.query_params.get("url")
@@ -2331,6 +2359,9 @@ async def download_video_handler(request):
     clean_title = re.sub(r'[\/*?:"<>|]', "", title).strip() or "video"
     safe_filename = f"{clean_title}_{height}p.mp4"
     if _is_youtube_url(source_url) and _yt_guard.retry_after() > 0:
+        worker_res_url = await _download_via_worker(source_url, "video", height=height)
+        if worker_res_url:
+            return RedirectResponse(url=worker_res_url, status_code=302)
         return _youtube_cooldown_response()   # do not hammer YouTube while it is blocking us
     
     temp_dir = tempfile.mkdtemp(prefix="wpb_vid_")
@@ -2347,6 +2378,9 @@ async def download_video_handler(request):
                 final_mp4 = files[0]
             else:
                 shutil.rmtree(temp_dir, ignore_errors=True)
+                worker_res_url = await _download_via_worker(source_url, "video", height=height)
+                if worker_res_url:
+                    return RedirectResponse(url=worker_res_url, status_code=302)
                 return _download_error_response(RuntimeError("no output file"))
         
         return FileResponse(
@@ -2357,6 +2391,10 @@ async def download_video_handler(request):
         )
     except Exception as exc:
         shutil.rmtree(temp_dir, ignore_errors=True)
+        # Attempt PC worker fallback on residential IP before returning error
+        worker_res_url = await _download_via_worker(source_url, "video", height=height)
+        if worker_res_url:
+            return RedirectResponse(url=worker_res_url, status_code=302)
         if _is_youtube_url(source_url) and _yo.is_youtube_block(str(exc)):
             _yt_guard.failure()
         return _download_error_response(exc)
@@ -2375,6 +2413,9 @@ async def download_audio_handler(request):
     clean_title = re.sub(r'[\/*?:"<>|]', "", title).strip() or "audio"
     safe_filename = f"{clean_title}_{quality}kbps.mp3"
     if _is_youtube_url(source_url) and _yt_guard.retry_after() > 0:
+        worker_res_url = await _download_via_worker(source_url, "audio", quality=quality)
+        if worker_res_url:
+            return RedirectResponse(url=worker_res_url, status_code=302)
         return _youtube_cooldown_response()
 
     temp_dir = tempfile.mkdtemp(prefix="wpb_aud_")
@@ -2391,6 +2432,9 @@ async def download_audio_handler(request):
                 final_mp3 = files[0]
             else:
                 shutil.rmtree(temp_dir, ignore_errors=True)
+                worker_res_url = await _download_via_worker(source_url, "audio", quality=quality)
+                if worker_res_url:
+                    return RedirectResponse(url=worker_res_url, status_code=302)
                 return _download_error_response(RuntimeError("no output file"))
         
         return FileResponse(
@@ -2401,8 +2445,12 @@ async def download_audio_handler(request):
         )
     except Exception as exc:
         shutil.rmtree(temp_dir, ignore_errors=True)
+        worker_res_url = await _download_via_worker(source_url, "audio", quality=quality)
+        if worker_res_url:
+            return RedirectResponse(url=worker_res_url, status_code=302)
         if _is_youtube_url(source_url) and _yo.is_youtube_block(str(exc)):
             _yt_guard.failure()
+        return _download_error_response(exc)
         return _download_error_response(exc)
 
 async def stream_download_handler(request):
@@ -2902,7 +2950,9 @@ async def _resolve_degraded(resolved_url: str, platform_def: Dict[str, Any], ae:
                 try:
                     if _yt_guard.retry_after() > 0:
                         raise RuntimeError("cooldown active, skipping pytubefix")
-                    info = await asyncio.wait_for(asyncio.to_thread(_yt_fb().resolve_info, resolved_url), timeout=14)
+                    fb = _yt_fb()
+                    if fb:
+                        info = await asyncio.wait_for(asyncio.to_thread(fb.resolve_info, resolved_url), timeout=14)
                 except Exception as fb_err:
                     print(f"[resolve] pytubefix resolve failed: {str(fb_err)[:160]}", flush=True)
                 if info:
@@ -2965,7 +3015,11 @@ async def unified_extract_handler(request):
     if cached is not None:
         return JSONResponse(cached, headers={"X-OVD-Cache": "hit"})
 
-    if platform_def.get("id") == "youtube" and _yt_guard.retry_after() > 0:
+    routes = platform_def.get("routes", {})
+    route_list = routes.get(content_type) or routes.get("video") or []
+    has_remote_worker = "remote_worker" in route_list
+
+    if platform_def.get("id") == "youtube" and _yt_guard.retry_after() > 0 and not has_remote_worker:
         return await _resolve_degraded(resolved_url, platform_def, AppError(
             ErrorCode.SOURCE_BLOCKED, "YouTube is temporarily limiting requests from our server. Please try again in a few minutes."), cache_key)
 

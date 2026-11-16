@@ -18,7 +18,7 @@ class FxTwitterEngine:
             raise AppError(ErrorCode.URL_INVALID, "Invalid Twitter status URL.")
         tweet_id = m.group(1)
 
-        api_url = f"https://api.fxtwitter.com/i/status/{tweet_id}"
+        api_url = f"https://api.fxtwitter.com/status/{tweet_id}"
         headers = {
             "User-Agent": "TelegramBot (like TwitterBot)",
             "Accept": "application/json"

@@ -15,20 +15,23 @@
     regex: youtube\.com/(?:@|channel/|c/|user/)([\w.-]+)
   routes:
     video:
+    - remote_worker
     - ytdlp
     - pytubefix
-    - remote_worker
     short:
+    - remote_worker
     - ytdlp
     - pytubefix
-    - remote_worker
     audio:
+    - remote_worker
     - ytdlp
     - pytubefix
     thumbnails:
+    - remote_worker
     - ytdlp
     - oembed
     subtitles:
+    - remote_worker
     - ytdlp
   needsCookies: optional
   contentTypes:
@@ -63,22 +66,25 @@
     regex: instagram\.com/stories/([^/]+)/([0-9]+)
   routes:
     reel:
+    - remote_worker
     - instagram_embed
     - ytdlp
     - gallerydl
     - polaris
-    - remote_worker
     post:
+    - remote_worker
     - instagram_embed
     - gallerydl
     - polaris
     - instaloader
     carousel:
+    - remote_worker
     - instagram_embed
     - gallerydl
     - polaris
     - instaloader
     story:
+    - remote_worker
     - gallerydl
     - instaloader
   needsCookies: required_for_posts_and_stories
@@ -112,17 +118,20 @@
   routes:
     video:
     - tikwm
+    - remote_worker
     - ytdlp
     - gallerydl
-    - remote_worker
     photo:
     - tikwm
+    - remote_worker
     - gallerydl
     slideshow:
     - tikwm
+    - remote_worker
     - gallerydl
     audio:
     - tikwm
+    - remote_worker
     - ytdlp
   needsCookies: never
   contentTypes:
@@ -152,13 +161,16 @@
   routes:
     video:
     - fxtwitter
+    - remote_worker
     - ytdlp
     - gallerydl
     image:
     - fxtwitter
+    - remote_worker
     - gallerydl
     gif:
     - fxtwitter
+    - remote_worker
     - ytdlp
   needsCookies: optional
   contentTypes:
@@ -192,14 +204,17 @@
     regex: fb\.watch/([A-Za-z0-9_-]+)
   routes:
     video:
+    - remote_worker
     - ytdlp
     - gallerydl
     - opengraph
     reel:
+    - remote_worker
     - ytdlp
     - gallerydl
     - opengraph
     watch:
+    - remote_worker
     - ytdlp
     - gallerydl
   needsCookies: optional
@@ -230,13 +245,16 @@
     regex: reddit\.com/r/[^/]+/s/([A-Za-z0-9]+)
   routes:
     video:
-    - ytdlp
     - reddit_json
+    - remote_worker
+    - ytdlp
     image:
     - reddit_json
+    - remote_worker
     - gallerydl
     gallery:
     - reddit_json
+    - remote_worker
     - gallerydl
   needsCookies: optional
   contentTypes:
@@ -264,9 +282,11 @@
     regex: pin\.it/([A-Za-z0-9]+)
   routes:
     image:
+    - remote_worker
     - gallerydl
     - opengraph
     video:
+    - remote_worker
     - ytdlp
     - gallerydl
     - opengraph
@@ -293,12 +313,15 @@
     regex: threads\.(?:net|com)/@[\w.-]+/post/([A-Za-z0-9_-]+)
   routes:
     video:
+    - remote_worker
     - ytdlp
     - gallerydl
     image:
+    - remote_worker
     - gallerydl
     - ytdlp
     carousel:
+    - remote_worker
     - gallerydl
   needsCookies: optional
   contentTypes:
@@ -323,11 +346,14 @@
     regex: https?://[^\s/$.?#].[^\s]*
   routes:
     video:
+    - remote_worker
     - ytdlp
     - gallerydl
     image:
+    - remote_worker
     - gallerydl
     audio:
+    - remote_worker
     - ytdlp
   needsCookies: optional
   contentTypes:

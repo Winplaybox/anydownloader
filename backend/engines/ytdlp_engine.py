@@ -138,6 +138,38 @@ class YtDlpEngine:
                     height=t.get("height")
                 ))
 
+        # Subtitles (Creator + Auto)
+        raw_subs = info.get("subtitles") or {}
+        auto_subs = info.get("automatic_captions") or {}
+        seen_langs = set()
+        for lang, tracks in list(raw_subs.items()):
+            for tr in tracks:
+                if tr.get("url") and tr.get("ext") in ("vtt", "srt"):
+                    raw_items.append(RawItem(
+                        kind="subtitle",
+                        url=tr.get("url"),
+                        label=f"Subtitles ({lang.upper()})",
+                        ext=tr.get("ext", "srt")
+                    ))
+                    seen_langs.add(lang)
+                    break
+            if len(seen_langs) >= 6:
+                break
+
+        if len(seen_langs) < 4:
+            for lang in ("en", "hi", "es", "fr", "de"):
+                if lang in auto_subs and lang not in seen_langs:
+                    for tr in auto_subs[lang]:
+                        if tr.get("url") and tr.get("ext") in ("vtt", "srt"):
+                            raw_items.append(RawItem(
+                                kind="subtitle",
+                                url=tr.get("url"),
+                                label=f"Auto Captions ({lang.upper()})",
+                                ext=tr.get("ext", "srt")
+                            ))
+                            seen_langs.add(lang)
+                            break
+
         return RawResult(
             engine_id=self.id,
             id=item_id,

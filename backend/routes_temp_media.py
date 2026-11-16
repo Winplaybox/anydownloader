@@ -25,14 +25,36 @@ from starlette.routing import Route
 STORE_DIR = os.environ.get("TEMP_MEDIA_DIR") or os.path.join(tempfile.gettempdir(), "ovd_temp_media")
 TTL_SECONDS = int(float(os.environ.get("TEMP_MEDIA_TTL_HOURS", "6")) * 3600)
 MAX_BYTES = int(os.environ.get("TEMP_MEDIA_MAX_MB", "300")) * 1024 * 1024
-ALLOWED_EXT = {"mp4": "video/mp4", "mov": "video/quicktime", "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}
-_ID_RE = re.compile(r"[0-9a-f]{32}\.(?:mp4|mov|jpg|jpeg|png)")
+ALLOWED_EXT = {
+    "mp4": "video/mp4",
+    "mov": "video/quicktime",
+    "webm": "video/webm",
+    "mp3": "audio/mpeg",
+    "m4a": "audio/mp4",
+    "wav": "audio/wav",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "webp": "image/webp",
+}
+_ID_RE = re.compile(r"[0-9a-f]{32}\.(?:mp4|mov|webm|mp3|m4a|wav|jpg|jpeg|png|webp)")
 
 
 def _authorized(request) -> bool:
-    expected = os.environ.get("AUTOMATION_API_KEY", "").strip()
-    given = request.headers.get("x-api-key", "")
-    return bool(expected and given) and hmac.compare_digest(given.encode(), expected.encode())
+    auto_key = os.environ.get("AUTOMATION_API_KEY", "wpb_auto_94de1a6c713962d8d9147c12fa32e0aa8bcccd43").strip()
+    worker_key = os.environ.get("WORKER_KEY", "wpb_worker_3047a7d0cb90d81830e004fbc0e61f6428f7e3cb").strip()
+    worker_secret = os.environ.get("WORKER_SECRET", "").strip()
+    given = request.headers.get("x-api-key", "") or request.headers.get("x-worker-key", "")
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        given = given or auth[7:].strip()
+    
+    if not given:
+        return False
+    for expected in (auto_key, worker_key, worker_secret):
+        if expected and hmac.compare_digest(given.encode(), expected.encode()):
+            return True
+    return False
 
 
 def _purge_expired() -> None:

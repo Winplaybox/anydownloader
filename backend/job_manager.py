@@ -84,15 +84,16 @@ class JobManager:
             job["progress"] = 25
             output_path = os.path.join(JOBS_DIR, job["filename"])
 
+            ua_args = ["-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"]
             if action == "merge":
                 if not ffmpeg_bin:
                     raise RuntimeError("ffmpeg not found for video merging.")
                 # Expecting at least 1 or 2 sources (video, and optionally audio)
                 if len(sources) == 1:
                     # Single stream, transcode/ensure audio
-                    cmd = [ffmpeg_bin, "-y", "-i", sources[0], "-c:v", "copy", "-c:a", "aac", output_path]
+                    cmd = [ffmpeg_bin, "-y"] + ua_args + ["-i", sources[0], "-c:v", "copy", "-c:a", "aac", output_path]
                 else:
-                    cmd = [ffmpeg_bin, "-y", "-i", sources[0], "-i", sources[1], "-c:v", "copy", "-c:a", "aac", output_path]
+                    cmd = [ffmpeg_bin, "-y"] + ua_args + ["-i", sources[0]] + ua_args + ["-i", sources[1], "-c:v", "copy", "-c:a", "aac", output_path]
 
                 proc = await asyncio.create_subprocess_exec(
                     *cmd,
@@ -106,7 +107,7 @@ class JobManager:
             elif action == "mp3":
                 if not ffmpeg_bin:
                     raise RuntimeError("ffmpeg not found for mp3 extraction.")
-                cmd = [ffmpeg_bin, "-y", "-i", sources[0], "-vn", "-c:a", "libmp3lame", "-q:a", "2", output_path]
+                cmd = [ffmpeg_bin, "-y"] + ua_args + ["-i", sources[0], "-vn", "-c:a", "libmp3lame", "-q:a", "2", output_path]
                 proc = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,

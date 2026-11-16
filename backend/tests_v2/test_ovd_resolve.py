@@ -116,6 +116,7 @@ def test_resolve_youtube_blocked_returns_degraded_fast(monkeypatch):
     monkeypatch.setattr(main.engine_registry, "execute_chain", blocked)
     monkeypatch.setattr(main, "extract_media", legacy)
     monkeypatch.setattr(main, "extract_youtube_fallback", fallback)
+    monkeypatch.setattr(main, "_yt_fb", lambda: None)
     main._RESOLVE_CACHE.clear()
     c = TestClient(main.app)
     r = c.post("/api/resolve", json={"url": "https://www.youtube.com/shorts/G3WASPVq54Q?feature=share"},

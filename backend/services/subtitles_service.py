@@ -228,7 +228,54 @@ class SubtitlesService:
                         except Exception:
                             pass
         except Exception:
-            pass
+            # Fallback to PC Worker if local yt-dlp was blocked
+            try:
+                worker_url = os.environ.get("WORKER_URL", "https://exorcist-those-fax.ngrok-free.dev").strip().rstrip("/")
+                worker_key = (
+                    os.environ.get("WORKER_SECRET", "").strip()
+                    or os.environ.get("WORKER_KEY", "").strip()
+                    or "wpb_worker_3047a7d0cb90d81830e004fbc0e61f6428f7e3cb"
+                )
+                if worker_url:
+                    headers = {"Content-Type": "application/json", "X-Worker-Key": worker_key, "Authorization": f"Bearer {worker_key}"}
+                    w_resp = httpx.post(f"{worker_url}/extract", json={"url": media_url}, headers=headers, timeout=20.0)
+                    if w_resp.status_code == 200:
+                        w_data = w_resp.json()
+                        w_items = w_data.get("items", []) or []
+                        candidate_tracks = []
+                        for it in w_items:
+                            if it.get("kind") == "subtitle" and it.get("url"):
+                                candidate_tracks.append((it.get("label", "sub:en"), [{"ext": it.get("ext", "vtt"), "url": it.get("url")}]))
+                        if candidate_tracks:
+                            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0', 'Accept': '*/*'}
+                            client = httpx.Client(timeout=12.0, follow_redirects=True, headers=headers)
+                            for label, track_list in candidate_tracks:
+                                for tr in track_list:
+                                    t_url = tr.get("url")
+                                    if t_url:
+                                        t_resp = client.get(t_url)
+                                        if t_resp.status_code == 200 and len(t_resp.text) > 80:
+                                            raw_text = t_resp.text
+                                            vtt_blocks = re.findall(r'(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)\s*-->\s*(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)[^\n]*\n((?:(?!\n\n).)*)', raw_text, re.DOTALL)
+                                            segments = []
+                                            for b_start, b_end, b_text in vtt_blocks:
+                                                clean_t = re.sub(r'<[^>]+>', '', b_text).strip()
+                                                if clean_t:
+                                                    def to_sec(ts):
+                                                        parts = ts.split(':')
+                                                        return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2]) if len(parts) == 3 else float(parts[0]) * 60 + float(parts[1])
+                                                    segments.append({"start": to_sec(b_start), "end": to_sec(b_end), "text": clean_t})
+                                            if segments:
+                                                return {
+                                                    "source": "native",
+                                                    "track_label": label,
+                                                    "segments": segments,
+                                                    "srt": self.generate_srt_from_timed_segments(segments),
+                                                    "vtt": self.generate_vtt_from_timed_segments(segments),
+                                                    "transcript": " ".join(s["text"] for s in segments)
+                                                }
+            except Exception:
+                pass
         return None
 
 
