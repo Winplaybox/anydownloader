@@ -186,105 +186,87 @@ async function resolveYouTubeClientFallback(url, videoId) {
 }
 
 /**
- * Main Resilient Resolve Function
+ * Main resolve function.
+ * One backend call (the server already walks every engine + fallback and answers within its own budget).
+ * The 75 s ceiling covers a Render cold start (~50 s). We only retry on a network failure, never after a
+ * definitive answer, so the user is never made to wait twice.
  */
-export async function resolveMedia(rawInput) {
+export async function resolveMedia(rawInput, { signal } = {}) {
   const norm = normalizeUrl(rawInput, true);
   if (!norm.ok) {
     return { ok: false, code: norm.code, error: getErrorMessage(norm.code, norm.error) };
   }
-
-  const attributionHeaders = getAttributionHeaders();
   const attributionData = getAttribution();
 
-  // 1. Primary Attempt: /api/resolve
-  try {
+  const callOnce = async (path) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 35000);
+    const onAbort = () => controller.abort();
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
+    const timeoutId = setTimeout(() => controller.abort(), 75000);
+    try {
+      const resp = await fetch(`${BACKEND_BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: norm.url, allow_generic: true, attribution: attributionData }),
+        signal: controller.signal,
+      });
+      let json = null;
+      try { json = await resp.json(); } catch (_) { json = null; }
+      return { resp, json };
+    } finally {
+      clearTimeout(timeoutId);
+      if (signal) signal.removeEventListener('abort', onAbort);
+    }
+  };
 
-    const resp = await fetch(`${BACKEND_BASE}/api/resolve`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        url: norm.url,
-        allow_generic: true,
-        attribution: attributionData
-      }),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    if (resp.ok) {
-      const json = await resp.json();
-      if (json.ok && json.data) {
+  let networkFailed = false;
+  for (const path of ['/api/resolve', '/api/extract']) {
+    const startedAt = Date.now();
+    try {
+      const { resp, json } = await callOnce(path);
+      if (resp.ok && json && json.ok && json.data) {
         return { ok: true, data: json.data };
       }
-      if (json.error) {
-        return { ok: false, code: json.error.code, error: getErrorMessage(json.error.code, json.error.message) };
+      if (resp.ok && json && (json.success || json.ok) && (json.data || json)) {
+        const normalized = normalizeLegacyExtract(json.data || json, norm.url, norm.platform);
+        if (normalized.items?.[0]?.variants?.length) return { ok: true, data: normalized };
       }
+      if (json && json.error && resp.status !== 404 && resp.status !== 405) {
+        const code = json.error.code || ErrorCode.UPSTREAM_FAILED;
+        return { ok: false, code, retryable: !!json.error.retryable, error: getErrorMessage(code, json.error.message) };
+      }
+      break; // definitive non-error answer we could not use: do not repeat the same work
+    } catch (e) {
+      if (signal && signal.aborted) return { ok: false, aborted: true, code: 'ABORTED', error: '' };
+      networkFailed = true;
+      if (Date.now() - startedAt > 10000) break; // a long timeout means the server is overloaded: do not wait twice
     }
-
-    // If 404 (endpoint not deployed on current backend instance), fall through to /api/extract
-  } catch (e) {
-    // Network error or abort, proceed to fallback attempt
   }
 
-  // 2. Secondary Attempt: /api/extract (legacy gateway)
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 35000);
-
-    const resp = await fetch(`${BACKEND_BASE}/api/extract`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        url: norm.url,
-        attribution: attributionData
-      }),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    if (resp.ok) {
-      const json = await resp.json();
-      if (json.ok && json.data) {
-        return { ok: true, data: json.data };
-      }
-      const legacyPayload = json.data || json;
-      if ((json.success || json.ok) && legacyPayload) {
-        const normalized = normalizeLegacyExtract(legacyPayload, norm.url, norm.platform);
-        if (normalized && normalized.items && normalized.items.length > 0 && normalized.items[0].variants && normalized.items[0].variants.length > 0) {
-          return { ok: true, data: normalized };
-        }
-      }
-      if (json.error) {
-        return { ok: false, code: ErrorCode.UPSTREAM_FAILED, error: json.error };
-      }
-    }
-  } catch (e) {
-    // Network error
-  }
-
-  // 3. YouTube specific client fallback (extract video ID)
-  if (norm.platform === 'youtube') {
-    const vidMatch = norm.url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+  // Last resort for YouTube only when the backend is unreachable: show details + thumbnails honestly.
+  if (networkFailed && norm.platform === 'youtube') {
+    const vidMatch = norm.url.match(/(?:v=|youtu\.be\/|shorts\/|live\/)([a-zA-Z0-9_-]{11})/);
     if (vidMatch) {
       try {
         const ytData = await resolveYouTubeClientFallback(norm.url, vidMatch[1]);
+        ytData.status = 'degraded';
+        ytData.notice = {
+          code: 'SERVER_UNREACHABLE',
+          message: 'Our download server is waking up. Video downloads will appear when you retry in a few seconds.',
+          retryable: true,
+          downloads_available: false,
+        };
         return { ok: true, data: ytData };
-      } catch (e) {}
+      } catch (e) { /* fall through */ }
     }
   }
 
   return {
     ok: false,
-    code: ErrorCode.UPSTREAM_FAILED,
-    error: 'The extraction engine could not resolve media from this link. Please check if the post is public and try again.'
+    code: networkFailed ? 'NETWORK' : ErrorCode.UPSTREAM_FAILED,
+    retryable: true,
+    error: networkFailed
+      ? 'We could not reach the download server. Check your connection and try again.'
+      : 'We could not find downloadable media at this link. Make sure the post is public and try again.',
   };
 }

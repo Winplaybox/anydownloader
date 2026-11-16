@@ -3,7 +3,7 @@ services:
     name: anydownloader-api
     runtime: python
     plan: free
-    buildCommand: pip install -r backend/requirements.txt
+    buildCommand: pip install --upgrade -r backend/requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --app-dir backend
     healthCheckPath: /health
     envVars:

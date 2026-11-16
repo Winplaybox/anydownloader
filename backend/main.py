@@ -1,4 +1,5 @@
 import os
+import time
 import sys
 import base64
 
@@ -52,6 +53,8 @@ except ModuleNotFoundError:
     from utils.security import verify_download_token
     from extractors.registry import registry
 import html
+import hashlib
+import hmac
 import os
 import re
 import sys
@@ -80,17 +83,23 @@ from starlette.middleware.cors import CORSMiddleware
 try:
     from backend.security.zero_trust import (
         ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify,
+        authenticate_admin as _zt_authenticate_admin, admin_locked as _zt_admin_locked,
+        record_admin_failure as _zt_admin_failure, client_ip as _zt_client_ip, bearer as _zt_bearer,
     )
     from backend.routes_v2 import routes_v2
     from backend.routes_autopilot import routes_autopilot
     from backend.routes_studio import routes_studio
     from backend.routes_editor import routes_editor
+    from backend.routes_temp_media import routes_temp_media
 except (ModuleNotFoundError, ImportError):
     from security.zero_trust import ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify
+    from security.zero_trust import (authenticate_admin as _zt_authenticate_admin, admin_locked as _zt_admin_locked,
+                                     record_admin_failure as _zt_admin_failure, client_ip as _zt_client_ip, bearer as _zt_bearer)
     from routes_v2 import routes_v2
     from routes_autopilot import routes_autopilot
     from routes_studio import routes_studio
     from routes_editor import routes_editor
+    from routes_temp_media import routes_temp_media
 
 # Security & Origin Configuration
 ALLOWED_ORIGINS = [
@@ -100,6 +109,9 @@ ALLOWED_ORIGINS = [
     ).split(",") if o.strip()
 ]
 EXTENSION_SECRET_KEY = os.environ.get("EXTENSION_SECRET_KEY", "wpb_ext_9f83e2a74c1048b9ad51f63cb7e90812")
+# Server-to-server key for automations (Make.com, n8n, cron). Send as `X-API-Key`.
+# Unset = disabled. Keep it out of the repo: set it only in the Render dashboard.
+AUTOMATION_API_KEY = os.environ.get("AUTOMATION_API_KEY", "").strip()
 ALLOWED_EXTENSION_IDS = [
     ext_id.strip() for ext_id in os.environ.get("ALLOWED_EXTENSION_IDS", "aifhpejlmiogofokpjclelmlohmlnjmm").split(",") if ext_id.strip()
 ]
@@ -159,6 +171,14 @@ def find_node_path() -> Optional[str]:
     return None
 
 NODE_EXE = find_node_path()
+
+
+def _yo_extract_opts() -> Dict[str, Any]:
+    try:
+        from backend.utils.ytdlp_opts import robust_opts
+    except (ModuleNotFoundError, ImportError):
+        from utils.ytdlp_opts import robust_opts  # type: ignore
+    return robust_opts("extract")
 
 def is_safe_cdn_url(target_url: str) -> bool:
     """Validates target URL is a public web resource (http/https) and prevents SSRF."""
@@ -350,10 +370,10 @@ def extract_youtube_fallback(url: str, video_id: str):
         "id": video_id,
         "title": title_clean,
         "thumbnail": thumb,
-        "duration": "YouTube Video",
+        "duration": None,
         "uploader": author,
         "platform": "youtube",
-        "views": "Verified",
+        "views": None,
         "video_formats": video_formats,
         "audio_formats": audio_formats,
         "thumbnails": thumbnails,
@@ -716,13 +736,8 @@ def extract_youtube_channel(url: str):
     else:
         videos_url = clean_url
 
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'extract_flat': True,
-        'playlist_items': '1-6',
-        'skip_download': True
-    }
+    ydl_opts = _yo_extract_opts()
+    ydl_opts.update({'extract_flat': True, 'playlist_items': '1-6', 'noplaylist': False})
 
     title = "YouTube Channel"
     uploader = "Creator"
@@ -1749,20 +1764,8 @@ def extract_media_base(url: str, forced_platform: Optional[str] = None):
     yt_m = re.search(r'(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})', url) if platform == "youtube" else None
     video_id = yt_m.group(1) if yt_m else ""
 
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "extract_flat": False,
-        "skip_download": True,
-        "noplaylist": True,
-        "socket_timeout": 8,
-        "http_headers": {
-            "User-Agent": USER_AGENT,
-            "Accept-Language": "en-US,en;q=0.9",
-        }
-    }
-    if NODE_EXE:
-        ydl_opts["js_runtimes"] = {"node": {"path": NODE_EXE}}
+    ydl_opts = _yo_extract_opts()
+    ydl_opts["extract_flat"] = False
 
     info = None
     try:
@@ -2170,47 +2173,128 @@ async def extract_handler(request):
         return JSONResponse({"success": False, "error": error_msg}, status_code=500)
 
 
-def run_download_video_task(source_url: str, height: int, output_template: str):
-    """Download video stream with audio merged using yt-dlp and ffmpeg."""
-    cookie_path = None
-    pool = os.environ.get("COOKIE_POOL_PATH", "./cookies")
-    yt_cookie = os.path.join(pool, "youtube.txt")
-    if os.path.exists(yt_cookie):
-        cookie_path = yt_cookie
+# yt-dlp setup lives in utils/ytdlp_opts.py so resolve, extract and download share it.
+try:
+    from backend.utils import ytdlp_opts as _yo
+    from backend.services import analytics as _analytics, yt_guard as _yt_guard
+except (ModuleNotFoundError, ImportError):
+    from utils import ytdlp_opts as _yo  # type: ignore
+    from services import analytics as _analytics, yt_guard as _yt_guard  # type: ignore
 
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'format': f'bestvideo[height<={height}]+bestaudio/best[height<={height}]/best',
+_find_js_runtimes = _yo.find_js_runtimes
+_normalize_netscape_cookies = _yo.normalize_netscape_cookies
+_ytdlp_cookiefile = _yo.cookiefile
+
+
+def _ytdlp_robust_opts() -> Dict[str, Any]:
+    return _yo.robust_opts("download")
+
+
+
+# ---- download guards (free tier: 512 MB RAM, so only a couple of ffmpeg jobs at once) ----
+_DL_SEM = asyncio.Semaphore(int(os.environ.get("OVD_MAX_DOWNLOADS", "2")))
+DOWNLOAD_TIMEOUT_S = float(os.environ.get("OVD_DOWNLOAD_TIMEOUT_S", "300"))
+
+
+def _is_public_http_url(u: str) -> bool:
+    """Only public http(s) pages may be handed to yt-dlp (blocks SSRF to localhost / cloud metadata)."""
+    import ipaddress
+    import socket
+    try:
+        pu = urllib.parse.urlparse(u)
+        if pu.scheme not in ("http", "https") or not pu.hostname:
+            return False
+        infos = socket.getaddrinfo(pu.hostname, pu.port or (443 if pu.scheme == "https" else 80))
+        for info in infos:
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return False
+        return True
+    except Exception:
+        return False
+
+
+async def _run_download_limited(fn, *args):
+    """Run a blocking download with a concurrency cap and an overall deadline."""
+    try:
+        await asyncio.wait_for(_DL_SEM.acquire(), timeout=45)
+    except asyncio.TimeoutError:
+        raise RuntimeError("server busy: too many downloads in progress")
+    try:
+        await asyncio.wait_for(asyncio.to_thread(fn, *args), timeout=DOWNLOAD_TIMEOUT_S)
+    finally:
+        _DL_SEM.release()
+
+def run_download_video_task(source_url: str, height: int, output_template: str):
+    """Download video stream with audio merged using yt-dlp and ffmpeg.
+
+    Prefers H.264 + AAC so the MP4 is accepted by Instagram/Facebook Reels APIs.
+    """
+    ydl_opts = _ytdlp_robust_opts()
+    ydl_opts.update({
+        'format': (
+            f'bv*[height<={height}][vcodec^=avc1]+ba[ext=m4a]/'
+            f'bv*[height<={height}]+ba/'
+            f'b[height<={height}]/b'
+        ),
         'outtmpl': output_template,
         'merge_output_format': 'mp4',
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'ios', 'web']
-            }
-        },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
-        }
-    }
-    if cookie_path:
-        ydl_opts['cookiefile'] = cookie_path
+    })
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([source_url])
+    except Exception as exc:
+        if not (_is_youtube_url(source_url) and _yo.is_youtube_block(str(exc))):
+            raise
+        print(f"[download] yt-dlp blocked, trying pytubefix: {str(exc)[:120]}", flush=True)
+        _yt_fb().download_video(source_url, height, os.path.dirname(output_template))
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([source_url])
+
+def _is_youtube_url(u: str) -> bool:
+    return bool(re.search(r"(youtube\.com|youtu\.be)", u or "", re.I))
+
+
+def _yt_fb():
+    try:
+        from backend.services import yt_fallback
+    except (ModuleNotFoundError, ImportError):
+        from services import yt_fallback  # type: ignore
+    return yt_fallback
+
+
+def _youtube_cooldown_response() -> JSONResponse:
+    wait = _yt_guard.retry_after()
+    return JSONResponse({"ok": False, "error": {
+        "code": "SOURCE_BLOCKED", "retryable": True, "retry_after_s": wait,
+        "message": "YouTube is temporarily limiting downloads from our server. Please try again in a few minutes."}},
+        status_code=503, headers={"Retry-After": str(max(wait, 1))})
+
+
+def _download_error_response(exc: Exception) -> JSONResponse:
+    """Friendly JSON error for the UI (never leak raw yt-dlp/ffmpeg text to users)."""
+    msg = str(exc)
+    if _yo.is_youtube_block(msg):
+        code, status, text = "SOURCE_BLOCKED", 503, ("YouTube is temporarily blocking downloads from our server for this video. "
+                                                    "Please try again in a few minutes.")
+    elif "server busy" in msg.lower():
+        code, status, text = "SERVER_BUSY", 503, "Many downloads are running right now. Please try again in a minute."
+    elif isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
+        code, status, text = "DOWNLOAD_TIMEOUT", 504, "This file is taking too long to prepare. Try a lower quality."
+    elif "private" in msg.lower():
+        code, status, text = "PRIVATE_CONTENT", 403, "This video is private or restricted by the creator."
+    elif "unavailable" in msg.lower() or "not found" in msg.lower():
+        code, status, text = "NOT_FOUND", 404, "This video is unavailable or was removed."
+    else:
+        code, status, text = "DOWNLOAD_FAILED", 502, "We couldn't prepare this download. Please try again or pick another quality."
+    print(f"[download] error {code}: {msg[:300]}", flush=True)
+    return JSONResponse({"ok": False, "error": {"code": code, "message": text, "retryable": status in (502, 503, 504)}},
+                        status_code=status)
+
 
 def run_download_audio_task(source_url: str, quality: str, output_template: str):
     """Download audio stream and extract MP3 using yt-dlp and ffmpeg."""
-    cookie_path = None
-    pool = os.environ.get("COOKIE_POOL_PATH", "./cookies")
-    yt_cookie = os.path.join(pool, "youtube.txt")
-    if os.path.exists(yt_cookie):
-        cookie_path = yt_cookie
-
     ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
+        **_ytdlp_robust_opts(),
         'format': 'bestaudio/best',
         'outtmpl': output_template,
         'postprocessors': [{
@@ -2218,21 +2302,15 @@ def run_download_audio_task(source_url: str, quality: str, output_template: str)
             'preferredcodec': 'mp3',
             'preferredquality': quality,
         }],
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'ios', 'web']
-            }
-        },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
-        }
     }
-    if cookie_path:
-        ydl_opts['cookiefile'] = cookie_path
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([source_url])
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([source_url])
+    except Exception as exc:
+        if not (_is_youtube_url(source_url) and _yo.is_youtube_block(str(exc))):
+            raise
+        print(f"[download] yt-dlp blocked (audio), trying pytubefix: {str(exc)[:120]}", flush=True)
+        _yt_fb().download_audio(source_url, quality, os.path.dirname(output_template))
 
 async def download_video_handler(request):
     """Handler that merges video and audio with ffmpeg, streaming genuine audio-enabled MP4."""
@@ -2241,7 +2319,9 @@ async def download_video_handler(request):
     title = request.query_params.get("title") or "video"
     
     if not source_url:
-        return Response("Missing video url parameter", status_code=400)
+        return error_response(ErrorCode.URL_MISSING, "Missing video link.")
+    if not await asyncio.to_thread(_is_public_http_url, source_url):
+        return error_response(ErrorCode.URL_INVALID, "That link can't be downloaded.")
     
     try:
         height = int(height_str)
@@ -2250,12 +2330,16 @@ async def download_video_handler(request):
 
     clean_title = re.sub(r'[\/*?:"<>|]', "", title).strip() or "video"
     safe_filename = f"{clean_title}_{height}p.mp4"
+    if _is_youtube_url(source_url) and _yt_guard.retry_after() > 0:
+        return _youtube_cooldown_response()   # do not hammer YouTube while it is blocking us
     
     temp_dir = tempfile.mkdtemp(prefix="wpb_vid_")
     out_tmpl = os.path.join(temp_dir, "media.%(ext)s")
     
     try:
-        await asyncio.to_thread(run_download_video_task, source_url, height, out_tmpl)
+        await _run_download_limited(run_download_video_task, source_url, height, out_tmpl)
+        if _is_youtube_url(source_url):
+            _yt_guard.success()
         final_mp4 = os.path.join(temp_dir, "media.mp4")
         if not os.path.exists(final_mp4):
             files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if not f.endswith(('.part', '.ytdl'))]
@@ -2263,7 +2347,7 @@ async def download_video_handler(request):
                 final_mp4 = files[0]
             else:
                 shutil.rmtree(temp_dir, ignore_errors=True)
-                return Response("Failed to generate video with audio", status_code=500)
+                return _download_error_response(RuntimeError("no output file"))
         
         return FileResponse(
             final_mp4,
@@ -2273,7 +2357,9 @@ async def download_video_handler(request):
         )
     except Exception as exc:
         shutil.rmtree(temp_dir, ignore_errors=True)
-        return Response(f"Error processing video download: {str(exc)}", status_code=500)
+        if _is_youtube_url(source_url) and _yo.is_youtube_block(str(exc)):
+            _yt_guard.failure()
+        return _download_error_response(exc)
 
 async def download_audio_handler(request):
     """Handler that extracts pure audio MP3 with tags using ffmpeg, streaming MP3 with sound."""
@@ -2282,16 +2368,22 @@ async def download_audio_handler(request):
     title = request.query_params.get("title") or "audio"
     
     if not source_url:
-        return Response("Missing audio url parameter", status_code=400)
+        return error_response(ErrorCode.URL_MISSING, "Missing audio link.")
+    if not await asyncio.to_thread(_is_public_http_url, source_url):
+        return error_response(ErrorCode.URL_INVALID, "That link can't be downloaded.")
     
     clean_title = re.sub(r'[\/*?:"<>|]', "", title).strip() or "audio"
     safe_filename = f"{clean_title}_{quality}kbps.mp3"
-    
+    if _is_youtube_url(source_url) and _yt_guard.retry_after() > 0:
+        return _youtube_cooldown_response()
+
     temp_dir = tempfile.mkdtemp(prefix="wpb_aud_")
     out_tmpl = os.path.join(temp_dir, "media.%(ext)s")
     
     try:
-        await asyncio.to_thread(run_download_audio_task, source_url, quality, out_tmpl)
+        await _run_download_limited(run_download_audio_task, source_url, quality, out_tmpl)
+        if _is_youtube_url(source_url):
+            _yt_guard.success()
         final_mp3 = os.path.join(temp_dir, "media.mp3")
         if not os.path.exists(final_mp3):
             files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.endswith('.mp3')]
@@ -2299,7 +2391,7 @@ async def download_audio_handler(request):
                 final_mp3 = files[0]
             else:
                 shutil.rmtree(temp_dir, ignore_errors=True)
-                return Response("Failed to generate audio mp3", status_code=500)
+                return _download_error_response(RuntimeError("no output file"))
         
         return FileResponse(
             final_mp3,
@@ -2309,7 +2401,9 @@ async def download_audio_handler(request):
         )
     except Exception as exc:
         shutil.rmtree(temp_dir, ignore_errors=True)
-        return Response(f"Error processing audio download: {str(exc)}", status_code=500)
+        if _is_youtube_url(source_url) and _yo.is_youtube_block(str(exc)):
+            _yt_guard.failure()
+        return _download_error_response(exc)
 
 async def stream_download_handler(request):
     target_url = request.query_params.get("url")
@@ -2395,6 +2489,9 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
         # OAuth sign-in redirects come from the platform (no allowed origin); the route checks its own signed state.
         if request.method == "GET" and request.url.path.startswith("/oauth/autopilot/"):
             return await call_next(request)
+        # Temp media for automations: Instagram/Facebook fetch these files (ids are random UUIDs).
+        if request.method in ("GET", "HEAD") and request.url.path.startswith("/api/temp-media/"):
+            return await call_next(request)
         # AI Video Editor: media GETs are opened by <video>/<audio>/download links (job ids are random UUIDs).
         if request.method == "GET" and (request.url.path == "/api/editor/voice-preview"
                                         or re.fullmatch(r"/api/editor/jobs/[0-9a-f-]{36}/file/[a-z]+", request.url.path)):
@@ -2406,7 +2503,12 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
         ext_key = request.headers.get("x-extension-key", "")
 
         # A. Browser Extension Key check
-        if ext_key and ext_key == EXTENSION_SECRET_KEY:
+        if ext_key and hmac.compare_digest(ext_key.encode(), EXTENSION_SECRET_KEY.encode()):
+            return await call_next(request)
+
+        # A2. Automation key (Make.com and other server-side callers)
+        api_key = request.headers.get("x-api-key", "")
+        if AUTOMATION_API_KEY and api_key and hmac.compare_digest(api_key.encode(), AUTOMATION_API_KEY.encode()):
             return await call_next(request)
 
         # B. Browser Extension Origin check
@@ -2666,6 +2768,22 @@ def map_legacy_to_normalized(legacy_data: Dict[str, Any], platform_id: str, url:
             hasAudio=vf.get("has_audio", True)
         ).to_dict())
 
+    audios = []
+    for idx, af in enumerate(legacy_data.get("audio_formats") or []):
+        if not (af.get("stream_url") or af.get("url")):
+            continue
+        br = None
+        m_br = re.search(r"(\d{2,3})\s*kbps", af.get("quality") or "")
+        if m_br:
+            br = int(m_br.group(1))
+        fn = f"{platform_id}_audio_{idx+1}.mp3"
+        audios.append(AudioVariant(
+            label=af.get("quality") or "MP3 Audio",
+            token=sign_download_token(af.get("stream_url") or af.get("url"), fn),
+            ext="mp3",
+            bitrate=br
+        ).to_dict())
+
     def _unwrap_url(u: Optional[str]) -> str:
         if not u:
             return ""
@@ -2719,16 +2837,96 @@ def map_legacy_to_normalized(legacy_data: Dict[str, Any], platform_id: str, url:
         "author": {"username": uploader, "displayName": uploader, "avatar": thumb},
         "stats": stats if stats else None,
         "videos": videos,
-        "audios": [],
+        "audios": audios,
         "images": images,
         "thumbnails": thumbnails,
         "subtitles": [],
+        "duration": legacy_data.get("duration") if isinstance(legacy_data.get("duration"), (int, float)) else None,
         "warnings": []
     }
 
 async def platforms_handler(request):
     data = platform_registry.get_platforms_api()
     return JSONResponse({"ok": True, "platforms": data})
+
+RESOLVE_BUDGET_S = float(os.environ.get("OVD_RESOLVE_BUDGET_S", "25"))
+_RESOLVE_CACHE: Dict[str, Any] = {}
+
+
+def _resolve_cache_get(key: str):
+    hit = _RESOLVE_CACHE.get(key)
+    if hit and hit[0] > time.time():
+        return hit[1]
+    _RESOLVE_CACHE.pop(key, None)
+    return None
+
+
+def _resolve_cache_put(key: str, payload: Dict[str, Any], ttl: int) -> None:
+    if len(_RESOLVE_CACHE) > 500:
+        for k in sorted(_RESOLVE_CACHE, key=lambda k: _RESOLVE_CACHE[k][0])[:100]:
+            _RESOLVE_CACHE.pop(k, None)
+    _RESOLVE_CACHE[key] = (time.time() + ttl, payload)
+
+
+
+def _apply_pytubefix_info(legacy: Dict[str, Any], info: Dict[str, Any], video_id: str) -> None:
+    """Overlay real pytubefix metadata + only the qualities that really exist."""
+    if info.get("title"):
+        legacy["title"] = re.sub(r'[\\/*?:"<>|]', "", info["title"]).strip() or legacy["title"]
+    if info.get("author"):
+        legacy["uploader"] = info["author"]
+    if info.get("thumbnail"):
+        legacy["thumbnail"] = info["thumbnail"]
+    legacy["duration"] = info.get("duration") or None
+    legacy["views"] = info.get("views") or None
+    heights = [h for h in info.get("heights", []) if h <= 1080]
+    if heights:
+        top = heights[0]
+        legacy["video_formats"] = [vf for vf in legacy["video_formats"]
+                                   if vf["height"] <= top and any(h >= vf["height"] for h in heights)]
+
+
+async def _resolve_degraded(resolved_url: str, platform_def: Dict[str, Any], ae: "AppError", cache_key: str):
+    """Video formats unavailable: still return metadata + thumbnails, with an explicit notice
+    so the UI can tell the user instead of silently showing photos only."""
+    pid = platform_def.get("id")
+    notice = {"code": ae.code.value, "message": ae.message, "retryable": ae.retryable,
+              "downloads_available": False}
+    if pid == "youtube":
+        m = re.search(r'(?:v=|youtu\.be/|shorts/|live/|embed/)([a-zA-Z0-9_-]{11})', resolved_url)
+        if m:
+            try:
+                loop = asyncio.get_event_loop()
+                legacy = await loop.run_in_executor(None, extract_youtube_fallback, resolved_url, m.group(1))
+                info = None
+                try:
+                    if _yt_guard.retry_after() > 0:
+                        raise RuntimeError("cooldown active, skipping pytubefix")
+                    info = await asyncio.wait_for(asyncio.to_thread(_yt_fb().resolve_info, resolved_url), timeout=14)
+                except Exception as fb_err:
+                    print(f"[resolve] pytubefix resolve failed: {str(fb_err)[:160]}", flush=True)
+                if info:
+                    _apply_pytubefix_info(legacy, info, m.group(1))
+                    data = map_legacy_to_normalized(legacy, pid, resolved_url)
+                    data["status"] = "ok"
+                    payload = {"ok": True, "success": True, "data": data}
+                    _resolve_cache_put(cache_key, payload, ttl=600)
+                    print("[resolve] youtube resolved via pytubefix", flush=True)
+                    return JSONResponse(payload)
+                data = map_legacy_to_normalized(legacy, pid, resolved_url)
+                data["notice"] = notice
+                data["status"] = "degraded"
+                data["warnings"] = [
+                    "YouTube is temporarily blocking video downloads from our server for this link. "
+                    "Thumbnails and details are available now - please retry the video in a few minutes."
+                ]
+                payload = {"ok": True, "success": True, "degraded": True, "data": data}
+                _resolve_cache_put(cache_key, payload, ttl=90)  # short: retry soon
+                return JSONResponse(payload)
+            except Exception as degraded_err:
+                print(f"[resolve] degraded build failed: {degraded_err!r}", flush=True)
+    return ae.to_response()
+
 
 async def unified_extract_handler(request):
     try:
@@ -2762,16 +2960,36 @@ async def unified_extract_handler(request):
         attribution=body.get("attribution")
     )
 
+    cache_key = f"{platform_def['id']}|{content_type}|{resolved_url}"
+    cached = _resolve_cache_get(cache_key)
+    if cached is not None:
+        return JSONResponse(cached, headers={"X-OVD-Cache": "hit"})
+
+    if platform_def.get("id") == "youtube" and _yt_guard.retry_after() > 0:
+        return await _resolve_degraded(resolved_url, platform_def, AppError(
+            ErrorCode.SOURCE_BLOCKED, "YouTube is temporarily limiting requests from our server. Please try again in a few minutes."), cache_key)
+
     try:
-        raw_result = await engine_registry.execute_chain(
-            resolved_url,
-            platform_def.get("routes", {}),
-            content_type,
-            ctx
+        # Hard budget so the browser (35 s abort) always gets an answer.
+        raw_result = await asyncio.wait_for(
+            engine_registry.execute_chain(resolved_url, platform_def.get("routes", {}), content_type, ctx),
+            timeout=RESOLVE_BUDGET_S,
         )
         normalized = normalize_raw_result(raw_result, platform_def, content_type)
-        return JSONResponse({"ok": True, "success": True, "data": normalized.to_dict()})
+        payload = {"ok": True, "success": True, "data": normalized.to_dict()}
+        _resolve_cache_put(cache_key, payload, ttl=600)
+        if platform_def.get("id") == "youtube":
+            _yt_guard.success()
+        return JSONResponse(payload)
+    except asyncio.TimeoutError:
+        ae_timeout = AppError(ErrorCode.TIMEOUT, "The platform is slow to respond. Please try again.")
+        return await _resolve_degraded(resolved_url, platform_def, ae_timeout, cache_key)
     except AppError as ae:
+        if ae.code in (ErrorCode.SOURCE_BLOCKED,) and platform_def.get("id") == "youtube":
+            _yt_guard.failure()
+        if ae.code in (ErrorCode.SOURCE_BLOCKED,) or platform_def.get("id") == "youtube":
+            # Do NOT re-run yt-dlp in the legacy path (that doubled the wait to ~60 s).
+            return await _resolve_degraded(resolved_url, platform_def, ae, cache_key)
         try:
             loop = asyncio.get_event_loop()
             legacy_data = await loop.run_in_executor(None, extract_media, resolved_url)
@@ -3728,6 +3946,166 @@ async def generate_reel_handler(request):
         traceback.print_exc()
         return JSONResponse({"ok": False, "error": f"Internal error during video generation: {str(e)}"}, status_code=500)
 
+def _tracked(kind: str, impl):
+    """Wrap a handler so every resolve/download is recorded in analytics (never affects the response)."""
+    async def handler(request):
+        t0 = time.perf_counter()
+        resp = None
+        exc_seen = None
+        try:
+            resp = await impl(request)
+            return resp
+        except BaseException as e:
+            exc_seen = e
+            raise
+        finally:
+            asyncio.get_running_loop().create_task(
+                _analytics.track_request(kind, request, resp, (time.perf_counter() - t0) * 1000, exc_seen))
+    handler.__name__ = getattr(impl, "__name__", "handler") + "_tracked"
+    return handler
+
+
+_ADMIN_TOKEN_CACHE: Dict[str, tuple] = {}
+
+
+def _admin_emails() -> set:
+    # Same allow-list the other WinPlayBox admin tools use (comma separated Google account emails).
+    return {e.strip().lower() for e in os.environ.get("WPB_ADMIN_EMAILS", "").split(",") if e.strip()}
+
+
+async def _google_admin_check(request) -> tuple:
+    """Supabase (Google) login -> (admin email | None, reason). The token is verified by Supabase itself,
+    so any signing algorithm works. Only emails in WPB_ADMIN_EMAILS get in."""
+    token = _zt_bearer(request)
+    if not token or token.startswith("wpb") or token.count(".") != 2:
+        return None, "no_token"
+    base, key = os.environ.get("SUPABASE_URL", "").rstrip("/"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not base or not key:
+        print("[analytics] admin login: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing on this server", flush=True)
+        return None, "auth_not_configured"
+    ck = hashlib.sha256(token.encode()).hexdigest()
+    hit = _ADMIN_TOKEN_CACHE.get(ck)
+    if hit and hit[1] > time.time():
+        return hit[0], "ok"
+    try:
+        async with httpx.AsyncClient(timeout=8) as c:
+            r = await c.get(f"{base}/auth/v1/user", headers={"apikey": key, "Authorization": f"Bearer {token}"})
+        if r.status_code != 200:
+            print(f"[analytics] admin login: Supabase rejected the session ({r.status_code})", flush=True)
+            return None, "token_rejected"
+        u = r.json()
+        email = (u.get("email") or "").lower()
+        allowed = _admin_emails()
+        if not allowed:
+            print("[analytics] admin login: WPB_ADMIN_EMAILS is empty on this server", flush=True)
+            return None, "no_admin_emails"
+        if email not in allowed:
+            print(f"[analytics] admin login: signed-in account is not in WPB_ADMIN_EMAILS ({len(allowed)} allowed)", flush=True)
+            return None, "email_not_allowed"
+        if not (u.get("email_confirmed_at") or u.get("confirmed_at")):
+            return None, "email_not_verified"
+        if len(_ADMIN_TOKEN_CACHE) > 50:
+            _ADMIN_TOKEN_CACHE.clear()
+        _ADMIN_TOKEN_CACHE[ck] = (email, time.time() + 300)
+        return email, "ok"
+    except Exception as e:
+        print(f"[analytics] admin token check failed: {e}", flush=True)
+        return None, "check_failed"
+
+
+_LOGIN_MESSAGES = {
+    "auth_not_configured": "The server is missing its Supabase settings (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY).",
+    "no_admin_emails": "The server has no admin emails set (WPB_ADMIN_EMAILS).",
+    "email_not_allowed": "You are signed in with Google, but this account is not in the server's admin email list (WPB_ADMIN_EMAILS).",
+    "email_not_verified": "This Google account's email is not verified.",
+    "token_rejected": "Supabase rejected the session. Sign in again.",
+    "check_failed": "Could not reach Supabase to check the login. Try again in a minute.",
+}
+
+
+# ---- OVD dashboard: username + password login (set OVD_ADMIN_USER / OVD_ADMIN_PASS on the server) ----
+_SESSION_TTL_S = 12 * 3600
+
+
+def _session_secret() -> bytes:
+    k = os.environ.get("WPB_ADMIN_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or ""
+    return hashlib.sha256(b"ovd-admin-session|" + k.encode()).digest() if k else b""
+
+
+def _make_session(user: str) -> str:
+    exp = int(time.time()) + _SESSION_TTL_S
+    body = base64.urlsafe_b64encode(f"{user}|{exp}".encode()).decode().rstrip("=")
+    sig = hmac.new(_session_secret(), body.encode(), hashlib.sha256).hexdigest()
+    return f"ovdadm.{body}.{sig}"
+
+
+def _verify_session(token: str) -> Optional[str]:
+    try:
+        tag, body, sig = token.split(".")
+        sec = _session_secret()
+        if tag != "ovdadm" or not sec:
+            return None
+        if not hmac.compare_digest(sig, hmac.new(sec, body.encode(), hashlib.sha256).hexdigest()):
+            return None
+        user, exp = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)).decode().rsplit("|", 1)
+        return user if int(exp) > time.time() else None
+    except Exception:
+        return None
+
+
+async def ovd_admin_login_handler(request):
+    ip = _zt_client_ip(request)
+    if await asyncio.to_thread(_zt_admin_locked, ip):
+        return JSONResponse({"ok": False, "error": "Too many failed attempts. Try again later."}, status_code=429)
+    want_u, want_p = os.environ.get("OVD_ADMIN_USER", ""), os.environ.get("OVD_ADMIN_PASS", "")
+    if not want_u or not want_p or not _session_secret():
+        print("[analytics] password login: OVD_ADMIN_USER / OVD_ADMIN_PASS (or WPB_ADMIN_KEY) not set on this server", flush=True)
+        return JSONResponse({"ok": False, "error": "Login is not set up on the server yet (OVD_ADMIN_USER and OVD_ADMIN_PASS)."}, status_code=503)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    u, p = str(body.get("username", ""))[:128], str(body.get("password", ""))[:256]
+    ok_u = hmac.compare_digest(u.encode(), want_u.encode())
+    ok_p = hmac.compare_digest(p.encode(), want_p.encode())
+    if not (ok_u and ok_p):
+        await asyncio.sleep(0.6)
+        await asyncio.to_thread(_zt_admin_failure, ip)
+        return JSONResponse({"ok": False, "error": "Wrong username or password."}, status_code=401)
+    return JSONResponse({"ok": True, "token": _make_session(u), "expires_in": _SESSION_TTL_S}, headers={"Cache-Control": "no-store"})
+
+
+async def ovd_analytics_handler(request):
+    ip = _zt_client_ip(request)
+    if await asyncio.to_thread(_zt_admin_locked, ip):
+        return JSONResponse({"ok": False, "error": "Too many failed attempts. Try again later."}, status_code=429)
+    who = _zt_authenticate_admin(request)
+    reason = "ok"
+    if not who:
+        tok = _zt_bearer(request)
+        who = _verify_session(tok) if tok and tok.startswith("ovdadm.") else None
+    if not who:
+        who, reason = await _google_admin_check(request)
+    if not who:
+        if reason in ("no_token", "token_rejected", "email_not_allowed"):
+            await asyncio.to_thread(_zt_admin_failure, ip)      # only count real failed attempts toward the lockout
+        return JSONResponse({"ok": False, "reason": reason,
+                             "error": _LOGIN_MESSAGES.get(reason, "Sign in with the admin Google account.")}, status_code=401)
+    try:
+        days = max(1, min(90, int(request.query_params.get("days", "7"))))
+    except ValueError:
+        days = 7
+    try:
+        rows = await _analytics.fetch_rows(days)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"Could not read analytics: {e}"}, status_code=502)
+    return JSONResponse({"ok": True, **_analytics.summarize(rows, days, _yt_guard.state())},
+                        headers={"Cache-Control": "no-store"})
+
+
+routes_analytics = [Route("/api/ovd/analytics", ovd_analytics_handler, methods=["GET"]),
+                    Route("/api/ovd/admin-login", ovd_admin_login_handler, methods=["POST"])]
+
 routes = [
         # --- Sovereign Zero-Trust & AI Services Gateway ---
     Route('/api/v1/auth/token', issue_token_handler, methods=['POST']),
@@ -3750,12 +4128,12 @@ routes = [
     Route('/api/v1/video/generate-reel', generate_reel_handler, methods=['POST']),
     Route('/api/v1/video/download', video_download_handler, methods=['GET']),
     Route('/api/v1/audio/download', audio_download_handler, methods=['GET']),
-    Route('/api/resolve', unified_extract_handler, methods=['POST']),
-    Route('/api/extract', unified_extract_handler, methods=['POST']),
+    Route('/api/resolve', _tracked('resolve', unified_extract_handler), methods=['POST']),
+    Route('/api/extract', _tracked('resolve', unified_extract_handler), methods=['POST']),
     Route('/api/ai/captions', ai_captions_handler, methods=['POST']),
     Route('/api/ai/voice', ai_voice_handler, methods=['POST']),
     Route('/api/platforms', platforms_handler, methods=['GET']),
-    Route('/api/download', download_proxy_handler, methods=['GET']),
+    Route('/api/download', _tracked('download', download_proxy_handler), methods=['GET']),
     Route('/api/jobs', create_job_handler, methods=['POST']),
     Route('/api/jobs/{id}', get_job_handler, methods=['GET']),
     Route('/api/jobs/{id}/file', get_job_file_handler, methods=['GET']),
@@ -3774,12 +4152,13 @@ routes = [
     Route("/api/health", health_handler, methods=["GET"]),
     Route("/api/{platform}/extract", platform_extract_handler, methods=["POST"]),
     Route("/api/{platform}/{feature}", platform_extract_handler, methods=["POST"]),
-    Route("/api/stream", stream_download_handler, methods=["GET"]),
-    Route("/api/download_video", download_video_handler, methods=["GET"]),
-    Route("/api/download_audio", download_audio_handler, methods=["GET"])
+    Route("/api/stream", _tracked("download", stream_download_handler), methods=["GET"]),
+    Route("/api/download_video", _tracked("download", download_video_handler), methods=["GET"]),
+    Route("/api/download_audio", _tracked("download", download_audio_handler), methods=["GET"])
 ]
 
-routes = routes_v2 + routes_studio + routes_autopilot + routes_editor + routes
+
+routes = routes_v2 + routes_analytics + routes_studio + routes_autopilot + routes_editor + routes_temp_media + routes
 
 # Order = outermost first: CORS -> Zero-Trust guard -> origin/extension gate
 middleware = [

@@ -10,11 +10,13 @@
   <!-- End Google Tag Manager -->
 
     <meta charset="UTF-8" />
+    <script>try{var t=localStorage.getItem("ovd_theme")||"light";document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
         <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=3" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#3347FF" />
     
     <!-- Primary Meta Tags -->
     <title>OVD - Fast Social Video & Image Downloader (X, YouTube, Facebook, Instagram, TikTok)</title>
@@ -42,13 +44,14 @@
     <meta name="twitter:description" content="Download videos and photos from Twitter/X, YouTube, Facebook, Instagram, and TikTok in original resolution." />
     <meta name="twitter:image" content="https://ovd.winplaybox.in/og-image.png" />
 
-    <!-- Fonts: Inter for Base design system -->
+    <!-- Fonts: Bricolage Grotesque (display) + Instrument Sans (body) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://anydownloader-backend-vvbj.onrender.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
 
     <!-- JSON-LD Structured Data: WebApplication, FAQPage, BreadcrumbList -->
-    <script type="application/ld+json">
+    <script type="application/ld+json" id="ld-site">
     {
       "@context": "https://schema.org",
       "@graph": [
@@ -90,48 +93,6 @@
             "TikTok watermark-free video and photo slideshow downloads",
             "Facebook HD and SD video downloads",
             "Zero signup and no software installation required"
-          ]
-        },
-        {
-          "@type": "FAQPage",
-          "@id": "https://ovd.winplaybox.in/#faq",
-          "mainEntity": [
-            {
-              "@type": "Question",
-              "name": "Which social platforms are supported?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "OVD currently supports downloading public videos and images from Twitter/X, YouTube, Facebook, Instagram, and TikTok."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "Is it free to use OVD?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Yes, OVD is completely free to use with no account creation or subscription required."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "Can I download multi-image posts and carousels?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Yes. Twitter 4-image tweets and Instagram carousels are fully parsed so you can download individual photos or all images."
-              }
-            }
-          ]
-        },
-        {
-          "@type": "BreadcrumbList",
-          "@id": "https://ovd.winplaybox.in/#breadcrumb",
-          "itemListElement": [
-            {
-              "@type": "ListItem",
-              "position": 1,
-              "name": "Home",
-              "item": "https://ovd.winplaybox.in/"
-            }
           ]
         }
       ]

@@ -8,9 +8,11 @@ import httpx
 try:
     from backend.engines.base import Engine, ExtractContext, RawResult, RawItem
     from backend.utils.errors import AppError, ErrorCode
+    from backend.utils.ytdlp_opts import is_youtube_block, robust_opts
 except (ModuleNotFoundError, ImportError):
     from engines.base import Engine, ExtractContext, RawResult, RawItem
     from utils.errors import AppError, ErrorCode
+    from utils.ytdlp_opts import is_youtube_block, robust_opts
 
 class YtDlpEngine:
     id: str = "ytdlp"
@@ -19,26 +21,9 @@ class YtDlpEngine:
         loop = asyncio.get_running_loop()
 
         def _run_ytdlp():
-            ydl_opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "skip_download": True,
-                "noplaylist": True,
-                "socket_timeout": ctx.timeout,
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": ["android", "ios", "web"]
-                    }
-                },
-                "http_headers": {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                    "Accept-Language": "en-US,en;q=0.9,hi;q=0.8",
-                }
-            }
-            if ctx.cookies_path and os.path.exists(ctx.cookies_path):
-                ydl_opts["cookiefile"] = ctx.cookies_path
-            if ctx.proxy:
-                ydl_opts["proxy"] = ctx.proxy
+            # Same Deno / multi-client / cookies / proxy setup as downloads (utils/ytdlp_opts.py)
+            ydl_opts = robust_opts("extract", socket_timeout=min(ctx.timeout, 12),
+                                   cookies_path=ctx.cookies_path, proxy=ctx.proxy)
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 return ydl.extract_info(url, download=False)
@@ -47,7 +32,10 @@ class YtDlpEngine:
             info = await loop.run_in_executor(None, _run_ytdlp)
         except Exception as e:
             err_str = str(e).lower()
-            if "private" in err_str or "login" in err_str or "sign in" in err_str:
+            # Bot-check / IP block must be checked BEFORE "sign in" (it is not a private video)
+            if is_youtube_block(err_str):
+                raise AppError(ErrorCode.SOURCE_BLOCKED, "YouTube is temporarily blocking our server for this video. Please retry in a few minutes.")
+            if any(k in err_str for k in ("private", "login", "sign in", "certain audiences", "isn't available to everyone", "age-restricted", "confirm your age")):
                 raise AppError(ErrorCode.PRIVATE_OR_RESTRICTED, "This content is private or requires login.")
             if "not found" in err_str or "deleted" in err_str or "unavailable" in err_str:
                 raise AppError(ErrorCode.NOT_FOUND, "This post was deleted or does not exist.")

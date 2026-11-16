@@ -1,97 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
-import HeroDownloader from '../components/HeroDownloader.jsx';
-import MediaResultCard from '../components/MediaResultCard.jsx';
-import HowItWorks from '../components/HowItWorks.jsx';
-import Faq from '../components/Faq.jsx';
-import { resolveMedia } from '../utils/resolveMedia.js';
-import { extractIncomingUrl } from '../utils/extractIncomingUrl.js';
+import React from 'react';
+import DownloaderPage from './DownloaderPage.jsx';
 
 export default function HomePage() {
-  const [url, setUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [errorCode, setErrorCode] = useState(null);
-  const [mediaData, setMediaData] = useState(null);
-  const [activeCategory, setActiveCategory] = useState('all');
-  const location = useLocation();
-  const lastFetchedRef = useRef('');
-
-  // Auto-ingest search / url parameters from query string (?url=, ?link=, ?q=, ?search=, ?https://...)
-  useEffect(() => {
-    const incoming = extractIncomingUrl(location);
-    if (incoming && incoming !== lastFetchedRef.current) {
-      lastFetchedRef.current = incoming;
-      setUrl(incoming);
-      fetchMedia(incoming);
-    }
-  }, [location.search, location.hash, location.pathname]);
-
-  async function fetchMedia(overrideUrl = null) {
-    const rawTarget = typeof overrideUrl === 'string' && overrideUrl.trim() 
-      ? overrideUrl.trim() 
-      : (typeof url === 'string' ? url.trim() : '');
-
-    if (!rawTarget) {
-      setError('Paste a link to get started.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setErrorCode(null);
-    setMediaData(null);
-
-    try {
-      const result = await resolveMedia(rawTarget);
-      if (result.ok && result.data) {
-        setMediaData(result.data);
-      } else {
-        setErrorCode(result.code);
-        setError(result.error);
-      }
-    } catch (e) {
-      setError('Connection interrupted. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleReset() {
-    setUrl('');
-    setError('');
-    setErrorCode(null);
-    setMediaData(null);
-  }
-
   return (
-    <div className="min-h-screen flex flex-col justify-between">
-      <div>
-        {/* Hero Downloader Box */}
-        <HeroDownloader
-          url={url}
-          setUrl={(newUrl) => { setUrl(newUrl); if (error) setError(''); }}
-          onFetch={(target) => fetchMedia(target)}
-          loading={loading}
-          error={error}
-          errorCode={errorCode}
-          onClear={handleReset}
-          activeCategory={activeCategory}
-          setActiveCategory={setActiveCategory}
-        />
-
-        {/* Media Result Card (when media successfully resolved) */}
-        {mediaData && (
-          <MediaResultCard 
-            data={mediaData} 
-            onReset={handleReset} 
-          />
-        )}
-
-        {/* How It Works & FAQ */}
-        <HowItWorks />
-        <Faq />
-      </div>
-    </div>
+    <DownloaderPage
+      title="Save any video or photo from a link"
+      subtitle="Paste a link from YouTube, Instagram, TikTok, Facebook, X and more. Pick a quality and download. Free, with no sign-up."
+    />
   );
 }
