@@ -91,6 +91,9 @@ def extract_media_info(url: str) -> dict:
         cmd += ["--ffmpeg-location", ff]
     if COOKIES_FILE and os.path.isfile(COOKIES_FILE):
         cmd += ["--cookies", COOKIES_FILE]
+    px = os.environ.get("YTDLP_PROXY", "").strip() or os.environ.get("HTTP_PROXY", "").strip()
+    if px:
+        cmd += ["--proxy", px]
     cmd.append(url)
 
     log(f"extracting {url}")
@@ -325,6 +328,9 @@ def download(url: str, kind: str = "video", height: int = 1080, quality: str = "
             cmd += ["--ffmpeg-location", ff]
         if COOKIES_FILE and os.path.isfile(COOKIES_FILE):
             cmd += ["--cookies", COOKIES_FILE]
+        px = os.environ.get("YTDLP_PROXY", "").strip() or os.environ.get("HTTP_PROXY", "").strip()
+        if px:
+            cmd += ["--proxy", px]
         cmd.append(url)
 
         log(f"downloading ({kind}) {url}")
@@ -477,10 +483,11 @@ def main() -> None:
     if missing:
         sys.exit(f"Missing in worker.env: {', '.join(missing)}")
     _ffmpeg_dir()
-    log(f"OVD PC worker v2.0 on http://127.0.0.1:{PORT} (uploads to {OVD_BASE})")
+    host = os.environ.get("WORKER_HOST", "0.0.0.0")
+    log(f"OVD Worker v2.0 on http://{host}:{PORT} (uploads to {OVD_BASE})")
     tunnel = start_ngrok()
     try:
-        ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+        ThreadingHTTPServer((host, PORT), Handler).serve_forever()
     finally:
         if tunnel and tunnel.poll() is None:
             tunnel.terminate()

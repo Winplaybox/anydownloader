@@ -2315,7 +2315,7 @@ def run_download_audio_task(source_url: str, quality: str, output_template: str)
 async def _download_via_worker(url: str, kind: str = "video", height: int = 1080, quality: str = "192") -> Optional[str]:
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return None
-    worker_url = os.environ.get("WORKER_URL", "https://exorcist-those-fax.ngrok-free.dev").strip().rstrip("/")
+    worker_url = os.environ.get("WORKER_URL", "https://worker.winplaybox.in").strip().rstrip("/")
     worker_key = (
         os.environ.get("WORKER_SECRET", "").strip()
         or os.environ.get("WORKER_KEY", "").strip()

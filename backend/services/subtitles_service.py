@@ -230,7 +230,7 @@ class SubtitlesService:
         except Exception:
             # Fallback to PC Worker if local yt-dlp was blocked
             try:
-                worker_url = os.environ.get("WORKER_URL", "https://exorcist-those-fax.ngrok-free.dev").strip().rstrip("/")
+                worker_url = os.environ.get("WORKER_URL", "https://worker.winplaybox.in").strip().rstrip("/")
                 worker_key = (
                     os.environ.get("WORKER_SECRET", "").strip()
                     or os.environ.get("WORKER_KEY", "").strip()

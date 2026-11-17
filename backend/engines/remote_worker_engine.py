@@ -15,7 +15,7 @@ class RemoteWorkerEngine:
     async def extract(self, url: str, ctx: ExtractContext) -> Optional[RawResult]:
         if os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("WORKER_URL"):
             return None
-        worker_url = os.environ.get("WORKER_URL", "https://exorcist-those-fax.ngrok-free.dev").strip()
+        worker_url = os.environ.get("WORKER_URL", "https://worker.winplaybox.in").strip()
         worker_secret = (
             os.environ.get("WORKER_SECRET", "").strip()
             or os.environ.get("WORKER_KEY", "").strip()
