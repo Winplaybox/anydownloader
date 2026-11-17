@@ -2537,8 +2537,8 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
         # OAuth sign-in redirects come from the platform (no allowed origin); the route checks its own signed state.
         if request.method == "GET" and request.url.path.startswith("/oauth/autopilot/"):
             return await call_next(request)
-        # Temp media for automations: Instagram/Facebook fetch these files (ids are random UUIDs).
-        if request.method in ("GET", "HEAD") and request.url.path.startswith("/api/temp-media/"):
+        # Temp media: GET/HEAD public for social bots, POST for authorized worker uploads (route checks auth)
+        if request.url.path.startswith("/api/temp-media"):
             return await call_next(request)
         # AI Video Editor: media GETs are opened by <video>/<audio>/download links (job ids are random UUIDs).
         if request.method == "GET" and (request.url.path == "/api/editor/voice-preview"
@@ -3061,9 +3061,11 @@ async def create_job_handler(request):
         body = await request.json()
         tokens = body.get("tokens", [])
         action = body.get("action", "merge")
-        if not tokens:
-            return JSONResponse({"ok": False, "error": "tokens list is required"}, status_code=400)
-        job_id = await job_manager.create_job(tokens, action)
+        url = body.get("url")
+        height = int(body.get("height", 1080))
+        if not tokens and not url:
+            return JSONResponse({"ok": False, "error": "tokens list or url is required"}, status_code=400)
+        job_id = await job_manager.create_job(tokens, action, source_url=url, height=height)
         return JSONResponse({"ok": True, "job_id": job_id})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
@@ -3078,10 +3080,13 @@ async def get_job_handler(request):
 async def get_job_file_handler(request):
     job_id = request.path_params.get("id")
     job = job_manager.get_job(job_id)
-    if not job or job.get("status") != "done" or not job.get("output_file"):
+    if not job or job.get("status") != "done":
         return JSONResponse({"ok": False, "error": "Job not ready or failed"}, status_code=404)
-    filepath = job["output_file"]
-    if not os.path.exists(filepath):
+    if job.get("download_url"):
+        from starlette.responses import RedirectResponse
+        return RedirectResponse(job["download_url"], status_code=302)
+    filepath = job.get("output_file")
+    if not filepath or not os.path.exists(filepath):
         return JSONResponse({"ok": False, "error": "File expired"}, status_code=404)
     filename = job.get("filename") or "download"
     return FileResponse(filepath, filename=filename)

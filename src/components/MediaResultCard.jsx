@@ -252,8 +252,9 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
         if (!j.ok || !j.job) return;
         if (j.job.status === 'done') {
           clearInterval(t);
-          setJob({ ...job, status: 'done', progress: 100 });
-          window.location.href = `${BACKEND_BASE}/api/jobs/${job.id}/file`;
+          setJob((p) => (p ? { ...p, status: 'done', progress: 100 } : null));
+          const dlTarget = j.job.download_url || `${BACKEND_BASE}/api/jobs/${job.id}/file`;
+          window.location.href = absolute(dlTarget);
           showToast('Your video is ready.');
           setTimeout(() => setJob(null), 2500);
         } else if (j.job.status === 'failed') {
@@ -264,23 +265,38 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
           setJob((p) => (p ? { ...p, status: j.job.status, progress: j.job.progress || p.progress } : p));
         }
       } catch { /* keep polling */ }
-    }, 1500);
+    }, 1200);
     return () => clearInterval(t);
   }, [job, showToast]);
 
-  async function startMerge(video) {
+  async function startMerge(video, key) {
     setDlError(null);
-    if (!video.token) { startDownload(video, 'merge'); return; }
+    const targetKey = key || 'merge';
+    if (!video.token && !video.url) { startDownload(video, targetKey); return; }
     const tokens = [video.token, audios[0]?.token].filter(Boolean);
     try {
-      setJob({ id: 'pending', status: 'queued', progress: 8 });
+      setJob({ id: 'pending', status: 'queued', progress: 15, targetKey });
       const r = await fetch(`${BACKEND_BASE}/api/jobs`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'merge', tokens }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'merge',
+          tokens,
+          url: data?.url || data?.webpage_url,
+          height: heightOf(video) || 1080,
+        }),
       });
       const j = await r.json();
-      if (r.ok && j.ok && j.job_id) setJob({ id: j.job_id, status: 'processing', progress: 20 });
-      else { setJob(null); startDownload(video, 'merge'); }
-    } catch { setJob(null); startDownload(video, 'merge'); }
+      if (r.ok && j.ok && j.job_id) {
+        setJob({ id: j.job_id, status: 'processing', progress: 30, targetKey });
+      } else {
+        setJob(null);
+        startDownload(video, targetKey);
+      }
+    } catch {
+      setJob(null);
+      startDownload(video, targetKey);
+    }
   }
 
   async function downloadZip() {
@@ -314,19 +330,23 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
 
   const renderDownloadButton = ({ item, id, label = 'Download', primary = true, merge = false }) => {
     const mine = busy?.key === id;
-    const jobBusy = merge && !!job;
+    const isThisJob = merge && job?.targetKey === id;
     return (
       <button
         key={id}
         type="button"
-        onClick={() => (merge ? startMerge(item) : startDownload(item, id))}
-        disabled={!!busy || jobBusy}
-        aria-busy={mine || jobBusy}
+        onClick={() => (merge ? startMerge(item, id) : startDownload(item, id))}
+        disabled={!!busy || !!job}
+        aria-busy={mine || isThisJob}
         className={`${btnBase} ${primary ? 'bg-[var(--primary)] text-[var(--on-primary)] hover:brightness-110' : 'bg-[var(--bg-alt)] text-[var(--text)] border border-[var(--border)] hover:border-[var(--accent)]'} min-w-[8.5rem]`}
       >
-        {mine || jobBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        {mine || isThisJob ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
         <span>
-          {mine ? (busy.progress != null ? `${busy.progress}%` : 'Preparing...') : jobBusy ? 'Preparing...' : label}
+          {mine
+            ? (busy.progress != null ? `${busy.progress}%` : 'Preparing...')
+            : isThisJob
+            ? (job.progress ? `${job.progress}%` : 'Preparing...')
+            : label}
         </span>
       </button>
     );
@@ -458,7 +478,7 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
         {job && (
           <div className="px-4 sm:px-6 py-3 bg-[var(--accent-bg)] border-b border-[var(--border)] flex items-center gap-3 text-sm" role="status">
             <Loader2 className="w-4 h-4 animate-spin text-[var(--accent)]" />
-            <span className="font-semibold text-[var(--text)]">{job.status === 'done' ? 'Ready. Saving to your device...' : 'Preparing your HD video...'}</span>
+            <span className="font-semibold text-[var(--text)]">{job.status === 'done' ? 'Ready. Saving to your device...' : 'Downloading & processing HD video in background...'}</span>
             <span className="ml-auto text-[var(--text-muted)]">{job.progress}%</span>
           </div>
         )}

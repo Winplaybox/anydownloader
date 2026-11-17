@@ -32,7 +32,7 @@ class JobManager:
             except RuntimeError:
                 pass
 
-    async def create_job(self, tokens: List[str], action: str) -> str:
+    async def create_job(self, tokens: List[str], action: str, source_url: Optional[str] = None, height: int = 1080) -> str:
         self._ensure_cleaner()
         job_id = str(uuid.uuid4())
         self.jobs[job_id] = {
@@ -41,26 +41,50 @@ class JobManager:
             "status": "queued",
             "progress": 0,
             "output_file": None,
+            "download_url": None,
             "filename": f"ovd_{action}_{job_id[:8]}.{'mp4' if action == 'merge' else 'mp3' if action == 'mp3' else 'zip'}",
             "error": None,
             "created_at": time.time()
         }
-        asyncio.create_task(self._process_job(job_id, tokens, action))
+        asyncio.create_task(self._process_job(job_id, tokens, action, source_url=source_url, height=height))
         return job_id
 
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         return self.jobs.get(job_id)
 
-    async def _process_job(self, job_id: str, tokens: List[str], action: str):
+    async def _process_job(self, job_id: str, tokens: List[str], action: str, source_url: Optional[str] = None, height: int = 1080):
         job = self.jobs.get(job_id)
         if not job:
             return
 
         job["status"] = "processing"
-        job["progress"] = 10
+        job["progress"] = 15
         ffmpeg_bin = shutil.which("ffmpeg")
 
         try:
+            # 1. High-speed worker delegation (runs on Hostinger VPS: fast network, hardware ffmpeg, residential IP)
+            if action == "merge" and source_url:
+                job["progress"] = 35
+                try:
+                    from backend.main import _download_via_worker
+                except Exception:
+                    try:
+                        from main import _download_via_worker
+                    except Exception:
+                        _download_via_worker = None
+
+                if _download_via_worker:
+                    job["progress"] = 55
+                    try:
+                        worker_url = await _download_via_worker(source_url, "video", height=height)
+                        if worker_url:
+                            job["download_url"] = worker_url
+                            job["status"] = "done"
+                            job["progress"] = 100
+                            return
+                    except Exception as we:
+                        print(f"[job_manager] worker delegation failed, falling back to local ffmpeg: {we}", flush=True)
+
             # Verify and resolve tokens safely
             import json, base64
             sources = []
@@ -81,7 +105,7 @@ class JobManager:
                     raise ValueError(f"Invalid or expired download token: {t}")
                 sources.append(payload["variant_url"])
 
-            job["progress"] = 25
+            job["progress"] = 45
             output_path = os.path.join(JOBS_DIR, job["filename"])
 
             ua_args = ["-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"]
@@ -95,6 +119,7 @@ class JobManager:
                 else:
                     cmd = [ffmpeg_bin, "-y"] + ua_args + ["-i", sources[0]] + ua_args + ["-i", sources[1], "-c:v", "copy", "-c:a", "aac", output_path]
 
+                job["progress"] = 65
                 proc = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,

@@ -19,6 +19,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import requests
@@ -81,6 +82,7 @@ def extract_media_info(url: str) -> dict:
     cmd = [
         sys.executable, "-m", "yt_dlp",
         "--skip-download", "--no-playlist", "--no-progress",
+        "--remote-components", "ejs:github",
         "-J",
     ]
     deno = shutil.which("deno")
@@ -299,6 +301,7 @@ def download(url: str, kind: str = "video", height: int = 1080, quality: str = "
             cmd = [
                 sys.executable, "-m", "yt_dlp",
                 "--no-playlist", "--no-progress", "--restrict-filenames",
+                "--remote-components", "ejs:github",
                 "-x", "--audio-format", "mp3", "--audio-quality", str(quality),
                 "-o", os.path.join(workdir, "%(id)s.%(ext)s"),
                 "--print", "after_move:%(title)s",
@@ -313,6 +316,7 @@ def download(url: str, kind: str = "video", height: int = 1080, quality: str = "
             cmd = [
                 sys.executable, "-m", "yt_dlp",
                 "--no-playlist", "--no-progress", "--restrict-filenames",
+                "--remote-components", "ejs:github",
                 "-f", fmt, "--merge-output-format", "mp4",
                 "-o", os.path.join(workdir, "%(id)s.%(ext)s"),
                 "--print", "after_move:%(title)s",
@@ -347,6 +351,27 @@ def download(url: str, kind: str = "video", height: int = 1080, quality: str = "
             raise RuntimeError(f"yt-dlp finished but no {file_pattern} was produced")
         path = files[0]
         size = os.path.getsize(path)
+
+        static_dir = os.environ.get("STATIC_SERVE_DIR", "/var/www/ovd-downloads").strip()
+        public_base = os.environ.get("STATIC_BASE_URL", "https://worker.winplaybox.in/files").strip().rstrip("/")
+        if static_dir and os.path.isdir(static_dir):
+            ext = "mp3" if is_audio else "mp4"
+            unique_name = f"{uuid.uuid4().hex}.{ext}"
+            dest_path = os.path.join(static_dir, unique_name)
+            shutil.copy2(path, dest_path)
+            try:
+                os.chmod(dest_path, 0o644)
+            except Exception:
+                pass
+            url = f"{public_base}/{unique_name}"
+            log(f"downloaded {size // 1024} KB -> served directly at {url}")
+            return {
+                "ok": True,
+                "url": url,
+                "title": title,
+                "bytes": size,
+            }
+
         log(f"downloaded {size // 1024} KB, uploading to OVD")
 
         with open(path, "rb") as fh:
@@ -478,11 +503,32 @@ def start_ngrok():
     return proc
 
 
+def _start_cleaner_thread() -> None:
+    def _loop():
+        while True:
+            try:
+                static_dir = os.environ.get("STATIC_SERVE_DIR", "/var/www/ovd-downloads").strip()
+                if static_dir and os.path.isdir(static_dir):
+                    cutoff = time.time() - 7200  # 2 hours
+                    for fname in os.listdir(static_dir):
+                        fpath = os.path.join(static_dir, fname)
+                        if os.path.isfile(fpath) and os.path.getmtime(fpath) < cutoff:
+                            try:
+                                os.remove(fpath)
+                            except OSError:
+                                pass
+            except Exception:
+                pass
+            time.sleep(600)
+    threading.Thread(target=_loop, daemon=True).start()
+
+
 def main() -> None:
     missing = [k for k, v in {"WORKER_KEY": WORKER_KEY, "OVD_API_KEY": OVD_API_KEY}.items() if not v]
     if missing:
         sys.exit(f"Missing in worker.env: {', '.join(missing)}")
     _ffmpeg_dir()
+    _start_cleaner_thread()
     host = os.environ.get("WORKER_HOST", "0.0.0.0")
     log(f"OVD Worker v2.0 on http://{host}:{PORT} (uploads to {OVD_BASE})")
     tunnel = start_ngrok()
