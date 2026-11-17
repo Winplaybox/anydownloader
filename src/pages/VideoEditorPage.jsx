@@ -6,7 +6,7 @@ import {
 
 const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
-  : 'https://anydownloader-backend-vvbj.onrender.com';
+  : 'https://api.winplaybox.in';
 const API = `${BACKEND_BASE}/api/editor`;
 const JOB_KEY = 'ovd_editor_job';
 

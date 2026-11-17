@@ -4,7 +4,7 @@ import { getAttributionHeaders, getAttribution } from './attribution.js';
 
 export const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
-  : 'https://anydownloader-backend-vvbj.onrender.com';
+  : 'https://api.winplaybox.in';
 
 /**
  * Normalizes legacy /api/extract response into standard ResolveResult contract

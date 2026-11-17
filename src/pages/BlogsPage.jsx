@@ -26,7 +26,7 @@ import {
 
 const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
-  : 'https://anydownloader-backend-vvbj.onrender.com';
+  : 'https://api.winplaybox.in';
 
 export default function BlogsPage() {
   const [posts, setPosts] = useState(fallbackPosts);
