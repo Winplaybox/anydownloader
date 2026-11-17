@@ -239,7 +239,15 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
     } else if (upstream) {
       href = `${BACKEND_BASE}/api/download?url=${encodeURIComponent(upstream)}&filename=${encodeURIComponent(name)}`;
     }
-    if (href) window.location.href = href;
+    if (href) {
+      const a = document.createElement('a');
+      a.href = href;
+      if (name) a.download = name;
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 200);
+    }
   }, [busy, platform, runProcessed]);
 
   // merge jobs (separate video + audio streams)
@@ -254,7 +262,13 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
           clearInterval(t);
           setJob((p) => (p ? { ...p, status: 'done', progress: 100 } : null));
           const dlTarget = j.job.download_url || `${BACKEND_BASE}/api/jobs/${job.id}/file`;
-          window.location.href = absolute(dlTarget);
+          const a = document.createElement('a');
+          a.href = absolute(dlTarget);
+          a.download = j.job.filename || 'video.mp4';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => a.remove(), 200);
           showToast('Your video is ready.');
           setTimeout(() => setJob(null), 2500);
         } else if (j.job.status === 'failed') {
@@ -283,6 +297,7 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
           action: 'merge',
           tokens,
           url: data?.url || data?.webpage_url,
+          title: data?.title || 'video',
           height: heightOf(video) || 1080,
         }),
       });

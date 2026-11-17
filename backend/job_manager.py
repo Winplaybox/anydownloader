@@ -1,7 +1,9 @@
 import asyncio
 import os
+import re
 import uuid
 import shutil
+import sqlite3
 import zipfile
 import tempfile
 import time
@@ -16,12 +18,67 @@ except (ModuleNotFoundError, ImportError):
 
 static_ffmpeg.add_paths()
 
-JOBS_DIR = tempfile.mkdtemp(prefix="ovd_jobs_")
+JOBS_DIR = os.environ.get("JOBS_DIR") or os.path.join(tempfile.gettempdir(), "ovd_jobs")
+os.makedirs(JOBS_DIR, exist_ok=True)
+
 
 class JobManager:
     def __init__(self):
         self.jobs: Dict[str, Dict[str, Any]] = {}
+        self.db_path = os.path.join(JOBS_DIR, "jobs.db")
+        self._init_db()
         self._cleaner_started = False
+
+    def _init_db(self):
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS jobs (
+                        id TEXT PRIMARY KEY,
+                        action TEXT,
+                        status TEXT,
+                        progress INTEGER,
+                        output_file TEXT,
+                        download_url TEXT,
+                        filename TEXT,
+                        error TEXT,
+                        created_at REAL,
+                        updated_at REAL
+                    )
+                """)
+                conn.commit()
+        except Exception as e:
+            print(f"[job_manager] DB init error: {e}", flush=True)
+
+    def _save_job_db(self, job: Dict[str, Any]):
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    INSERT INTO jobs (id, action, status, progress, output_file, download_url, filename, error, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        status=excluded.status,
+                        progress=excluded.progress,
+                        output_file=excluded.output_file,
+                        download_url=excluded.download_url,
+                        filename=excluded.filename,
+                        error=excluded.error,
+                        updated_at=excluded.updated_at
+                """, (
+                    job.get("id"),
+                    job.get("action"),
+                    job.get("status"),
+                    job.get("progress", 0),
+                    job.get("output_file"),
+                    job.get("download_url"),
+                    job.get("filename"),
+                    job.get("error"),
+                    job.get("created_at", time.time()),
+                    time.time(),
+                ))
+                conn.commit()
+        except Exception as e:
+            print(f"[job_manager] DB save error: {e}", flush=True)
 
     def _ensure_cleaner(self):
         if not self._cleaner_started:
@@ -32,25 +89,49 @@ class JobManager:
             except RuntimeError:
                 pass
 
-    async def create_job(self, tokens: List[str], action: str, source_url: Optional[str] = None, height: int = 1080) -> str:
+    async def create_job(self, tokens: List[str], action: str, source_url: Optional[str] = None, height: int = 1080, title: Optional[str] = None) -> str:
         self._ensure_cleaner()
         job_id = str(uuid.uuid4())
-        self.jobs[job_id] = {
+        ext = 'mp4' if action == 'merge' else ('mp3' if action == 'mp3' else 'zip')
+        if title:
+            clean = re.sub(r'[\\/*?:"<>|]', "", str(title)).strip()
+            clean = re.sub(r'\s+', "_", clean)[:60]
+            filename = f"{clean}.{ext}" if clean else f"ovd_{action}_{job_id[:8]}.{ext}"
+        else:
+            filename = f"ovd_{action}_{job_id[:8]}.{ext}"
+
+        job_data = {
             "id": job_id,
             "action": action,
             "status": "queued",
             "progress": 0,
             "output_file": None,
             "download_url": None,
-            "filename": f"ovd_{action}_{job_id[:8]}.{'mp4' if action == 'merge' else 'mp3' if action == 'mp3' else 'zip'}",
+            "filename": filename,
             "error": None,
             "created_at": time.time()
         }
+        self.jobs[job_id] = job_data
+        self._save_job_db(job_data)
         asyncio.create_task(self._process_job(job_id, tokens, action, source_url=source_url, height=height))
         return job_id
 
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        return self.jobs.get(job_id)
+        if job_id in self.jobs:
+            return self.jobs[job_id]
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+                row = cursor.fetchone()
+                if row:
+                    job = dict(row)
+                    self.jobs[job_id] = job
+                    return job
+        except Exception as e:
+            print(f"[job_manager] DB read error: {e}", flush=True)
+        return None
 
     async def _process_job(self, job_id: str, tokens: List[str], action: str, source_url: Optional[str] = None, height: int = 1080):
         job = self.jobs.get(job_id)
@@ -59,12 +140,14 @@ class JobManager:
 
         job["status"] = "processing"
         job["progress"] = 15
+        self._save_job_db(job)
         ffmpeg_bin = shutil.which("ffmpeg")
 
         try:
             # 1. High-speed worker delegation (runs on Hostinger VPS: fast network, hardware ffmpeg, residential IP)
             if action == "merge" and source_url:
                 job["progress"] = 35
+                self._save_job_db(job)
                 try:
                     from backend.main import _download_via_worker
                 except Exception:
@@ -75,12 +158,14 @@ class JobManager:
 
                 if _download_via_worker:
                     job["progress"] = 55
+                    self._save_job_db(job)
                     try:
                         worker_url = await _download_via_worker(source_url, "video", height=height)
                         if worker_url:
                             job["download_url"] = worker_url
                             job["status"] = "done"
                             job["progress"] = 100
+                            self._save_job_db(job)
                             return
                     except Exception as we:
                         print(f"[job_manager] worker delegation failed, falling back to local ffmpeg: {we}", flush=True)
@@ -106,6 +191,7 @@ class JobManager:
                 sources.append(payload["variant_url"])
 
             job["progress"] = 45
+            self._save_job_db(job)
             output_path = os.path.join(JOBS_DIR, job["filename"])
 
             ua_args = ["-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"]
@@ -114,12 +200,12 @@ class JobManager:
                     raise RuntimeError("ffmpeg not found for video merging.")
                 # Expecting at least 1 or 2 sources (video, and optionally audio)
                 if len(sources) == 1:
-                    # Single stream, transcode/ensure audio
                     cmd = [ffmpeg_bin, "-y"] + ua_args + ["-i", sources[0], "-c:v", "copy", "-c:a", "aac", output_path]
                 else:
                     cmd = [ffmpeg_bin, "-y"] + ua_args + ["-i", sources[0]] + ua_args + ["-i", sources[1], "-c:v", "copy", "-c:a", "aac", output_path]
 
                 job["progress"] = 65
+                self._save_job_db(job)
                 proc = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,
@@ -153,24 +239,27 @@ class JobManager:
                                 ext = "jpg" if ".png" not in src else "png"
                                 zf.writestr(f"media_{idx+1}.{ext}", resp.content)
                             job["progress"] = int(25 + (70 * (idx + 1) / len(sources)))
+                            self._save_job_db(job)
 
             job["output_file"] = output_path
             job["status"] = "done"
             job["progress"] = 100
             job["download_url"] = f"/api/jobs/{job_id}/file"
+            self._save_job_db(job)
 
         except Exception as e:
             job["status"] = "failed"
             job["error"] = str(e)
+            self._save_job_db(job)
 
     async def _cleanup_loop(self):
-        """Auto-deletes temporary job files older than 30 minutes."""
+        """Auto-deletes temporary job files older than 2 hours."""
         while True:
             await asyncio.sleep(600)
             now = time.time()
             to_del = []
             for jid, j in list(self.jobs.items()):
-                if now - j.get("created_at", now) > 1800:
+                if now - j.get("created_at", now) > 7200:
                     f = j.get("output_file")
                     if f and os.path.exists(f):
                         try:
@@ -180,5 +269,13 @@ class JobManager:
                     to_del.append(jid)
             for jid in to_del:
                 self.jobs.pop(jid, None)
+
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.execute("DELETE FROM jobs WHERE created_at < ?", (now - 7200,))
+                    conn.commit()
+            except Exception:
+                pass
+
 
 job_manager = JobManager()

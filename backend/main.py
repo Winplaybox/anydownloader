@@ -3061,11 +3061,12 @@ async def create_job_handler(request):
         body = await request.json()
         tokens = body.get("tokens", [])
         action = body.get("action", "merge")
-        url = body.get("url")
+        url = body.get("url") or body.get("source_url")
+        title = body.get("title")
         height = int(body.get("height", 1080))
         if not tokens and not url:
             return JSONResponse({"ok": False, "error": "tokens list or url is required"}, status_code=400)
-        job_id = await job_manager.create_job(tokens, action, source_url=url, height=height)
+        job_id = await job_manager.create_job(tokens, action, source_url=url, height=height, title=title)
         return JSONResponse({"ok": True, "job_id": job_id})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
@@ -3080,15 +3081,23 @@ async def get_job_handler(request):
 async def get_job_file_handler(request):
     job_id = request.path_params.get("id")
     job = job_manager.get_job(job_id)
-    if not job or job.get("status") != "done":
-        return JSONResponse({"ok": False, "error": "Job not ready or failed"}, status_code=404)
-    if job.get("download_url"):
+    if not job:
+        return JSONResponse({"ok": False, "error": "Job not found"}, status_code=404)
+    if job.get("status") != "done":
+        return JSONResponse({
+            "ok": False,
+            "status": job.get("status"),
+            "progress": job.get("progress", 0),
+            "error": "Job is still processing or has failed."
+        }, status_code=400)
+    dl = job.get("download_url") or ""
+    if dl and not dl.startswith(("/api/jobs", f"/api/jobs/{job_id}")) and "api/jobs" not in dl:
         from starlette.responses import RedirectResponse
-        return RedirectResponse(job["download_url"], status_code=302)
+        return RedirectResponse(dl, status_code=302)
     filepath = job.get("output_file")
     if not filepath or not os.path.exists(filepath):
         return JSONResponse({"ok": False, "error": "File expired"}, status_code=404)
-    filename = job.get("filename") or "download"
+    filename = job.get("filename") or "download.mp4"
     return FileResponse(filepath, filename=filename)
 
 async def create_zip_handler(request):
