@@ -1,0 +1,114 @@
+"""Authentication & Session HTTP routes."""
+from __future__ import annotations
+
+import logging
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
+from starlette.routing import Route
+
+from backend.services.auth_service import (
+    create_guest_session,
+    get_all_plans,
+    get_credit_history,
+    issue_session_jwt,
+    resolve_request_identity,
+    upsert_user_from_google,
+    verify_google_credential,
+)
+
+log = logging.getLogger("wpb.routes_auth")
+
+
+async def session_handler(request: Request) -> Response:
+    """Returns current user or guest session state."""
+    identity = resolve_request_identity(request)
+    resp = JSONResponse({"ok": True, "identity": identity})
+    if identity.get("is_guest") and identity.get("guest_id"):
+        if not request.cookies.get("wpb_guest"):
+            resp.set_cookie(
+                "wpb_guest",
+                identity["guest_id"],
+                max_age=7 * 86400,
+                httponly=True,
+                samesite="lax",
+                secure=True
+            )
+    return resp
+
+
+async def google_auth_handler(request: Request) -> Response:
+    """Verifies Google One-Tap or OAuth token and logs the user in."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid JSON body"}, status_code=400)
+
+    credential = body.get("credential") or body.get("id_token")
+    if not credential:
+        return JSONResponse({"ok": False, "error": "Missing Google credential"}, status_code=400)
+
+    google_data = await verify_google_credential(credential)
+    if not google_data:
+        return JSONResponse({"ok": False, "error": "Invalid or expired Google token"}, status_code=401)
+
+    guest_id = body.get("guest_id") or request.cookies.get("wpb_guest")
+    user = upsert_user_from_google(google_data, guest_id=guest_id)
+    session_token = issue_session_jwt(user)
+
+    resp = JSONResponse({
+        "ok": True,
+        "token": session_token,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "name": user["name"],
+            "avatar": user.get("avatar"),
+            "plan": user.get("plan", "free"),
+            "credits": user.get("credits", 2),
+            "authenticated": True,
+            "is_guest": False
+        }
+    })
+    resp.set_cookie(
+        "wpb_session",
+        session_token,
+        max_age=30 * 86400,
+        httponly=True,
+        samesite="lax",
+        secure=True
+    )
+    return resp
+
+
+async def logout_handler(request: Request) -> Response:
+    """Clears authentication session."""
+    resp = JSONResponse({"ok": True, "message": "Logged out successfully"})
+    resp.delete_cookie("wpb_session")
+    return resp
+
+
+async def plans_handler(request: Request) -> Response:
+    """Returns available plans and feature matrix from database."""
+    plans = get_all_plans()
+    return JSONResponse({"ok": True, "plans": plans})
+
+
+async def ledger_handler(request: Request) -> Response:
+    """Returns append-only credit ledger history for current user/guest."""
+    identity = resolve_request_identity(request)
+    if identity.get("authenticated") and identity.get("user_id"):
+        history = get_credit_history("user", identity["user_id"])
+    elif identity.get("is_guest") and identity.get("guest_id"):
+        history = get_credit_history("guest", identity["guest_id"])
+    else:
+        history = []
+    return JSONResponse({"ok": True, "history": history})
+
+
+routes_auth = [
+    Route("/api/auth/session", session_handler, methods=["GET"]),
+    Route("/api/auth/google", google_auth_handler, methods=["POST"]),
+    Route("/api/auth/logout", logout_handler, methods=["POST"]),
+    Route("/api/auth/plans", plans_handler, methods=["GET"]),
+    Route("/api/auth/ledger", ledger_handler, methods=["GET"]),
+]

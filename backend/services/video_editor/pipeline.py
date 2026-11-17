@@ -95,10 +95,12 @@ def _update(job: Dict[str, Any], **kw: Any) -> None:
 
 def public_job(job: Dict[str, Any]) -> Dict[str, Any]:
     keys = ("id", "status", "stage", "stage_label", "progress", "error", "created_at", "updated_at",
-            "settings", "result", "queue_position", "warnings")
+            "settings", "result", "queue_position", "estimated_wait_seconds", "warnings")
     out = {k: job.get(k) for k in keys}
     if job.get("status") == "queued":
-        out["queue_position"] = queue_position(job)
+        pos = queue_position(job)
+        out["queue_position"] = pos
+        out["estimated_wait_seconds"] = max(10, pos * 45) if pos > 0 else 0
     return out
 
 

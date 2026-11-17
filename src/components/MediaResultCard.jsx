@@ -253,11 +253,30 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
   // merge jobs (separate video + audio streams)
   useEffect(() => {
     if (!job || job.status === 'done' || job.status === 'failed' || job.id === 'pending') return undefined;
+    let failCount = 0;
     const t = setInterval(async () => {
       try {
         const r = await fetch(`${BACKEND_BASE}/api/jobs/${job.id}`);
+        if (!r.ok) {
+          failCount++;
+          if (failCount >= 4) {
+            clearInterval(t);
+            setJob(null);
+            setDlError({ message: 'Download server timed out or restarted. Please retry.' });
+          }
+          return;
+        }
         const j = await r.json();
-        if (!j.ok || !j.job) return;
+        if (!j.ok || !j.job) {
+          failCount++;
+          if (failCount >= 4) {
+            clearInterval(t);
+            setJob(null);
+            setDlError({ message: j.error || 'Job not found. Please try downloading again.' });
+          }
+          return;
+        }
+        failCount = 0;
         if (j.job.status === 'done') {
           clearInterval(t);
           setJob((p) => (p ? { ...p, status: 'done', progress: 100 } : null));
@@ -274,11 +293,18 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
         } else if (j.job.status === 'failed') {
           clearInterval(t);
           setJob(null);
-          setDlError({ message: 'We could not prepare this video. Please try another quality.' });
+          setDlError({ message: j.job.error || 'We could not prepare this video. Please try another quality.' });
         } else {
           setJob((p) => (p ? { ...p, status: j.job.status, progress: j.job.progress || p.progress } : p));
         }
-      } catch { /* keep polling */ }
+      } catch {
+        failCount++;
+        if (failCount >= 4) {
+          clearInterval(t);
+          setJob(null);
+          setDlError({ message: 'Network interrupted. Please try again.' });
+        }
+      }
     }, 1200);
     return () => clearInterval(t);
   }, [job, showToast]);

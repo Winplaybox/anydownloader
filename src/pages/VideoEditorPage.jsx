@@ -3,6 +3,8 @@ import {
   Upload, Wand2, Mic, Captions, Play, Pause, Loader2, CheckCircle2, AlertCircle, Download, Copy, Check,
   Film, FileText, RotateCcw, Sparkles, Clock, ChevronDown, Video, Music2, Type
 } from 'lucide-react';
+import PricingModal from '../components/PricingModal';
+import UserAccountBar from '../components/UserAccountBar';
 
 const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
@@ -110,6 +112,9 @@ export default function VideoEditorPage() {
   const [accent, setAccent] = useState('#FFE500');
   const [format, setFormat] = useState('vertical');
   const [overlays, setOverlays] = useState(true);
+  const [resolution, setResolution] = useState(720);
+  const [session, setSession] = useState(null);
+  const [showPricing, setShowPricing] = useState(false);
 
   const [uploadPct, setUploadPct] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -119,9 +124,20 @@ export default function VideoEditorPage() {
   const audioRef = useRef(null);
   const inputRef = useRef(null);
 
-  // ---- load options + resume an unfinished job ----------------------------------------
+  // ---- load options, session + resume an unfinished job ----------------------------------------
   useEffect(() => {
     apiJson('/options').then((d) => { setOpts(d); setQuota(d.quota); }).catch((e) => setOptsError(e.message));
+    fetch(`${BACKEND_BASE}/api/auth/session`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok && d.session) {
+          setSession(d.session);
+          if (d.session.max_resolution) {
+            setResolution(Math.min(720, d.session.max_resolution));
+          }
+        }
+      })
+      .catch(console.error);
     const saved = typeof window !== 'undefined' ? localStorage.getItem(JOB_KEY) : null;
     if (saved) apiJson(`/jobs/${saved}`).then((d) => setJob(d.job)).catch(() => localStorage.removeItem(JOB_KEY));
   }, []);
@@ -186,6 +202,7 @@ export default function VideoEditorPage() {
     fd.append('file', file);
     Object.entries({
       language, mode, voice, caption_style: captionStyle, caption_script: captionScript, accent, format,
+      resolution: String(resolution),
       overlays: overlays ? '1' : '0', brief: briefToSend, channel, script: showScript ? ownScript : '',
     }).forEach(([k, v]) => fd.append(k, v));
     const xhr = new XMLHttpRequest();
@@ -220,6 +237,12 @@ export default function VideoEditorPage() {
   return (
     <div className="py-8 sm:py-12 max-w-5xl mx-auto px-4 sm:px-6">
       <audio ref={audioRef} onEnded={() => setPlaying('')} className="hidden" />
+
+      <UserAccountBar
+        session={session}
+        onOpenPricing={() => setShowPricing(true)}
+        onSessionUpdate={(s) => setSession(s)}
+      />
 
       <div className="mb-6 sm:mb-8">
         <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -382,6 +405,60 @@ export default function VideoEditorPage() {
                 Add hook title at the start and call-to-action at the end
               </label>
             </div>
+
+            <div className="mt-5 pt-4 border-t border-[var(--border)]">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-xs font-bold text-[var(--text)] flex items-center gap-1.5">
+                  <Film className="w-3.5 h-3.5 text-[var(--accent)]" /> Target Output Resolution
+                </span>
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  Active plan tier: <strong className="text-[var(--text)]">{session?.plan_name || 'Free (up to 720p)'}</strong>
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                {[
+                  { r: 720, label: '720p HD', req: 'Free' },
+                  { r: 1080, label: '1080p FHD', req: 'Creator' },
+                  { r: 1440, label: '2K QHD', req: 'Pro' },
+                  { r: 1800, label: '3K Ultra', req: 'Studio' },
+                  { r: 2160, label: '4K Cinema', req: 'Business' },
+                  { r: 4320, label: '8K Ultra', req: 'Enterprise' },
+                ].map((item) => {
+                  const maxAllowed = session?.max_resolution || 720;
+                  const isLocked = item.r > maxAllowed;
+                  const isSelected = resolution === item.r;
+                  return (
+                    <button
+                      key={item.r}
+                      type="button"
+                      onClick={() => {
+                        if (isLocked) {
+                          setShowPricing(true);
+                        } else {
+                          setResolution(item.r);
+                        }
+                      }}
+                      className={`py-2 px-2.5 rounded-xl text-center border transition-all ${
+                        isSelected
+                          ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-white font-bold'
+                          : isLocked
+                          ? 'border-[var(--border)] opacity-60 hover:opacity-100 text-[var(--text-muted)]'
+                          : 'border-[var(--border)] hover:border-[var(--text-muted)] text-[var(--text)]'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">{item.label}</div>
+                      <div className="text-[10px] mt-0.5">
+                        {isLocked ? (
+                          <span className="text-amber-400 font-semibold">&#128274; {item.req}</span>
+                        ) : (
+                          <span className="text-emerald-400 font-semibold">&#10003; Unlocked</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </Section>
 
           {/* Submit */}
@@ -401,6 +478,13 @@ export default function VideoEditorPage() {
           </div>
         </div>
       )}
+
+      <PricingModal
+        isOpen={showPricing}
+        onClose={() => setShowPricing(false)}
+        userPlan={session?.plan || 'free'}
+        onPlanUpgraded={(np) => setSession((p) => ({ ...p, plan: np }))}
+      />
     </div>
   );
 }
@@ -437,8 +521,11 @@ function JobView({ job, onReset }) {
         <div className="h-2 rounded-full bg-[var(--bg-alt)] overflow-hidden mb-6">
           <div className="h-full bg-[var(--accent)] transition-all duration-700" style={{ width: `${Math.max(3, job.progress || 0)}%` }} />
         </div>
-        {job.status === 'queued' && job.queue_position > 0 && (
-          <p className="text-sm text-[var(--text-muted)] mb-4">{job.queue_position} video{job.queue_position > 1 ? 's' : ''} ahead of you in the queue.</p>
+        {job.status === 'queued' && (
+          <div className="mb-5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between font-medium">
+            <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-amber-400" /> Waiting in render queue</span>
+            <span>Position #{job.queue_position || 1} • ETA ~{job.estimated_wait_seconds || 45}s</span>
+          </div>
         )}
         <ol className="space-y-2.5">
           {STAGE_ORDER.slice(1, -1).map((st, i) => {

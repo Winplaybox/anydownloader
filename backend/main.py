@@ -91,6 +91,8 @@ try:
     from backend.routes_studio import routes_studio
     from backend.routes_editor import routes_editor
     from backend.routes_temp_media import routes_temp_media
+    from backend.routes_auth import routes_auth
+    from backend.routes_payments import payments_routes
 except (ModuleNotFoundError, ImportError):
     from security.zero_trust import ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify
     from security.zero_trust import (authenticate_admin as _zt_authenticate_admin, admin_locked as _zt_admin_locked,
@@ -100,6 +102,8 @@ except (ModuleNotFoundError, ImportError):
     from routes_studio import routes_studio
     from routes_editor import routes_editor
     from routes_temp_media import routes_temp_media
+    from routes_auth import routes_auth
+    from routes_payments import payments_routes
 
 # Security & Origin Configuration
 ALLOWED_ORIGINS = [
@@ -2532,7 +2536,7 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
-        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs", "/api/ai/captions", "/api/ai/voice") or request.url.path.startswith("/api/jobs") or request.url.path.startswith(("/api/v1", "/api/v2")) or request.url.path.startswith("/admin/"):
+        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs", "/api/ai/captions", "/api/ai/voice") or request.url.path.startswith(("/api/jobs", "/api/auth", "/api/editor", "/api/payments", "/api/v1", "/api/v2")) or request.url.path.startswith("/admin/"):
             return await call_next(request)
         # OAuth sign-in redirects come from the platform (no allowed origin); the route checks its own signed state.
         if request.method == "GET" and request.url.path.startswith("/oauth/autopilot/"):
@@ -4226,7 +4230,7 @@ routes = [
 ]
 
 
-routes = routes_v2 + routes_analytics + routes_studio + routes_autopilot + routes_editor + routes_temp_media + routes
+routes = routes_v2 + routes_analytics + routes_studio + routes_autopilot + routes_editor + routes_temp_media + routes_auth + payments_routes + routes
 
 # Order = outermost first: CORS -> Zero-Trust guard -> origin/extension gate
 middleware = [

@@ -46,6 +46,11 @@ class JobManager:
                         updated_at REAL
                     )
                 """)
+                # Mark stranded jobs from before restart as failed so polling doesn't hang
+                conn.execute("""
+                    UPDATE jobs SET status = 'failed', error = 'Server restarted. Please retry.'
+                    WHERE status IN ('processing', 'queued')
+                """)
                 conn.commit()
         except Exception as e:
             print(f"[job_manager] DB init error: {e}", flush=True)
@@ -168,7 +173,36 @@ class JobManager:
                             self._save_job_db(job)
                             return
                     except Exception as we:
-                        print(f"[job_manager] worker delegation failed, falling back to local ffmpeg: {we}", flush=True)
+                        print(f"[job_manager] worker delegation failed, falling back to local task: {we}", flush=True)
+
+                # Fallback to local yt-dlp download task if source_url is available
+                try:
+                    from backend.main import _run_download_limited, run_download_video_task
+                except Exception:
+                    try:
+                        from main import _run_download_limited, run_download_video_task
+                    except Exception:
+                        run_download_video_task = None
+                        _run_download_limited = None
+
+                if run_download_video_task:
+                    job["progress"] = 65
+                    self._save_job_db(job)
+                    output_path = os.path.join(JOBS_DIR, job["filename"])
+                    try:
+                        if _run_download_limited:
+                            await _run_download_limited(run_download_video_task, source_url, height, output_path)
+                        else:
+                            await asyncio.to_thread(run_download_video_task, source_url, height, output_path)
+                        if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:
+                            job["output_file"] = output_path
+                            job["status"] = "done"
+                            job["progress"] = 100
+                            job["download_url"] = f"/api/jobs/{job_id}/file"
+                            self._save_job_db(job)
+                            return
+                    except Exception as lde:
+                        print(f"[job_manager] local yt-dlp task failed, trying ffmpeg stream merge: {lde}", flush=True)
 
             # Verify and resolve tokens safely
             import json, base64
@@ -190,11 +224,14 @@ class JobManager:
                     raise ValueError(f"Invalid or expired download token: {t}")
                 sources.append(payload["variant_url"])
 
-            job["progress"] = 45
+            job["progress"] = 75
             self._save_job_db(job)
             output_path = os.path.join(JOBS_DIR, job["filename"])
 
-            ua_args = ["-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"]
+            ua_args = [
+                "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
+                "-headers", "Referer: https://www.youtube.com/\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0\r\n"
+            ]
             if action == "merge":
                 if not ffmpeg_bin:
                     raise RuntimeError("ffmpeg not found for video merging.")
@@ -204,16 +241,18 @@ class JobManager:
                 else:
                     cmd = [ffmpeg_bin, "-y"] + ua_args + ["-i", sources[0]] + ua_args + ["-i", sources[1], "-c:v", "copy", "-c:a", "aac", output_path]
 
-                job["progress"] = 65
+                job["progress"] = 85
                 self._save_job_db(job)
                 proc = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                await proc.communicate()
+                stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
-                    raise RuntimeError("ffmpeg merge process failed.")
+                    err_msg = (stderr or b"").decode("utf-8", errors="ignore")[-200:]
+                    print(f"[job_manager] ffmpeg failed (code {proc.returncode}): {err_msg}", flush=True)
+                    raise RuntimeError(f"ffmpeg merge process failed: {err_msg.strip()[:80]}")
 
             elif action == "mp3":
                 if not ffmpeg_bin:

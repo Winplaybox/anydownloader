@@ -1,15 +1,14 @@
-"""
-/api/editor - AI Video Editor (public, website-only, 2 videos per IP per day).
+"""/api/editor - AI Video Editor (metered, credit-ledger backed, production-safe).
 
-  GET  /api/editor/options                     languages, voices, caption styles, modes + your quota
-  GET  /api/editor/quota                       {limit, used, remaining, resets_at}
-  GET  /api/editor/voice-preview?voice=ID      short sample of a voice (cached wav)
-  POST /api/editor/jobs                        multipart: file + settings -> {job}
-  GET  /api/editor/jobs/{id}                   status / progress / result
-  GET  /api/editor/jobs/{id}/file/{kind}       kind = video | srt | voiceover | metadata
-
-Quota: EDITOR_DAILY_LIMIT (default 2) successful-or-running jobs per client IP per
-calendar day in IST. Failed jobs are refunded. Admins (X-Admin-Key) are unlimited.
+Endpoints:
+  GET  /api/editor/options                   languages, voices, caption styles, modes + identity & limits
+  GET  /api/editor/quota                     user identity and remaining credits
+  GET  /api/editor/quote                     pre-action credit cost breakdown & balance preview
+  POST /api/editor/quote                     pre-action credit cost breakdown
+  GET  /api/editor/voice-preview?voice=ID    voice sample (static cache <20ms / generated wav)
+  POST /api/editor/jobs                      multipart: file + settings -> credit debit -> job
+  GET  /api/editor/jobs/{id}                 status / progress / result
+  GET  /api/editor/jobs/{id}/file/{kind}     kind = video | srt | voiceover | metadata
 """
 from __future__ import annotations
 
@@ -18,6 +17,7 @@ import hashlib
 import os
 import re
 import shutil
+import uuid
 from typing import Any, Dict, Tuple
 
 from starlette.requests import Request
@@ -29,11 +29,23 @@ try:
     from backend.security.zero_trust import authenticate_admin, client_ip, error, rate_limit
     from backend.services.video_editor import options as opts
     from backend.services.video_editor import pipeline, render, transcribe, tts
+    from backend.services.auth_service import (
+        deduct_credit_for_job,
+        get_plan,
+        refund_credit_for_job,
+        resolve_request_identity,
+    )
 except (ModuleNotFoundError, ImportError):  # pragma: no cover
     from security.token_vault import store  # type: ignore
     from security.zero_trust import authenticate_admin, client_ip, error, rate_limit  # type: ignore
     from services.video_editor import options as opts  # type: ignore
     from services.video_editor import pipeline, render, transcribe, tts  # type: ignore
+    from services.auth_service import (  # type: ignore
+        deduct_credit_for_job,
+        get_plan,
+        refund_credit_for_job,
+        resolve_request_identity,
+    )
 
 DAILY_LIMIT = int(os.environ.get("EDITOR_DAILY_LIMIT", "2"))
 MAX_UPLOAD_MB = int(os.environ.get("EDITOR_MAX_UPLOAD_MB", "100"))
@@ -43,59 +55,113 @@ _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 NO_STORE = {"Cache-Control": "no-store"}
 
 
-# --------------------------------------------------------------------------- #
-# Quota
-# --------------------------------------------------------------------------- #
 def _client_key(request: Request) -> str:
-    return hashlib.sha256(("editor:" + client_ip(request)).encode()).hexdigest()[:24]
+    ip = client_ip(request)
+    return hashlib.sha256(f"wpb:editor:{ip}".encode("utf-8")).hexdigest()[:16]
 
 
-def _day_keys(ck: str) -> Tuple[str, str, dt.datetime]:
-    now = dt.datetime.now(IST)
-    day = now.strftime("%Y%m%d")
-    reset = (now + dt.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    return f"wpb:editor:used:{day}:{ck}", f"wpb:editor:refund:{day}:{ck}", reset
+def _day_keys(client_key: str, now: Optional[dt.datetime] = None) -> Tuple[str, str, dt.datetime]:
+    t = now or dt.datetime.now(IST)
+    day = t.strftime("%Y%m%d")
+    next_day = (t + dt.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return f"wpb:editor:count:{day}:{client_key}", f"wpb:editor:refund:{day}:{client_key}", next_day
 
 
 def quota_status(request: Request) -> Dict[str, Any]:
-    used_k, ref_k, reset = _day_keys(_client_key(request))
-    unlimited = bool(authenticate_admin(request, allow_bearer_jwt=False))
+    identity = resolve_request_identity(request)
+    unlimited = authenticate_admin(request, allow_bearer_jwt=False)
+    _, _, reset = _day_keys(_client_key(request))
+    return {
+        "limit": None if unlimited else identity.get("credits", DAILY_LIMIT),
+        "used": 0,
+        "remaining": None if unlimited else identity.get("credits", 0),
+        "resets_at": reset.isoformat(),
+        "unlimited": unlimited,
+        "identity": identity
+    }
+
+
+def calculate_quote(settings: Dict[str, Any], identity: Dict[str, Any]) -> Dict[str, Any]:
+    """Calculates upfront credit cost and verifies plan resolution entitlements."""
+    res_str = str(settings.get("resolution", settings.get("height", 720))).lower().replace("p", "").strip()
     try:
-        used = max(0, store.get(used_k) - store.get(ref_k))
-    except Exception:
-        used = 0
-    return {"limit": None if unlimited else DAILY_LIMIT, "used": used,
-            "remaining": None if unlimited else max(0, DAILY_LIMIT - used),
-            "resets_at": reset.isoformat(), "unlimited": unlimited}
+        height = int(res_str)
+    except ValueError:
+        height = 720
 
+    # Base credit pricing by resolution
+    if height <= 720:
+        base_cost = 1
+    elif height <= 1080:
+        base_cost = 1
+    elif height <= 1440:
+        base_cost = 2
+    elif height <= 1800:
+        base_cost = 2
+    elif height <= 2160:
+        base_cost = 3
+    else:
+        base_cost = 5
 
-def _consume(request: Request) -> Tuple[bool, Dict[str, Any]]:
-    q = quota_status(request)
-    if q["unlimited"]:
-        return True, q
-    used_k, ref_k, _ = _day_keys(_client_key(request))
-    n = store.incr(used_k, 2 * 86400) - store.get(ref_k)
-    if n > DAILY_LIMIT:
-        store.incr(ref_k, 2 * 86400)  # undo this attempt
-        return False, quota_status(request)
-    return True, quota_status(request)
+    addon_cost = 0
+    total_cost = base_cost + addon_cost
+    current_credits = identity.get("credits", 0)
+    user_max_res = identity.get("max_resolution", 720)
 
+    can_render = True
+    reason = None
+    if current_credits < total_cost:
+        can_render = False
+        reason = f"Insufficient credits. This render requires {total_cost} credit(s), you have {current_credits}."
+    elif height > user_max_res:
+        can_render = False
+        reason = f"Your current plan ({identity.get('plan_name', 'Free')}) supports up to {user_max_res}p. Upgrade plan to unlock {height}p."
 
-def _refund_for(client_key: str, created_day: str) -> None:
-    store.incr(f"wpb:editor:refund:{created_day}:{client_key}", 2 * 86400)
+    return {
+        "ok": True,
+        "base_cost": base_cost,
+        "addon_cost": addon_cost,
+        "total_cost": total_cost,
+        "current_credits": current_credits,
+        "balance_after": max(0, current_credits - total_cost),
+        "can_render": can_render,
+        "reason": reason,
+        "plan": identity.get("plan", "free"),
+        "user_max_resolution": user_max_res
+    }
 
 
 # --------------------------------------------------------------------------- #
 # Handlers
 # --------------------------------------------------------------------------- #
 async def options_handler(request: Request) -> Response:
-    return JSONResponse({"ok": True, **opts.public_options(), "quota": quota_status(request),
-                         "limits": {"max_seconds": pipeline.MAX_DURATION, "max_upload_mb": MAX_UPLOAD_MB}},
-                        headers=NO_STORE)
+    identity = resolve_request_identity(request)
+    return JSONResponse({
+        "ok": True,
+        **opts.public_options(),
+        "identity": identity,
+        "quota": quota_status(request),
+        "limits": {"max_seconds": identity.get("max_duration", pipeline.MAX_DURATION), "max_upload_mb": MAX_UPLOAD_MB}
+    }, headers=NO_STORE)
 
 
 async def quota_handler(request: Request) -> Response:
-    return JSONResponse({"ok": True, "quota": quota_status(request)}, headers=NO_STORE)
+    identity = resolve_request_identity(request)
+    return JSONResponse({"ok": True, "quota": quota_status(request), "identity": identity}, headers=NO_STORE)
+
+
+async def quote_handler(request: Request) -> Response:
+    """Pre-action credit cost quote."""
+    identity = resolve_request_identity(request)
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+    else:
+        body = dict(request.query_params)
+    quote = calculate_quote(body, identity)
+    return JSONResponse(quote, headers=NO_STORE)
 
 
 _PREVIEW_TEXT = {
@@ -118,9 +184,24 @@ async def voice_preview_handler(request: Request) -> Response:
     voice = opts.VOICE_BY_ID.get(vid)
     if not voice:
         return error(request, 400, "InvalidField", "Unknown voice.")
+
+    # 1. Fast static pre-baked cache on VPS
+    static_dirs = [os.environ.get("PREVIEWS_DIR"), "/var/www/ovd-voice-previews", "/var/tmp/ovd-voice-previews"]
+    for sdir in static_dirs:
+        if sdir and os.path.exists(sdir):
+            for ext in ("mp3", "wav"):
+                static_p = os.path.join(sdir, f"{vid}.{ext}")
+                if os.path.exists(static_p) and os.path.getsize(static_p) > 1000:
+                    media_type = "audio/mpeg" if ext == "mp3" else "audio/wav"
+                    return FileResponse(static_p, media_type=media_type, headers={
+                        "Cache-Control": "public, max-age=31536000, immutable",
+                        "Access-Control-Allow-Origin": "*"
+                    })
+
+    # 2. Dynamic cache
     path = os.path.join(tts.CACHE_DIR, "previews", f"{vid}.wav")
     if not os.path.exists(path):
-        ok, _ = rate_limit("editorpv", client_ip(request), 20, 3600)
+        ok, _ = rate_limit("editorpv", client_ip(request), 30, 3600)
         if not ok:
             return error(request, 429, "RateLimited", "Too many voice previews, try again later.")
         lang = voice["lang"]
@@ -135,7 +216,10 @@ async def voice_preview_handler(request: Request) -> Response:
         tmp = path + f".{os.getpid()}.tmp.wav"
         sf.write(tmp, samples, tts.SR)
         os.replace(tmp, path)
-    return FileResponse(path, media_type="audio/wav", headers={"Cache-Control": "public, max-age=86400"})
+    return FileResponse(path, media_type="audio/wav", headers={
+        "Cache-Control": "public, max-age=86400",
+        "Access-Control-Allow-Origin": "*"
+    })
 
 
 def _field(form: Any, name: str, default: str = "", max_len: int = 200) -> str:
@@ -169,13 +253,16 @@ def _settings_from_form(form: Any) -> Tuple[Dict[str, Any], str]:
     fmt = _field(form, "format", "vertical", 10)
     if fmt not in ("vertical", "original"):
         fmt = "vertical"
+    res = _field(form, "resolution", "720", 10)
     return {
         "language": lang, "mode": mode, "caption_style": style, "voice": voice if mode != "original" else None,
-        "caption_script": script_kind, "accent": accent.upper(), "format": fmt,
+        "caption_script": script_kind, "accent": accent.upper(), "format": fmt, "resolution": res,
         "overlays": _field(form, "overlays", "1", 5) not in ("0", "false", "off"),
         "channel": _field(form, "channel", "", 120),
         "brief": _field(form, "brief", "", 4000),
         "script": _field(form, "script", "", 4000),
+        "has_hook": _field(form, "has_hook", "0", 5) in ("1", "true", "yes"),
+        "has_cta": _field(form, "has_cta", "0", 5) in ("1", "true", "yes"),
     }, ""
 
 
@@ -186,18 +273,16 @@ async def create_job_handler(request: Request) -> Response:
     cl = request.headers.get("content-length")
     if cl and cl.isdigit() and int(cl) > (MAX_UPLOAD_MB + 1) * 1024 * 1024:
         return error(request, 413, "PayloadTooLarge", f"Video must be under {MAX_UPLOAD_MB} MB.")
+
     ok, _ = rate_limit("editorpost", client_ip(request), 10, 3600)
     if not ok:
         return error(request, 429, "RateLimited", "Too many attempts, try again later.")
 
-    q = quota_status(request)
-    if not q["unlimited"] and q["remaining"] <= 0:
-        return error(request, 429, "DailyLimitReached",
-                     f"Free limit reached: {DAILY_LIMIT} videos per day. Resets at midnight IST.", quota=q)
+    identity = resolve_request_identity(request)
+    ck = identity.get("user_id") or identity.get("guest_id") or _client_key(request)
 
-    ck = _client_key(request)
-    if not q["unlimited"] and _has_active_job(ck):
-        return error(request, 409, "JobInProgress", "You already have a video being edited. Wait for it to finish.")
+    if _has_active_job(ck):
+        return error(request, 409, "JobInProgress", "You already have a video being edited. Please wait for it to finish.")
 
     try:
         form = await request.form(max_files=1, max_fields=30)
@@ -214,13 +299,18 @@ async def create_job_handler(request: Request) -> Response:
     if err:
         return error(request, 400, "InvalidField", err)
 
-    allowed, q = _consume(request)
-    if not allowed:
-        return error(request, 429, "DailyLimitReached",
-                     f"Free limit reached: {DAILY_LIMIT} videos per day. Resets at midnight IST.", quota=q)
+    # Pre-action quote & balance validation
+    quote = calculate_quote(settings, identity)
+    if not quote["can_render"]:
+        return JSONResponse({
+            "ok": False,
+            "error": quote["reason"],
+            "quote": quote,
+            "upgrade_required": True
+        }, status_code=402)
 
+    # Initialize job
     job = pipeline.new_job(settings, ck)
-    day = dt.datetime.now(IST).strftime("%Y%m%d")
     src_path = os.path.join(pipeline.job_dir(job["id"]), "source" + (ext if ext in _ALLOWED_EXT else ".mp4"))
     size = 0
     try:
@@ -235,21 +325,32 @@ async def create_job_handler(request: Request) -> Response:
                 out.write(chunk)
     except ValueError:
         shutil.rmtree(pipeline.job_dir(job["id"]), ignore_errors=True)
-        if not q["unlimited"]:
-            _refund_for(ck, day)
         return error(request, 413, "PayloadTooLarge", f"Video must be under {MAX_UPLOAD_MB} MB.")
     finally:
         await upload.close()
 
-    unlimited = q["unlimited"]
+    # Deduct credit atomically
+    cost = quote["total_cost"]
+    deducted = deduct_credit_for_job(identity, cost=cost, job_id=job["id"])
+    if not deducted:
+        shutil.rmtree(pipeline.job_dir(job["id"]), ignore_errors=True)
+        return JSONResponse({
+            "ok": False,
+            "error": "Insufficient credits to start render.",
+            "upgrade_required": True
+        }, status_code=402)
 
     async def on_finish(j: Dict[str, Any]) -> None:
-        if j.get("status") == "failed" and not unlimited:
-            _refund_for(ck, day)
+        if j.get("status") == "failed":
+            refund_credit_for_job(identity, amount=cost, job_id=j["id"], reason="Pipeline render failed")
 
     pipeline.start(job, src_path, on_finish)
-    return JSONResponse({"ok": True, "job": pipeline.public_job(job), "quota": quota_status(request)},
-                        status_code=202, headers=NO_STORE)
+    return JSONResponse({
+        "ok": True,
+        "job": pipeline.public_job(job),
+        "quote": quote,
+        "identity": identity
+    }, status_code=202, headers=NO_STORE)
 
 
 def _has_active_job(ck: str) -> bool:
@@ -265,66 +366,43 @@ def _has_active_job(ck: str) -> bool:
 
 
 async def job_status_handler(request: Request) -> Response:
-    job = pipeline.load_job(request.path_params["id"])
+    jid = request.path_params.get("id", "")
+    job = pipeline.load_job(jid)
     if not job:
         return error(request, 404, "NotFound", "Job not found or expired.")
     return JSONResponse({"ok": True, "job": pipeline.public_job(job)}, headers=NO_STORE)
 
 
-_DL = {"video": ("video/mp4", "mp4"), "srt": ("application/x-subrip", "srt"),
-       "voiceover": ("audio/wav", "wav"), "metadata": ("text/plain; charset=utf-8", "txt")}
-
-
 async def job_file_handler(request: Request) -> Response:
-    jid, kind = request.path_params["id"], request.path_params["kind"]
+    jid = request.path_params.get("id", "")
+    kind = request.path_params.get("kind", "")
     job = pipeline.load_job(jid)
-    path = pipeline.file_path(jid, kind) if job else None
-    if not path:
-        return error(request, 404, "NotFound", "File not found or expired.")
-    media, ext = _DL[kind]
-    name = f"ovd-ai-edit-{jid[:8]}.{ext}"
-    inline = request.query_params.get("inline") == "1"
-    return FileResponse(path, media_type=media, filename=None if inline else name,
+    if not job or job.get("status") != "done":
+        return error(request, 404, "NotFound", "Job is not ready.")
+    p = pipeline.file_path(jid, kind)
+    if not p:
+        return error(request, 404, "NotFound", "Requested file is missing.")
+    mime = {"video": "video/mp4", "srt": "text/plain; charset=utf-8",
+            "voiceover": "audio/wav", "metadata": "text/plain; charset=utf-8"}.get(kind, "application/octet-stream")
+    dl_name = f"ovd_ai_editor_{jid[:8]}.{'mp4' if kind == 'video' else 'srt' if kind == 'srt' else 'wav' if kind == 'voiceover' else 'txt'}"
+    return FileResponse(p, media_type=mime, filename=dl_name,
                         headers={"Cache-Control": "private, max-age=3600"})
 
 
 async def health_handler(request: Request) -> Response:
-    """Deployment self-check: can this server actually edit videos?"""
-    import asyncio
-    import subprocess
-
-    def check() -> Dict[str, Any]:
-        out: Dict[str, Any] = {}
-        try:
-            ff = render._bin("ffmpeg")
-            filters = subprocess.run([ff, "-hide_banner", "-filters"], capture_output=True, text=True, timeout=20).stdout
-            out["ffmpeg"] = {"path": ff, "ass_filter": " ass " in filters, "loudnorm": "loudnorm" in filters,
-                             "sidechaincompress": "sidechaincompress" in filters}
-        except Exception as e:
-            out["ffmpeg"] = {"error": str(e)}
-        model = os.path.join(tts.CACHE_DIR, "kokoro", os.path.basename(tts._MODEL_URL))
-        out["kokoro"] = {"model_cached": os.path.exists(model)}
-        try:
-            import kokoro_onnx  # noqa: F401
-            out["kokoro"]["installed"] = True
-        except Exception:
-            out["kokoro"]["installed"] = False
-        out["whisper_installed"] = transcribe.available()
-        out["fonts"] = sorted(os.listdir(render.FONTS_DIR)) if os.path.isdir(render.FONTS_DIR) else []
-        out["quota_store"] = getattr(store, "name", "?")
-        out["gemini_configured"] = bool(os.environ.get("GEMINI_API_KEY"))
-        out["concurrency"] = pipeline.CONCURRENCY
-        return out
-
-    return JSONResponse({"ok": True, **await asyncio.to_thread(check)}, headers=NO_STORE)
+    return JSONResponse({
+        "ok": True,
+        "service": "ai_video_editor",
+        "work_dir": pipeline.WORK_DIR,
+        "concurrency": pipeline.CONCURRENCY,
+        "timestamp": time.time()
+    }, headers=NO_STORE)
 
 
 async def warmup_handler(request: Request) -> Response:
-    """Admin: download the Kokoro model now instead of on the first job."""
-    import asyncio
-
     if not authenticate_admin(request, allow_bearer_jwt=False):
         return error(request, 401, "AdminAuthRequired", "Admin authentication required.")
+    import asyncio
     err = await asyncio.to_thread(tts.warm_up)
     return JSONResponse({"ok": err is None, "error": err}, headers=NO_STORE)
 
@@ -334,6 +412,7 @@ routes_editor = [
     Route("/api/editor/warmup", warmup_handler, methods=["POST"]),
     Route("/api/editor/options", options_handler, methods=["GET"]),
     Route("/api/editor/quota", quota_handler, methods=["GET"]),
+    Route("/api/editor/quote", quote_handler, methods=["GET", "POST"]),
     Route("/api/editor/voice-preview", voice_preview_handler, methods=["GET"]),
     Route("/api/editor/jobs", create_job_handler, methods=["POST"]),
     Route("/api/editor/jobs/{id}", job_status_handler, methods=["GET"]),
