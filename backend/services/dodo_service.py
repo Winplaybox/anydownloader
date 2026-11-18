@@ -24,20 +24,25 @@ log = logging.getLogger("dodo_payments")
 
 DODO_API_KEY = os.environ.get("DODO_PAYMENTS_API_KEY", "").strip()
 DODO_WEBHOOK_SECRET = os.environ.get("DODO_PAYMENTS_WEBHOOK_SECRET", "").strip()
-DODO_ENV = os.environ.get("DODO_PAYMENTS_ENV", "test").strip().lower()
+DODO_ENV = os.environ.get("DODO_PAYMENTS_ENV", "live" if DODO_API_KEY.startswith("dodo_live_") else "test").strip().lower()
 
-BASE_URL = "https://live.dodopayments.com" if DODO_ENV == "live" else "https://test.dodopayments.com"
-SUCCESS_RETURN_URL = os.environ.get("DODO_RETURN_URL", "https://ovd.winplaybox.in/ai-video-editor?payment=success")
+BASE_URL = "https://live.dodopayments.com" if (DODO_ENV == "live" or DODO_API_KEY.startswith("dodo_live_")) else "https://test.dodopayments.com"
+SUCCESS_RETURN_URL = os.environ.get("DODO_RETURN_URL", "https://ovd.winplaybox.in/payment/success")
 
-# Product ID mapping for Dodo Payments (Configurable via ENV)
-# e.g. DODO_PRODUCT_PLAN_1, DODO_PRODUCT_PLAN_2
+# Product ID mapping for Dodo Payments Live Environment
 DODO_PRODUCT_IDS: Dict[str, str] = {
-    "plan_1": os.environ.get("DODO_PRODUCT_PLAN_1", "p_ovd_plan_1"),
-    "plan_2": os.environ.get("DODO_PRODUCT_PLAN_2", "p_ovd_plan_2"),
-    "plan_3": os.environ.get("DODO_PRODUCT_PLAN_3", "p_ovd_plan_3"),
-    "plan_4": os.environ.get("DODO_PRODUCT_PLAN_4", "p_ovd_plan_4"),
-    "plan_5": os.environ.get("DODO_PRODUCT_PLAN_5", "p_ovd_plan_5"),
-    "plan_6": os.environ.get("DODO_PRODUCT_PLAN_6", "p_ovd_plan_6"),
+    "plan1": os.environ.get("DODO_PRODUCT_PLAN_1", "pdt_0NsD5gB9BVgr9HcXQ1bZn"),
+    "plan_1": os.environ.get("DODO_PRODUCT_PLAN_1", "pdt_0NsD5gB9BVgr9HcXQ1bZn"),
+    "plan2": os.environ.get("DODO_PRODUCT_PLAN_2", "pdt_0NsD6LN0JNlPsYDKDC68B"),
+    "plan_2": os.environ.get("DODO_PRODUCT_PLAN_2", "pdt_0NsD6LN0JNlPsYDKDC68B"),
+    "plan3": os.environ.get("DODO_PRODUCT_PLAN_3", "pdt_0NsD6LSzzhmCeUJSD6xal"),
+    "plan_3": os.environ.get("DODO_PRODUCT_PLAN_3", "pdt_0NsD6LSzzhmCeUJSD6xal"),
+    "plan4": os.environ.get("DODO_PRODUCT_PLAN_4", "pdt_0NsD6LZhTr5YKnO2ofQtH"),
+    "plan_4": os.environ.get("DODO_PRODUCT_PLAN_4", "pdt_0NsD6LZhTr5YKnO2ofQtH"),
+    "plan5": os.environ.get("DODO_PRODUCT_PLAN_5", "pdt_0NsD6LqMzHo26g2eV0eC1"),
+    "plan_5": os.environ.get("DODO_PRODUCT_PLAN_5", "pdt_0NsD6LqMzHo26g2eV0eC1"),
+    "plan6": os.environ.get("DODO_PRODUCT_PLAN_6", "pdt_0NsD6M6kJNKNQ83qBKNVn"),
+    "plan_6": os.environ.get("DODO_PRODUCT_PLAN_6", "pdt_0NsD6M6kJNKNQ83qBKNVn"),
 }
 
 
