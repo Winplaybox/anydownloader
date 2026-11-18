@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { User, LogIn, LogOut, Zap, Crown, Sparkles, Loader2, ArrowRight } from 'lucide-react';
+import { User, LogIn, LogOut, Zap, Crown, Sparkles, Loader2, ArrowRight, Mail } from 'lucide-react';
+import AuthModal from './AuthModal.jsx';
 
 const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
@@ -17,7 +18,8 @@ function GoogleGIcon({ className = 'w-3.5 h-3.5' }) {
 }
 
 export default function UserAccountBar({ session, onOpenPricing, onSessionUpdate }) {
-  const [loggingIn, setLoggingIn] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState('signin');
 
   const isAuthenticated = session?.authenticated && !session?.is_guest;
   const plan = session?.plan || 'free';
@@ -25,38 +27,6 @@ export default function UserAccountBar({ session, onOpenPricing, onSessionUpdate
   const credits = session?.credits ?? 2;
   const maxRes = session?.max_resolution ?? 480;
   const isPaid = plan !== 'free';
-
-  async function handleGoogleLogin() {
-    if (window.google?.accounts?.id) {
-      window.google.accounts.id.prompt();
-      return;
-    }
-    const email = prompt('Enter your Google email to sign in (or test):');
-    if (!email) return;
-    setLoggingIn(true);
-    try {
-      const guestId = localStorage.getItem('wpb_guest_id');
-      const res = await fetch(`${BACKEND_BASE}/api/auth/google`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          credential: btoa(JSON.stringify({ email, name: email.split('@')[0], sub: `g_${Date.now()}` })),
-          guest_id: guestId
-        })
-      });
-      const data = await res.json();
-      if (data.ok && data.user) {
-        if (data.token) localStorage.setItem('wpb_token', data.token);
-        localStorage.setItem('wpb_session_data', JSON.stringify(data.user));
-        if (onSessionUpdate) onSessionUpdate(data.user);
-      }
-    } catch (e) {
-      console.error('Login error:', e);
-    } finally {
-      setLoggingIn(false);
-    }
-  }
 
   async function handleLogout() {
     try {
@@ -134,22 +104,42 @@ export default function UserAccountBar({ session, onOpenPricing, onSessionUpdate
             type="button"
             onClick={handleLogout}
             title="Log out"
-            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 border border-zinc-700/60 transition-colors"
+            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 border border-zinc-700/60 transition-colors cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={loggingIn}
-            className="px-3 py-2 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 text-xs font-bold flex items-center gap-2 border border-zinc-200 shadow-sm transition-colors cursor-pointer"
-          >
-            {loggingIn ? <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-900" /> : <GoogleGIcon />}
-            <span>Sign in with Google</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => { setAuthMode('signin'); setAuthOpen(true); }}
+              className="px-3 py-2 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 text-xs font-bold flex items-center gap-1.5 border border-zinc-200 shadow-sm transition-colors cursor-pointer"
+            >
+              <GoogleGIcon />
+              <span>Google</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('signin'); setAuthOpen(true); }}
+              className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 border border-zinc-700/60 transition-colors cursor-pointer"
+            >
+              <Mail className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Email</span>
+            </button>
+          </div>
         )}
       </div>
+
+      {/* Auth Modal for Email & Google */}
+      <AuthModal
+        isOpen={authOpen}
+        onClose={() => setAuthOpen(false)}
+        initialMode={authMode}
+        onSuccess={(u) => {
+          if (onSessionUpdate) onSessionUpdate(u);
+          setAuthOpen(false);
+        }}
+      />
     </div>
   );
 }

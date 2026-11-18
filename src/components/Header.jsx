@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { BellPlus, ChevronDown, Menu, Moon, Newspaper, Sun, Wand2, X, Crown, Sparkles, User, LogIn, LogOut, Loader2 } from 'lucide-react';
+import { BellPlus, ChevronDown, Menu, Moon, Newspaper, Sun, Wand2, X, Crown, Sparkles, User, LogIn, LogOut, Loader2, Mail } from 'lucide-react';
 import {
   TwitterXIcon, YoutubeIcon, FacebookIcon, InstagramIcon, TiktokIcon, PinterestIcon, RedditIcon, ThreadsIcon, GlobeIcon, ChromeIcon,
 } from './BrandIcons.jsx';
 import PricingModal from './PricingModal.jsx';
+import AuthModal from './AuthModal.jsx';
 
 const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
@@ -81,7 +82,8 @@ export default function Header() {
   const [drawer, setDrawer] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [loggingIn, setLoggingIn] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState('signin');
   const profileRef = useRef(null);
   const { pathname } = useLocation();
 
@@ -125,11 +127,26 @@ export default function Header() {
     return () => { document.removeEventListener('pointerdown', onDoc); document.removeEventListener('keydown', onKey); };
   }, [profileOpen]);
 
-  // Listen for global open-pricing-modal event
+  // Listen for global open-pricing-modal, open-auth-modal and session-updated events
   useEffect(() => {
-    const onOpen = () => setPricingOpen(true);
-    window.addEventListener('open-pricing-modal', onOpen);
-    return () => window.removeEventListener('open-pricing-modal', onOpen);
+    const onPricing = () => setPricingOpen(true);
+    const onAuth = (e) => {
+      if (e?.detail?.mode) setAuthMode(e.detail.mode);
+      setAuthOpen(true);
+    };
+    const onSessionUpdated = (e) => {
+      if (e?.detail) setSession(e.detail);
+    };
+
+    window.addEventListener('open-pricing-modal', onPricing);
+    window.addEventListener('open-auth-modal', onAuth);
+    window.addEventListener('session-updated', onSessionUpdated);
+
+    return () => {
+      window.removeEventListener('open-pricing-modal', onPricing);
+      window.removeEventListener('open-auth-modal', onAuth);
+      window.removeEventListener('session-updated', onSessionUpdated);
+    };
   }, []);
 
   // Fetch session on mount
@@ -250,6 +267,17 @@ export default function Header() {
             <span className="px-1.5 py-0.5 rounded bg-amber-500 text-black text-[9px] font-black uppercase">7 Tiers</span>
           </button>
 
+          {!isAuthenticated && (
+            <button
+              type="button"
+              onClick={() => { setAuthMode('signin'); setAuthOpen(true); }}
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--bg-alt)] text-xs font-bold text-[var(--text)] transition-colors cursor-pointer"
+            >
+              <LogIn className="w-3.5 h-3.5 text-blue-400" />
+              <span>Sign In</span>
+            </button>
+          )}
+
           {/* User / Guest Avatar Pill & Dropdown */}
           <div className="relative" ref={profileRef}>
             <button
@@ -331,15 +359,31 @@ export default function Header() {
                 </button>
 
                 {!isAuthenticated ? (
-                  <button
-                    type="button"
-                    onClick={handleGoogleLogin}
-                    disabled={loggingIn}
-                    className="w-full py-2 px-3 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 text-xs font-bold flex items-center justify-center gap-2 border border-zinc-200 shadow-sm transition-colors cursor-pointer"
-                  >
-                    {loggingIn ? <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-900" /> : <GoogleGIcon />}
-                    <span>Sign in with Google</span>
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => { setProfileOpen(false); setAuthMode('signin'); setAuthOpen(true); }}
+                      className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 text-xs font-bold flex items-center justify-center gap-2 border border-zinc-200 shadow-sm transition-colors cursor-pointer"
+                    >
+                      <GoogleGIcon className="w-4 h-4" />
+                      <span>Sign in with Google</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setProfileOpen(false); setAuthMode('signin'); setAuthOpen(true); }}
+                      className="w-full py-2 px-3 rounded-xl border border-[var(--border)] bg-[var(--bg-alt)] hover:bg-[var(--border)] text-[var(--text)] text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-zinc-400" />
+                      <span>Sign in with Email</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setProfileOpen(false); setAuthMode('signup'); setAuthOpen(true); }}
+                      className="w-full text-center text-[11px] text-blue-400 hover:underline font-bold pt-0.5 cursor-pointer"
+                    >
+                      New user? Sign up for +5 Free Credits
+                    </button>
+                  </div>
                 ) : (
                   <button
                     type="button"
@@ -410,8 +454,8 @@ export default function Header() {
                 {!isAuthenticated ? (
                   <button
                     type="button"
-                    onClick={() => { setDrawer(false); handleGoogleLogin(); }}
-                    className="py-2 px-3 rounded-xl bg-white text-zinc-900 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm border border-zinc-200"
+                    onClick={() => { setDrawer(false); setAuthMode('signin'); setAuthOpen(true); }}
+                    className="py-2 px-3 rounded-xl bg-white text-zinc-900 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm border border-zinc-200 cursor-pointer"
                   >
                     <GoogleGIcon className="w-3.5 h-3.5" />
                     <span>Sign in</span>
@@ -470,6 +514,17 @@ export default function Header() {
         onPlanUpgraded={(np) => {
           setSession((p) => ({ ...p, plan: np }));
           setPricingOpen(false);
+        }}
+      />
+
+      {/* Both Auth Systems: Google Auth (Site Kit / GSI) & Valid Email + Password */}
+      <AuthModal
+        isOpen={authOpen}
+        onClose={() => setAuthOpen(false)}
+        initialMode={authMode}
+        onSuccess={(u) => {
+          setSession(u);
+          setAuthOpen(false);
         }}
       />
     </header>

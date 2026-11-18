@@ -11,6 +11,8 @@ from backend.services.auth_service import (
     get_all_plans,
     get_credit_history,
     issue_session_jwt,
+    login_user_with_email,
+    register_user_with_email,
     resolve_request_identity,
     upsert_user_from_google,
     verify_google_credential,
@@ -80,6 +82,71 @@ async def google_auth_handler(request: Request) -> Response:
     return resp
 
 
+async def register_handler(request: Request) -> Response:
+    """Registers a new account using email & password."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid JSON body"}, status_code=400)
+
+    email = body.get("email")
+    password = body.get("password")
+    name = body.get("name", "")
+    guest_id = body.get("guest_id") or request.cookies.get("wpb_guest")
+
+    user, err = register_user_with_email(email, password, name=name, guest_id=guest_id)
+    if err or not user:
+        return JSONResponse({"ok": False, "error": err or "Registration failed"}, status_code=400)
+
+    session_token = issue_session_jwt(user)
+    resp = JSONResponse({
+        "ok": True,
+        "token": session_token,
+        "user": user,
+        "message": "Welcome! You received 5 bonus credits."
+    })
+    resp.set_cookie(
+        "wpb_session",
+        session_token,
+        max_age=30 * 86400,
+        httponly=True,
+        samesite="lax",
+        secure=True
+    )
+    return resp
+
+
+async def login_handler(request: Request) -> Response:
+    """Authenticates an account using email & password."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid JSON body"}, status_code=400)
+
+    email = body.get("email")
+    password = body.get("password")
+
+    user, err = login_user_with_email(email, password)
+    if err or not user:
+        return JSONResponse({"ok": False, "error": err or "Invalid credentials"}, status_code=401)
+
+    session_token = issue_session_jwt(user)
+    resp = JSONResponse({
+        "ok": True,
+        "token": session_token,
+        "user": user
+    })
+    resp.set_cookie(
+        "wpb_session",
+        session_token,
+        max_age=30 * 86400,
+        httponly=True,
+        samesite="lax",
+        secure=True
+    )
+    return resp
+
+
 async def logout_handler(request: Request) -> Response:
     """Clears authentication session."""
     resp = JSONResponse({"ok": True, "message": "Logged out successfully"})
@@ -108,6 +175,8 @@ async def ledger_handler(request: Request) -> Response:
 routes_auth = [
     Route("/api/auth/session", session_handler, methods=["GET"]),
     Route("/api/auth/google", google_auth_handler, methods=["POST"]),
+    Route("/api/auth/register", register_handler, methods=["POST"]),
+    Route("/api/auth/login", login_handler, methods=["POST"]),
     Route("/api/auth/logout", logout_handler, methods=["POST"]),
     Route("/api/auth/plans", plans_handler, methods=["GET"]),
     Route("/api/auth/ledger", ledger_handler, methods=["GET"]),

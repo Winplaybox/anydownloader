@@ -14,6 +14,10 @@ import time
 import uuid
 import sqlite3
 import logging
+import hashlib
+import hmac
+import re
+import secrets
 from typing import Any, Dict, List, Optional, Tuple
 import jwt
 import httpx
@@ -43,6 +47,25 @@ DEFAULT_PLANS = [
 ]
 
 
+_EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def hash_password(password: str) -> str:
+    """Derives a salted PBKDF2-HMAC-SHA256 hash."""
+    salt = secrets.token_hex(16)
+    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000)
+    return f"{salt}:{key.hex()}"
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """Verifies password matches stored salted PBKDF2 hash."""
+    if not stored_hash or ":" not in stored_hash:
+        return False
+    salt, _, key_hex = stored_hash.partition(":")
+    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000)
+    return hmac.compare_digest(key.hex(), key_hex)
+
+
 def _init_db() -> None:
     try:
         with sqlite3.connect(DB_PATH) as conn:
@@ -50,6 +73,7 @@ def _init_db() -> None:
                 CREATE TABLE IF NOT EXISTS users (
                     id TEXT PRIMARY KEY,
                     email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT,
                     name TEXT,
                     avatar TEXT,
                     plan TEXT DEFAULT 'free',
@@ -62,6 +86,10 @@ def _init_db() -> None:
                     updated_at REAL
                 )
             """)
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+            except sqlite3.OperationalError:
+                pass
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS guest_sessions (
                     guest_id TEXT PRIMARY KEY,
@@ -282,6 +310,99 @@ def upsert_user_from_google(google_data: Dict[str, Any], guest_id: Optional[str]
             conn.commit()
 
     return user
+
+
+def register_user_with_email(email: str, password: str, name: str = "", guest_id: Optional[str] = None) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Registers a new user with valid email and password, giving 5 welcome credits."""
+    email = (email or "").strip().lower()
+    if not email or not _EMAIL_REGEX.match(email):
+        return None, "Please enter a valid email address."
+    if not password or len(password) < 6:
+        return None, "Password must be at least 6 characters long."
+
+    name = (name or "").strip() or email.split("@")[0].capitalize()
+    now = time.time()
+    pwd_hash = hash_password(password)
+    avatar = f"https://api.dicebear.com/7.x/initials/svg?seed={name}"
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        if cursor.fetchone():
+            return None, "An account with this email already exists. Please sign in."
+
+        user_id = f"usr_{uuid.uuid4().hex}"
+        initial_credits = 5  # 5 Welcome bonus credits!
+        conn.execute("""
+            INSERT INTO users (id, email, password_hash, name, avatar, plan, credits, daily_credits, last_daily_reset, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'free', ?, 2, ?, ?, ?)
+        """, (user_id, email, pwd_hash, name, avatar, initial_credits, now, now, now))
+        _record_ledger(conn, "user", user_id, initial_credits, initial_credits, "signup_bonus", None, "Welcome bonus credits")
+
+        if guest_id:
+            conn.execute("UPDATE guest_sessions SET converted_to_user_id = ? WHERE guest_id = ?", (user_id, guest_id))
+        conn.commit()
+
+        user = {
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "avatar": avatar,
+            "plan": "free",
+            "credits": initial_credits,
+            "max_resolution": 480,
+            "authenticated": True,
+            "is_guest": False
+        }
+        return user, None
+
+
+def login_user_with_email(email: str, password: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Authenticates an existing user with email and password."""
+    email = (email or "").strip().lower()
+    if not email or not password:
+        return None, "Email and password are required."
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+        row = cursor.fetchone()
+        if not row:
+            return None, "No account found with this email. Please sign up."
+
+        u = dict(row)
+        stored_hash = u.get("password_hash")
+        if not stored_hash or not verify_password(password, stored_hash):
+            return None, "Incorrect password. If you signed up with Google, please use Sign in with Google."
+
+        # Daily credit renewal check
+        now = time.time()
+        credits = u.get("credits", 0)
+        if now - (u.get("last_daily_reset") or 0) > 86400:
+            if u.get("plan") == "free" and credits < 2:
+                credits = 2
+                conn.execute("UPDATE users SET credits = ?, last_daily_reset = ? WHERE id = ?", (credits, now, u["id"]))
+                _record_ledger(conn, "user", u["id"], 2, 2, "daily_reset", None, "Daily credit renewal")
+                conn.commit()
+                u["credits"] = credits
+
+        specs = get_plan(u.get("plan", "free"))
+        user = {
+            "id": u["id"],
+            "email": u["email"],
+            "name": u["name"],
+            "avatar": u.get("avatar"),
+            "plan": u.get("plan", "free"),
+            "plan_name": specs["name"],
+            "credits": u.get("credits", 0),
+            "max_resolution": specs["max_res"],
+            "max_duration": specs["max_duration"],
+            "authenticated": True,
+            "is_guest": False
+        }
+        return user, None
 
 
 def issue_session_jwt(user: Dict[str, Any]) -> str:
