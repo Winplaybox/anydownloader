@@ -35,15 +35,32 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_DAYS = 30
 GUEST_EXPIRY_DAYS = 7
 
-# Default Plan Seeds
+# Default Plan Seeds (Monthly, Yearly, 24-Hour Day Pass, Credit Packs)
 DEFAULT_PLANS = [
     {"id": "free", "name": "Free (480p SD)", "price_inr": 0, "price_usd": 0, "max_res": 480, "max_duration": 30, "credits": 2, "voices_tier": "standard", "captions_tier": "basic", "dodo_product_id": ""},
-    {"id": "plan1", "name": "Starter (720p)", "price_inr": 299, "price_usd": 4, "max_res": 720, "max_duration": 60, "credits": 30, "voices_tier": "standard", "captions_tier": "standard", "dodo_product_id": "p_starter_720"},
-    {"id": "plan2", "name": "Creator (1080p)", "price_inr": 599, "price_usd": 8, "max_res": 1080, "max_duration": 90, "credits": 75, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "p_creator_1080"},
-    {"id": "plan3", "name": "Pro (2K)", "price_inr": 999, "price_usd": 13, "max_res": 1440, "max_duration": 120, "credits": 150, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "p_pro_2k"},
-    {"id": "plan4", "name": "Studio (3K)", "price_inr": 1699, "price_usd": 22, "max_res": 1800, "max_duration": 180, "credits": 300, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "p_studio_3k"},
-    {"id": "plan5", "name": "Business (4K)", "price_inr": 2999, "price_usd": 40, "max_res": 2160, "max_duration": 300, "credits": 600, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "p_business_4k"},
-    {"id": "plan6", "name": "Enterprise (8K)", "price_inr": 5999, "price_usd": 80, "max_res": 4320, "max_duration": 300, "credits": 1500, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "p_enterprise_8k"},
+    {"id": "plan1", "name": "Starter (720p)", "price_inr": 299, "price_usd": 4, "max_res": 720, "max_duration": 60, "credits": 30, "voices_tier": "standard", "captions_tier": "standard", "dodo_product_id": "pdt_0NsD5gB9BVgr9HcXQ1bZn"},
+    {"id": "plan2", "name": "Creator (1080p)", "price_inr": 599, "price_usd": 8, "max_res": 1080, "max_duration": 90, "credits": 75, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsD6LN0JNlPsYDKDC68B"},
+    {"id": "plan3", "name": "Pro (2K)", "price_inr": 999, "price_usd": 13, "max_res": 1440, "max_duration": 120, "credits": 150, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsD6LSzzhmCeUJSD6xal"},
+    {"id": "plan4", "name": "Studio (3K)", "price_inr": 1699, "price_usd": 22, "max_res": 1800, "max_duration": 180, "credits": 300, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsD6LZhTr5YKnO2ofQtH"},
+    {"id": "plan5", "name": "Agency (4K)", "price_inr": 2999, "price_usd": 40, "max_res": 2160, "max_duration": 300, "credits": 600, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsD6LqMzHo26g2eV0eC1"},
+    {"id": "plan6", "name": "Enterprise (8K)", "price_inr": 5999, "price_usd": 80, "max_res": 4320, "max_duration": 300, "credits": 1500, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsD6M6kJNKNQ83qBKNVn"},
+
+    # 24-Hour Creator Day Pass (One-off projects, expires in 24 hours)
+    {"id": "day_pass", "name": "24-Hour Creator Pass", "price_inr": 99, "price_usd": 1.5, "max_res": 1080, "max_duration": 90, "credits": 15, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsDTUmxEe6Wbzz5hsp7L"},
+
+    # One-Time Credit Top-Up Packs (Never Expire)
+    {"id": "pack_100", "name": "100 Credits Top-up", "price_inr": 299, "price_usd": 4, "max_res": 1080, "max_duration": 90, "credits": 100, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsDTrR0ewxQK6PTTP98G"},
+    {"id": "pack_300", "name": "300 Credits Top-up", "price_inr": 699, "price_usd": 9, "max_res": 1440, "max_duration": 120, "credits": 300, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsDTrWv3ibp4UavYQ6wF"},
+    {"id": "pack_500", "name": "500 Credits Top-up", "price_inr": 999, "price_usd": 13, "max_res": 2160, "max_duration": 180, "credits": 500, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0Ns7d19f2M1B7GslZEnKA"},
+    {"id": "pack_1500", "name": "1500 Credits Pro Top-up", "price_inr": 2499, "price_usd": 33, "max_res": 4320, "max_duration": 300, "credits": 1500, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsDTrfAWJD4RrbM3SuwL"},
+
+    # Yearly Subscription Plans (Save ~20% / 2 Months Free)
+    {"id": "plan1_yearly", "name": "Starter (Yearly)", "price_inr": 2870, "price_usd": 38, "max_res": 720, "max_duration": 60, "credits": 30, "voices_tier": "standard", "captions_tier": "standard", "dodo_product_id": "pdt_0NsDTroXSQKLLqwaoMNV1"},
+    {"id": "plan2_yearly", "name": "Creator (Yearly)", "price_inr": 5750, "price_usd": 76, "max_res": 1080, "max_duration": 90, "credits": 75, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsDTrwOilW0LIcdiNcly"},
+    {"id": "plan3_yearly", "name": "Pro (Yearly)", "price_inr": 9590, "price_usd": 124, "max_res": 1440, "max_duration": 120, "credits": 150, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsDTs3x8Y7ZbeE07bawr"},
+    {"id": "plan4_yearly", "name": "Studio (Yearly)", "price_inr": 16300, "price_usd": 210, "max_res": 1800, "max_duration": 180, "credits": 300, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsDTsB84lRbmGgk3mUx8"},
+    {"id": "plan5_yearly", "name": "Agency (Yearly)", "price_inr": 28790, "price_usd": 380, "max_res": 2160, "max_duration": 300, "credits": 600, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsDTsHILc59bPNfawC6Q"},
+    {"id": "plan6_yearly", "name": "Enterprise (Yearly)", "price_inr": 57590, "price_usd": 760, "max_res": 4320, "max_duration": 300, "credits": 1500, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "pdt_0NsDTsOBDIg9hEZUM9oAG"},
 ]
 
 
@@ -194,9 +211,21 @@ def get_all_plans() -> List[Dict[str, Any]]:
         return DEFAULT_PLANS
 
 
-def get_plan(plan_id: str) -> Dict[str, Any]:
+def get_plan(plan_id: str, default_to_free: bool = False) -> Optional[Dict[str, Any]]:
     plans = {p["id"]: p for p in get_all_plans()}
-    return plans.get(plan_id, plans.get("free", DEFAULT_PLANS[0]))
+    for p in DEFAULT_PLANS:
+        if p["id"] not in plans:
+            plans[p["id"]] = p
+
+    if plan_id in plans:
+        return plans[plan_id]
+
+    norm = plan_id.lower().replace("_", "")
+    for k, v in plans.items():
+        if k.lower().replace("_", "") == norm:
+            return v
+
+    return plans.get("free") if default_to_free else None
 
 
 def create_guest_session(ip: str) -> Dict[str, Any]:

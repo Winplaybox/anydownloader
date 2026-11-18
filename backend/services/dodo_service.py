@@ -31,6 +31,7 @@ SUCCESS_RETURN_URL = os.environ.get("DODO_RETURN_URL", "https://ovd.winplaybox.i
 
 # Product ID mapping for Dodo Payments Live Environment
 DODO_PRODUCT_IDS: Dict[str, str] = {
+    # Monthly 7-Tier Plans
     "plan1": os.environ.get("DODO_PRODUCT_PLAN_1", "pdt_0NsD5gB9BVgr9HcXQ1bZn"),
     "plan_1": os.environ.get("DODO_PRODUCT_PLAN_1", "pdt_0NsD5gB9BVgr9HcXQ1bZn"),
     "plan2": os.environ.get("DODO_PRODUCT_PLAN_2", "pdt_0NsD6LN0JNlPsYDKDC68B"),
@@ -43,6 +44,24 @@ DODO_PRODUCT_IDS: Dict[str, str] = {
     "plan_5": os.environ.get("DODO_PRODUCT_PLAN_5", "pdt_0NsD6LqMzHo26g2eV0eC1"),
     "plan6": os.environ.get("DODO_PRODUCT_PLAN_6", "pdt_0NsD6M6kJNKNQ83qBKNVn"),
     "plan_6": os.environ.get("DODO_PRODUCT_PLAN_6", "pdt_0NsD6M6kJNKNQ83qBKNVn"),
+
+    # Yearly Plans (20% off)
+    "plan1_yearly": os.environ.get("DODO_PRODUCT_PLAN_1_YEARLY", "pdt_0NsDTroXSQKLLqwaoMNV1"),
+    "plan2_yearly": os.environ.get("DODO_PRODUCT_PLAN_2_YEARLY", "pdt_0NsDTrwOilW0LIcdiNcly"),
+    "plan3_yearly": os.environ.get("DODO_PRODUCT_PLAN_3_YEARLY", "pdt_0NsDTs3x8Y7ZbeE07bawr"),
+    "plan4_yearly": os.environ.get("DODO_PRODUCT_PLAN_4_YEARLY", "pdt_0NsDTsB84lRbmGgk3mUx8"),
+    "plan5_yearly": os.environ.get("DODO_PRODUCT_PLAN_5_YEARLY", "pdt_0NsDTsHILc59bPNfawC6Q"),
+    "plan6_yearly": os.environ.get("DODO_PRODUCT_PLAN_6_YEARLY", "pdt_0NsDTsOBDIg9hEZUM9oAG"),
+
+    # 24-Hour Creator Day Pass (One-off projects)
+    "day_pass": os.environ.get("DODO_PRODUCT_DAY_PASS", "pdt_0NsDTUmxEe6Wbzz5hsp7L"),
+    "daypass": os.environ.get("DODO_PRODUCT_DAY_PASS", "pdt_0NsDTUmxEe6Wbzz5hsp7L"),
+
+    # One-Time Credit Top-Up Packs (Never Expire)
+    "pack_100": os.environ.get("DODO_PRODUCT_PACK_100", "pdt_0NsDTrR0ewxQK6PTTP98G"),
+    "pack_300": os.environ.get("DODO_PRODUCT_PACK_300", "pdt_0NsDTrWv3ibp4UavYQ6wF"),
+    "pack_500": os.environ.get("DODO_PRODUCT_PACK_500", "pdt_0Ns7d19f2M1B7GslZEnKA"),
+    "pack_1500": os.environ.get("DODO_PRODUCT_PACK_1500", "pdt_0NsDTrfAWJD4RrbM3SuwL"),
 }
 
 
@@ -87,8 +106,7 @@ async def create_checkout_session(
     return_url: Optional[str] = None
 ) -> Dict[str, Any]:
     """Creates a Dodo Payments checkout session for subscription plans."""
-    norm_plan_id = plan_id.lower().replace("_", "")
-    plan = auth_service.get_plan(norm_plan_id) or auth_service.get_plan(plan_id)
+    plan = auth_service.get_plan(plan_id) or auth_service.get_plan(plan_id.lower().replace("_", ""))
     if not plan or plan["id"] == "free":
         raise ValueError(f"Invalid plan '{plan_id}' selected for checkout.")
     plan_id = plan["id"]
@@ -99,7 +117,7 @@ async def create_checkout_session(
     name = customer_name or identity.get("name") or "Valued Creator"
     dest_url = return_url or SUCCESS_RETURN_URL
 
-    product_id = DODO_PRODUCT_IDS.get(plan_id, f"p_ovd_{plan_id}")
+    product_id = DODO_PRODUCT_IDS.get(plan_id) or DODO_PRODUCT_IDS.get(plan_id.lower().replace("_", "")) or f"p_ovd_{plan_id}"
 
     metadata = {
         "plan_id": plan_id,

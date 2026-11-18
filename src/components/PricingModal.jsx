@@ -1,96 +1,38 @@
 import React, { useState } from 'react';
-import { X, Check, Zap, Sparkles, Shield, Loader2, ArrowRight, Crown } from 'lucide-react';
+import { X, Check, Zap, Sparkles, Shield, Loader2, ArrowRight, Crown, Clock, Globe2 } from 'lucide-react';
+import {
+  MONTHLY_PLANS,
+  YEARLY_PLANS,
+  CREDIT_PACKS,
+  DAY_PASS,
+  CURRENCIES,
+  formatPrice,
+  detectDefaultCurrency
+} from '../pages/PricingPage.jsx';
 
 const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
   : 'https://api.winplaybox.in';
 
-export const PLANS_DATA = [
-  {
-    id: 'free',
-    name: 'Free Trial',
-    price_inr: 0,
-    price_usd: 0,
-    max_res: '480p SD',
-    max_duration: '30s',
-    credits: 2,
-    badge: 'Current',
-    features: ['Below 720p (480p SD output)', '2 free credits daily', 'Standard voices & captions', 'Community render queue']
-  },
-  {
-    id: 'plan1',
-    name: 'Starter',
-    price_inr: 299,
-    price_usd: 4,
-    max_res: '720p HD',
-    max_duration: '60s',
-    credits: 30,
-    badge: 'Popular',
-    features: ['720p HD exports', '30 render credits / mo', 'Full voice library', 'No watermark', 'Standard queue']
-  },
-  {
-    id: 'plan2',
-    name: 'Creator',
-    price_inr: 599,
-    price_usd: 8,
-    max_res: '1080p Full HD',
-    max_duration: '90s',
-    credits: 75,
-    badge: 'Best Value',
-    features: ['1080p Full HD exports', '75 render credits / mo', 'All 50+ voices & styles', 'Priority render queue', 'Audio mastering (-14 LUFS)']
-  },
-  {
-    id: 'plan3',
-    name: 'Pro',
-    price_inr: 999,
-    price_usd: 13,
-    max_res: '2K QHD (1440p)',
-    max_duration: '120s',
-    credits: 150,
-    badge: 'Pro Tier',
-    features: ['2K QHD ultra resolution', '150 render credits / mo', '2-minute video clips', 'Dedicated worker priority', 'Custom brand highlights']
-  },
-  {
-    id: 'plan4',
-    name: 'Studio',
-    price_inr: 1699,
-    price_usd: 22,
-    max_res: '3K Ultra (1800p)',
-    max_duration: '180s',
-    credits: 300,
-    badge: 'Studio',
-    features: ['3K Ultra resolution', '300 render credits / mo', '3-minute video clips', 'Instant render slot', 'Commercial usage rights']
-  },
-  {
-    id: 'plan5',
-    name: 'Agency',
-    price_inr: 2999,
-    price_usd: 40,
-    max_res: '4K UHD (2160p)',
-    max_duration: '300s',
-    credits: 600,
-    badge: 'Agency',
-    features: ['4K Cinema UHD exports', '600 render credits / mo', '5-minute longform clips', 'Top queue priority', 'Unlimited voice previews']
-  },
-  {
-    id: 'plan6',
-    name: 'Enterprise',
-    price_inr: 5999,
-    price_usd: 80,
-    max_res: '8K Ultra (4320p)',
-    max_duration: '300s',
-    credits: 1500,
-    badge: 'VIP 8K',
-    features: ['8K Maximum fidelity', '1,500 render credits / mo', 'Hardware-isolated rendering', 'VIP 24/7 dedicated queue', 'Custom AI voice cloning access']
-  }
-];
-
 export default function PricingModal({ isOpen, onClose, userPlan = 'free', onPlanUpgraded }) {
-  const [currency, setCurrency] = useState('INR');
+  const [currency, setCurrency] = useState(() => {
+    try {
+      return localStorage.getItem('ovd_currency') || detectDefaultCurrency();
+    } catch {
+      return 'INR';
+    }
+  });
+
+  const [billingTab, setBillingTab] = useState('monthly'); // 'monthly' | 'yearly' | 'daypass' | 'packs'
   const [loadingPlan, setLoadingPlan] = useState('');
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
+
+  function handleCurrencyChange(c) {
+    setCurrency(c);
+    try { localStorage.setItem('ovd_currency', c); } catch {}
+  }
 
   async function handleCheckout(plan) {
     if (plan.id === 'free') {
@@ -153,24 +95,65 @@ export default function PricingModal({ isOpen, onClose, userPlan = 'free', onPla
             Higher resolution exports, up to 1,500 credits, zero queue wait times, and cinema 4K/8K rendering.
           </p>
 
-          <div className="inline-flex items-center gap-1 p-1 bg-[var(--bg-alt)] rounded-xl border border-[var(--border)] mt-4 shadow-sm">
+          {/* Currency Switcher */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5 p-1 bg-[var(--bg-alt)] rounded-2xl border border-[var(--border)] mt-4 shadow-sm">
+            {CURRENCIES.map((c) => (
+              <button
+                key={c.code}
+                type="button"
+                onClick={() => handleCurrencyChange(c.code)}
+                className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                  currency === c.code
+                    ? 'bg-[var(--primary)] text-[var(--on-primary)] shadow'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+                }`}
+              >
+                <span>{c.flag}</span>
+                <span>{c.code} ({c.symbol})</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Billing Tabs */}
+          <div className="inline-flex flex-wrap items-center justify-center p-1 bg-[var(--surface)] rounded-xl border border-[var(--border)] mt-4 shadow-sm gap-1">
             <button
               type="button"
-              onClick={() => setCurrency('INR')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                currency === 'INR' ? 'bg-[var(--primary)] text-[var(--on-primary)] shadow' : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+              onClick={() => setBillingTab('monthly')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                billingTab === 'monthly' ? 'bg-blue-600 text-white shadow' : 'text-[var(--text-muted)] hover:text-[var(--text)]'
               }`}
             >
-              INR (₹)
+              Monthly
             </button>
             <button
               type="button"
-              onClick={() => setCurrency('USD')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                currency === 'USD' ? 'bg-[var(--primary)] text-[var(--on-primary)] shadow' : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+              onClick={() => setBillingTab('yearly')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                billingTab === 'yearly' ? 'bg-blue-600 text-white shadow' : 'text-[var(--text-muted)] hover:text-[var(--text)]'
               }`}
             >
-              USD ($)
+              <span>Yearly</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-emerald-500 text-white text-[9px] font-black uppercase">Save 20%</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingTab('daypass')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                billingTab === 'daypass' ? 'bg-blue-600 text-white shadow' : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+              }`}
+            >
+              <Clock className="w-3 h-3" />
+              <span>24h Pass (₹99)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingTab('packs')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                billingTab === 'packs' ? 'bg-blue-600 text-white shadow' : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+              }`}
+            >
+              <Zap className="w-3 h-3 text-amber-500" />
+              <span>Credit Packs</span>
             </button>
           </div>
         </div>
@@ -181,93 +164,279 @@ export default function PricingModal({ isOpen, onClose, userPlan = 'free', onPla
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {PLANS_DATA.map((plan) => {
-            const isCurrent = userPlan === plan.id;
-            const isFeatured = plan.id === 'plan2' || plan.id === 'plan3';
-            const price = currency === 'INR' ? `₹${plan.price_inr}` : `$${plan.price_usd}`;
+        {/* TAB 1: MONTHLY */}
+        {billingTab === 'monthly' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {MONTHLY_PLANS.map((plan) => {
+              const isCurrent = userPlan === plan.id;
+              const isFeatured = plan.id === 'plan2' || plan.id === 'plan3';
+              const price = formatPrice(plan.price_inr, currency);
 
-            return (
-              <div
-                key={plan.id}
-                className={`relative flex flex-col justify-between rounded-2xl p-5 border transition-all ${
-                  isFeatured
-                    ? 'bg-[var(--surface)] border-blue-500 shadow-md ring-2 ring-blue-500/20'
-                    : 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--text-muted)]'
-                }`}
-              >
-                {plan.badge && (
-                  <span className={`absolute top-4 right-4 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                    isFeatured ? 'bg-blue-600 text-white shadow' : 'bg-[var(--bg-alt)] text-[var(--text-muted)] border border-[var(--border)]'
-                  }`}>
-                    {plan.badge}
-                  </span>
-                )}
-
-                <div>
-                  <h3 className="text-base font-bold text-[var(--text)] mb-1">{plan.name}</h3>
-                  <div className="flex items-baseline gap-1 mb-3">
-                    <span className="text-2xl font-black text-[var(--text)]">{plan.price_inr === 0 ? 'Free' : price}</span>
-                    {plan.price_inr > 0 && <span className="text-xs font-semibold text-[var(--text-muted)]">/mo</span>}
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] mb-4 text-xs space-y-1">
-                    <div className="flex justify-between text-[var(--text-muted)]">
-                      <span>Resolution:</span>
-                      <strong className="text-[var(--text)] font-bold">{plan.max_res}</strong>
-                    </div>
-                    <div className="flex justify-between text-[var(--text-muted)]">
-                      <span>Credits:</span>
-                      <strong className="text-amber-500 font-bold">{plan.credits} / mo</strong>
-                    </div>
-                    <div className="flex justify-between text-[var(--text-muted)]">
-                      <span>Max Clip:</span>
-                      <strong className="text-[var(--text)] font-bold">{plan.max_duration}</strong>
-                    </div>
-                  </div>
-
-                  <ul className="space-y-2 mb-5">
-                    {plan.features.map((f, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs font-medium text-[var(--text)]">
-                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={loadingPlan === plan.id || isCurrent}
-                  onClick={() => handleCheckout(plan)}
-                  className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    isCurrent
-                      ? 'bg-[var(--bg-alt)] text-[var(--text-muted)] border border-[var(--border)] cursor-default'
-                      : isFeatured
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md'
-                      : 'bg-[var(--primary)] hover:opacity-90 text-[var(--on-primary)] font-bold shadow-sm'
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative flex flex-col justify-between rounded-2xl p-5 border transition-all ${
+                    isFeatured
+                      ? 'bg-[var(--surface)] border-blue-500 shadow-md ring-2 ring-blue-500/20'
+                      : 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--text-muted)]'
                   }`}
                 >
-                  {loadingPlan === plan.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : isCurrent ? (
-                    'Active Plan'
-                  ) : (
-                    <>
-                      <span>{plan.price_inr === 0 ? 'Use Free' : 'Upgrade Plan'}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </>
+                  {plan.badge && (
+                    <span className={`absolute top-4 right-4 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      isFeatured ? 'bg-blue-600 text-white shadow' : 'bg-[var(--bg-alt)] text-[var(--text-muted)] border border-[var(--border)]'
+                    }`}>
+                      {plan.badge}
+                    </span>
                   )}
-                </button>
+
+                  <div>
+                    <h3 className="text-base font-bold text-[var(--text)] mb-1">{plan.name}</h3>
+                    <div className="flex items-baseline gap-1 mb-3">
+                      <span className="text-2xl font-black text-[var(--text)]">{price}</span>
+                      {plan.price_inr > 0 && <span className="text-xs font-semibold text-[var(--text-muted)]">/mo</span>}
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] mb-4 text-xs space-y-1">
+                      <div className="flex justify-between text-[var(--text-muted)]">
+                        <span>Resolution:</span>
+                        <strong className="text-[var(--text)] font-bold">{plan.max_res}</strong>
+                      </div>
+                      <div className="flex justify-between text-[var(--text-muted)]">
+                        <span>Credits:</span>
+                        <strong className="text-amber-500 font-bold">{plan.credits} / mo</strong>
+                      </div>
+                      <div className="flex justify-between text-[var(--text-muted)]">
+                        <span>Max Clip:</span>
+                        <strong className="text-[var(--text)] font-bold">{plan.max_duration}</strong>
+                      </div>
+                    </div>
+
+                    <ul className="space-y-2 mb-5">
+                      {plan.features.map((f, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs font-medium text-[var(--text)]">
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={loadingPlan === plan.id || isCurrent}
+                    onClick={() => handleCheckout(plan)}
+                    className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      isCurrent
+                        ? 'bg-[var(--bg-alt)] text-[var(--text-muted)] border border-[var(--border)] cursor-default'
+                        : isFeatured
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md'
+                        : 'bg-[var(--primary)] hover:opacity-90 text-[var(--on-primary)] font-bold shadow-sm'
+                    }`}
+                  >
+                    {loadingPlan === plan.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : isCurrent ? (
+                      'Active Plan'
+                    ) : (
+                      <>
+                        <span>{plan.price_inr === 0 ? 'Use Free' : 'Upgrade Plan'}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* TAB 2: YEARLY (SAVE 20%) */}
+        {billingTab === 'yearly' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {YEARLY_PLANS.map((plan) => {
+              const isFeatured = plan.id === 'plan2_yearly' || plan.id === 'plan3_yearly';
+              const price = formatPrice(plan.price_inr, currency);
+              const monthlyEquiv = formatPrice(plan.monthly_inr, currency);
+
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative flex flex-col justify-between rounded-2xl p-5 border transition-all ${
+                    isFeatured
+                      ? 'bg-[var(--surface)] border-blue-500 shadow-md ring-2 ring-blue-500/20'
+                      : 'bg-[var(--surface)] border-[var(--border)]'
+                  }`}
+                >
+                  <span className="absolute top-4 right-4 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white shadow">
+                    {plan.badge}
+                  </span>
+
+                  <div>
+                    <h3 className="text-base font-bold text-[var(--text)] mb-1">{plan.name}</h3>
+                    <div className="flex items-baseline gap-1 mb-1">
+                      <span className="text-2xl font-black text-[var(--text)]">{price}</span>
+                      <span className="text-xs font-semibold text-[var(--text-muted)]">/year</span>
+                    </div>
+                    <div className="text-[11px] text-emerald-500 font-bold mb-3">
+                      Effectively {monthlyEquiv} / mo (Save 20%)
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] mb-4 text-xs space-y-1">
+                      <div className="flex justify-between text-[var(--text-muted)]">
+                        <span>Resolution:</span>
+                        <strong className="text-[var(--text)] font-bold">{plan.max_res}</strong>
+                      </div>
+                      <div className="flex justify-between text-[var(--text-muted)]">
+                        <span>Credits:</span>
+                        <strong className="text-amber-500 font-bold">{plan.credits} / mo</strong>
+                      </div>
+                    </div>
+
+                    <ul className="space-y-1.5 mb-5">
+                      {plan.features.map((f, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs font-medium text-[var(--text)]">
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={loadingPlan === plan.id}
+                    onClick={() => handleCheckout(plan)}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all cursor-pointer"
+                  >
+                    {loadingPlan === plan.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <span>Upgrade Annual</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* TAB 3: 24-HOUR PASS */}
+        {billingTab === 'daypass' && (
+          <div className="max-w-xl mx-auto rounded-2xl p-6 border border-amber-500 bg-[var(--surface)] shadow-lg ring-1 ring-amber-500/20 text-center">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-500 text-black mb-3">
+              <Clock className="w-3.5 h-3.5" /> {DAY_PASS.badge}
+            </div>
+            <h3 className="text-xl font-black text-[var(--text)] mb-2">{DAY_PASS.name}</h3>
+            <p className="text-xs text-[var(--text-muted)] mb-4">{DAY_PASS.tagline}</p>
+
+            <div className="text-3xl font-black text-[var(--text)] mb-4">
+              {formatPrice(DAY_PASS.price_inr, currency)}{' '}
+              <span className="text-xs text-[var(--text-muted)] font-normal">/ 24 hours (One-time)</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 p-3 bg-[var(--bg-alt)] rounded-xl border border-[var(--border)] mb-5 text-xs">
+              <div>
+                <span className="text-[var(--text-muted)] block">Credits</span>
+                <strong className="text-amber-500 font-bold">{DAY_PASS.credits}</strong>
               </div>
-            );
-          })}
-        </div>
+              <div>
+                <span className="text-[var(--text-muted)] block">Resolution</span>
+                <strong className="text-[var(--text)] font-bold">{DAY_PASS.max_res}</strong>
+              </div>
+              <div>
+                <span className="text-[var(--text-muted)] block">Max Clip</span>
+                <strong className="text-[var(--text)] font-bold">{DAY_PASS.max_duration}</strong>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={loadingPlan === DAY_PASS.id}
+              onClick={() => handleCheckout(DAY_PASS)}
+              className="w-full py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-95 text-black shadow-md transition-all cursor-pointer"
+            >
+              {loadingPlan === DAY_PASS.id ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <span>Activate 24-Hour Pass ({formatPrice(DAY_PASS.price_inr, currency)})</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* TAB 4: CREDIT PACKS */}
+        {billingTab === 'packs' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {CREDIT_PACKS.map((pack) => {
+              const isBest = pack.id === 'pack_500' || pack.id === 'pack_300';
+              const price = formatPrice(pack.price_inr, currency);
+
+              return (
+                <div
+                  key={pack.id}
+                  className={`relative flex flex-col justify-between rounded-2xl p-5 border transition-all ${
+                    isBest
+                      ? 'bg-[var(--surface)] border-amber-500 shadow-md ring-1 ring-amber-500/20'
+                      : 'bg-[var(--surface)] border-[var(--border)]'
+                  }`}
+                >
+                  <span className={`absolute top-4 right-4 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    isBest ? 'bg-amber-500 text-black shadow' : 'bg-[var(--bg-alt)] text-[var(--text-muted)] border border-[var(--border)]'
+                  }`}>
+                    {pack.badge}
+                  </span>
+
+                  <div>
+                    <h3 className="text-base font-bold text-[var(--text)] mb-1">{pack.name}</h3>
+                    <div className="flex items-baseline gap-1 mb-1">
+                      <span className="text-2xl font-black text-[var(--text)]">{price}</span>
+                      <span className="text-xs font-semibold text-[var(--text-muted)]">one-time</span>
+                    </div>
+                    <div className="text-[11px] text-amber-500 font-bold mb-4">
+                      {pack.credits} Credits • Never Expire
+                    </div>
+
+                    <ul className="space-y-1.5 mb-5">
+                      {pack.features.map((f, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs font-medium text-[var(--text)]">
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={loadingPlan === pack.id}
+                    onClick={() => handleCheckout(pack)}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-95 text-black shadow-sm transition-all cursor-pointer"
+                  >
+                    {loadingPlan === pack.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <span>Buy {pack.credits} Credits</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="mt-6 pt-4 border-t border-[var(--border)] flex flex-wrap items-center justify-between text-xs text-[var(--text-muted)] gap-3">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-emerald-500" />
-            <span>Secure 256-bit encryption • Global cards, UPI & NetBanking accepted via Dodo Payments</span>
+            <span>Secure 256-bit encryption • Global cards, UPI & NetBanking accepted in 150+ countries via Dodo Payments</span>
           </div>
           <button type="button" onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text)] underline cursor-pointer">
             Continue with current plan
