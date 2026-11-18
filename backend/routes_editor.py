@@ -83,14 +83,16 @@ def quota_status(request: Request) -> Dict[str, Any]:
 
 def calculate_quote(settings: Dict[str, Any], identity: Dict[str, Any]) -> Dict[str, Any]:
     """Calculates upfront credit cost and verifies plan resolution entitlements."""
-    res_str = str(settings.get("resolution", settings.get("height", 720))).lower().replace("p", "").strip()
+    res_str = str(settings.get("resolution", settings.get("height", 480))).lower().replace("p", "").strip()
     try:
         height = int(res_str)
     except ValueError:
-        height = 720
+        height = 480
 
     # Base credit pricing by resolution
-    if height <= 720:
+    if height <= 480:
+        base_cost = 1
+    elif height <= 720:
         base_cost = 1
     elif height <= 1080:
         base_cost = 1
@@ -106,7 +108,7 @@ def calculate_quote(settings: Dict[str, Any], identity: Dict[str, Any]) -> Dict[
     addon_cost = 0
     total_cost = base_cost + addon_cost
     current_credits = identity.get("credits", 0)
-    user_max_res = identity.get("max_resolution", 720)
+    user_max_res = identity.get("max_resolution", 480)
 
     can_render = True
     reason = None
@@ -115,7 +117,7 @@ def calculate_quote(settings: Dict[str, Any], identity: Dict[str, Any]) -> Dict[
         reason = f"Insufficient credits. This render requires {total_cost} credit(s), you have {current_credits}."
     elif height > user_max_res:
         can_render = False
-        reason = f"Your current plan ({identity.get('plan_name', 'Free')}) supports up to {user_max_res}p. Upgrade plan to unlock {height}p."
+        reason = f"Your current plan ({identity.get('plan_name', 'Free')}) supports up to {user_max_res}p. Free trial gives up to 480p SD. Upgrade to Plan 1 (720p) or Plan 2 (1080p) to unlock {height}p."
 
     return {
         "ok": True,
@@ -253,7 +255,7 @@ def _settings_from_form(form: Any) -> Tuple[Dict[str, Any], str]:
     fmt = _field(form, "format", "vertical", 10)
     if fmt not in ("vertical", "original"):
         fmt = "vertical"
-    res = _field(form, "resolution", "720", 10)
+    res = _field(form, "resolution", "480", 10)
     return {
         "language": lang, "mode": mode, "caption_style": style, "voice": voice if mode != "original" else None,
         "caption_script": script_kind, "accent": accent.upper(), "format": fmt, "resolution": res,

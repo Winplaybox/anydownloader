@@ -33,7 +33,7 @@ GUEST_EXPIRY_DAYS = 7
 
 # Default Plan Seeds
 DEFAULT_PLANS = [
-    {"id": "free", "name": "Free", "price_inr": 0, "price_usd": 0, "max_res": 720, "max_duration": 30, "credits": 2, "voices_tier": "standard", "captions_tier": "basic", "dodo_product_id": ""},
+    {"id": "free", "name": "Free (480p SD)", "price_inr": 0, "price_usd": 0, "max_res": 480, "max_duration": 30, "credits": 2, "voices_tier": "standard", "captions_tier": "basic", "dodo_product_id": ""},
     {"id": "plan1", "name": "Starter (720p)", "price_inr": 299, "price_usd": 4, "max_res": 720, "max_duration": 60, "credits": 30, "voices_tier": "standard", "captions_tier": "standard", "dodo_product_id": "p_starter_720"},
     {"id": "plan2", "name": "Creator (1080p)", "price_inr": 599, "price_usd": 8, "max_res": 1080, "max_duration": 90, "credits": 75, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "p_creator_1080"},
     {"id": "plan3", "name": "Pro (2K)", "price_inr": 999, "price_usd": 13, "max_res": 1440, "max_duration": 120, "credits": 150, "voices_tier": "all", "captions_tier": "all", "dodo_product_id": "p_pro_2k"},
@@ -102,15 +102,22 @@ def _init_db() -> None:
                 )
             """)
 
-            # Seed plans if empty
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM plans")
-            if cursor.fetchone()[0] == 0:
-                for p in DEFAULT_PLANS:
-                    conn.execute("""
-                        INSERT INTO plans (id, name, price_inr, price_usd, max_res, max_duration, credits, voices_tier, captions_tier, dodo_product_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (p["id"], p["name"], p["price_inr"], p["price_usd"], p["max_res"], p["max_duration"], p["credits"], p["voices_tier"], p["captions_tier"], p["dodo_product_id"]))
+            # Seed or sync plans
+            for p in DEFAULT_PLANS:
+                conn.execute("""
+                    INSERT INTO plans (id, name, price_inr, price_usd, max_res, max_duration, credits, voices_tier, captions_tier, dodo_product_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        name = excluded.name,
+                        price_inr = excluded.price_inr,
+                        price_usd = excluded.price_usd,
+                        max_res = excluded.max_res,
+                        max_duration = excluded.max_duration,
+                        credits = excluded.credits,
+                        voices_tier = excluded.voices_tier,
+                        captions_tier = excluded.captions_tier,
+                        dodo_product_id = excluded.dodo_product_id
+                """, (p["id"], p["name"], p["price_inr"], p["price_usd"], p["max_res"], p["max_duration"], p["credits"], p["voices_tier"], p["captions_tier"], p["dodo_product_id"]))
 
             conn.commit()
     except Exception as e:
@@ -167,7 +174,7 @@ def create_guest_session(ip: str) -> Dict[str, Any]:
         "authenticated": False,
         "plan": "free",
         "credits": 2,
-        "max_resolution": 720,
+        "max_resolution": 480,
         "max_duration": 30,
         "name": "Guest Visitor",
         "email": None,
@@ -199,7 +206,7 @@ def get_guest_session(guest_id: str) -> Optional[Dict[str, Any]]:
                     "authenticated": False,
                     "plan": "free",
                     "credits": r.get("credits", 2),
-                    "max_resolution": 720,
+                    "max_resolution": 480,
                     "max_duration": 30,
                     "converted_to": r.get("converted_to_user_id"),
                     "name": "Guest Visitor",

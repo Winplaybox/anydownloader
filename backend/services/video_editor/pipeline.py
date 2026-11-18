@@ -352,7 +352,8 @@ async def _process(job: Dict[str, Any], src_path: str) -> None:
                 job["warnings"].append("Captions are in native script (Roman conversion was unavailable).")
     else:
         words = cap.words_from_lines(spoken_lines)
-    out_w, out_h = render.output_size(info["width"], info["height"], s["format"])
+    target_res = int(s.get("resolution") or s.get("height") or 480)
+    out_w, out_h = render.output_size(info["width"], info["height"], s["format"], target_res=target_res)
     font = LANG_BY_ID.get(lang, {}).get("font", "Inter Black")
     if s["caption_script"] == "roman":
         font = "Inter Black"
@@ -376,7 +377,7 @@ async def _process(job: Dict[str, Any], src_path: str) -> None:
 
     out_path = os.path.join(d, "final.mp4")
     rinfo = await asyncio.to_thread(render.render, src_path=src_path, src=info, out_path=out_path, ass_path=ass_path,
-                                    vo_path=vo_path, mode=mode, fmt=s["format"], duration=duration, progress=prog)
+                                    vo_path=vo_path, mode=mode, fmt=s["format"], duration=duration, target_res=target_res, progress=prog)
     loud = await asyncio.to_thread(render.measure_loudness, out_path)
 
     # 7. metadata -------------------------------------------------------------------

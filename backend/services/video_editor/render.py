@@ -68,14 +68,25 @@ def probe(path: str) -> Dict[str, Any]:
             "codec": v.get("codec_name")}
 
 
-def output_size(src_w: int, src_h: int, fmt: str) -> Tuple[int, int]:
+def output_size(src_w: int, src_h: int, fmt: str, target_res: int = 480) -> Tuple[int, int]:
+    """Calculates clean even output dimensions based on target resolution and orientation.
+    Free tier defaults to 480p SD (below 720p). Plan 1=720, Plan 2=1080, Plan 3=1440, etc.
+    """
+    try:
+        res = int(target_res or 480)
+    except (ValueError, TypeError):
+        res = 480
+
     if fmt == "vertical":
-        return LONG_SIDE * 9 // 16 // 2 * 2, LONG_SIDE
-    if src_w >= src_h:
-        w, h = LONG_SIDE, int(round(LONG_SIDE * src_h / max(1, src_w)))
-    else:
-        w, h = int(round(LONG_SIDE * src_w / max(1, src_h))), LONG_SIDE
-    return max(2, w // 2 * 2), max(2, h // 2 * 2)
+        w = max(2, res // 2 * 2)
+        h = max(2, int(round(w * 16 / 9)) // 2 * 2)
+        return w, h
+
+    # Landscape / Original aspect ratio
+    h = max(2, res // 2 * 2)
+    aspect = (src_w / max(1, src_h)) if (src_w and src_h) else (16.0 / 9.0)
+    w = max(2, int(round(h * aspect)) // 2 * 2)
+    return w, h
 
 
 def extract_frames(path: str, out_dir: str, duration: float, n: int = 8) -> List[Tuple[float, bytes]]:
@@ -164,8 +175,8 @@ def _loudnorm_measure(inputs: List[str], graph: str, label: str, duration: float
 
 
 def render(*, src_path: str, src: Dict[str, Any], out_path: str, ass_path: Optional[str], vo_path: Optional[str],
-           mode: str, fmt: str, duration: float, progress: Optional[Callable[[float], None]] = None) -> Dict[str, Any]:
-    out_w, out_h = output_size(src["width"], src["height"], fmt)
+           mode: str, fmt: str, duration: float, target_res: int = 480, progress: Optional[Callable[[float], None]] = None) -> Dict[str, Any]:
+    out_w, out_h = output_size(src["width"], src["height"], fmt, target_res=target_res)
     has_vo = bool(vo_path and os.path.exists(vo_path))
     inputs = [src_path] + ([vo_path] if has_vo else [])
     a_graph, a_label = _audio_chain(mode, src["has_audio"], has_vo)

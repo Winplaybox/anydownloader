@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Upload, Wand2, Mic, Captions, Play, Pause, Loader2, CheckCircle2, AlertCircle, Download, Copy, Check,
-  Film, FileText, RotateCcw, Sparkles, Clock, ChevronDown, Video, Music2, Type
+  Film, FileText, RotateCcw, Sparkles, Clock, ChevronDown, Video, Music2, Type, Crown
 } from 'lucide-react';
 import PricingModal from '../components/PricingModal';
 import UserAccountBar from '../components/UserAccountBar';
@@ -112,7 +112,7 @@ export default function VideoEditorPage() {
   const [accent, setAccent] = useState('#FFE500');
   const [format, setFormat] = useState('vertical');
   const [overlays, setOverlays] = useState(true);
-  const [resolution, setResolution] = useState(720);
+  const [resolution, setResolution] = useState(480);
   const [session, setSession] = useState(null);
   const [showPricing, setShowPricing] = useState(false);
 
@@ -127,17 +127,26 @@ export default function VideoEditorPage() {
   // ---- load options, session + resume an unfinished job ----------------------------------------
   useEffect(() => {
     apiJson('/options').then((d) => { setOpts(d); setQuota(d.quota); }).catch((e) => setOptsError(e.message));
-    fetch(`${BACKEND_BASE}/api/auth/session`)
+
+    const token = localStorage.getItem('wpb_token');
+    const guestId = localStorage.getItem('wpb_guest_id');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (guestId) headers['x-guest-id'] = guestId;
+
+    fetch(`${BACKEND_BASE}/api/auth/session`, { credentials: 'include', headers })
       .then((r) => r.json())
       .then((d) => {
-        if (d.ok && d.session) {
-          setSession(d.session);
-          if (d.session.max_resolution) {
-            setResolution(Math.min(720, d.session.max_resolution));
-          }
+        const iden = d.identity || d.session;
+        if (d.ok && iden) {
+          setSession(iden);
+          if (iden.guest_id) localStorage.setItem('wpb_guest_id', iden.guest_id);
+          const maxR = iden.max_resolution || 480;
+          setResolution(maxR <= 480 ? 480 : maxR);
         }
       })
       .catch(console.error);
+
     const saved = typeof window !== 'undefined' ? localStorage.getItem(JOB_KEY) : null;
     if (saved) apiJson(`/jobs/${saved}`).then((d) => setJob(d.job)).catch(() => localStorage.removeItem(JOB_KEY));
   }, []);
@@ -266,7 +275,7 @@ export default function VideoEditorPage() {
         </div>
       )}
 
-      {job ? <JobView job={job} onReset={reset} /> : (
+      {job ? <JobView job={job} onReset={reset} onOpenPricing={() => setShowPricing(true)} /> : (
         <div className="space-y-5">
           {/* 1. Upload */}
           <Section step={1} icon={Upload} title="Upload your video">
@@ -412,19 +421,20 @@ export default function VideoEditorPage() {
                   <Film className="w-3.5 h-3.5 text-[var(--accent)]" /> Target Output Resolution
                 </span>
                 <span className="text-[11px] text-[var(--text-muted)]">
-                  Active plan tier: <strong className="text-[var(--text)]">{session?.plan_name || 'Free (up to 720p)'}</strong>
+                  Active plan: <strong className="text-[var(--text)]">{session?.plan_name || 'Free Trial (480p SD)'}</strong>
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
                 {[
-                  { r: 720, label: '720p HD', req: 'Free' },
-                  { r: 1080, label: '1080p FHD', req: 'Creator' },
-                  { r: 1440, label: '2K QHD', req: 'Pro' },
-                  { r: 1800, label: '3K Ultra', req: 'Studio' },
-                  { r: 2160, label: '4K Cinema', req: 'Business' },
-                  { r: 4320, label: '8K Ultra', req: 'Enterprise' },
+                  { r: 480, label: '480p SD', req: 'Free (Included)' },
+                  { r: 720, label: '720p HD', req: 'Plan 1 (Starter)' },
+                  { r: 1080, label: '1080p FHD', req: 'Plan 2 (Creator)' },
+                  { r: 1440, label: '2K QHD', req: 'Plan 3 (Pro)' },
+                  { r: 1800, label: '3K Ultra', req: 'Plan 4 (Studio)' },
+                  { r: 2160, label: '4K Cinema', req: 'Plan 5 (Business)' },
+                  { r: 4320, label: '8K Ultra', req: 'Plan 6 (Enterprise)' },
                 ].map((item) => {
-                  const maxAllowed = session?.max_resolution || 720;
+                  const maxAllowed = session?.max_resolution || 480;
                   const isLocked = item.r > maxAllowed;
                   const isSelected = resolution === item.r;
                   return (
@@ -438,9 +448,9 @@ export default function VideoEditorPage() {
                           setResolution(item.r);
                         }
                       }}
-                      className={`py-2 px-2.5 rounded-xl text-center border transition-all ${
+                      className={`py-2 px-2.5 rounded-xl text-center border transition-all cursor-pointer ${
                         isSelected
-                          ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-white font-bold'
+                          ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-white font-bold ring-1 ring-[var(--primary)]'
                           : isLocked
                           ? 'border-[var(--border)] opacity-60 hover:opacity-100 text-[var(--text-muted)]'
                           : 'border-[var(--border)] hover:border-[var(--text-muted)] text-[var(--text)]'
@@ -490,7 +500,7 @@ export default function VideoEditorPage() {
 }
 
 // =======================================================================================================
-function JobView({ job, onReset }) {
+function JobView({ job, onReset, onOpenPricing }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     if (job.status === 'done' || job.status === 'failed') return undefined;
@@ -500,12 +510,19 @@ function JobView({ job, onReset }) {
 
   if (job.status === 'failed') {
     return (
-      <div className="bg-[var(--surface)] border border-[var(--negative)]/40 rounded-2xl p-6 text-center">
+      <div className="bg-[var(--surface)] border border-[var(--negative)]/40 rounded-2xl p-6 text-center max-w-xl mx-auto my-6 shadow-sm">
         <AlertCircle className="w-10 h-10 text-[var(--negative)] mx-auto mb-3" />
         <h2 className="text-lg font-black text-[var(--text)] mb-1">This edit failed</h2>
-        <p className="text-sm text-[var(--text-muted)] mb-1">{job.error || 'Something went wrong.'}</p>
-        <p className="text-xs text-[var(--positive)] font-semibold mb-5">Your free credit was returned.</p>
-        <button type="button" onClick={onReset} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--primary)] text-[var(--on-primary)] text-sm font-bold"><RotateCcw className="w-4 h-4" />Try again</button>
+        <p className="text-sm text-[var(--text-muted)] mb-3 font-mono text-left bg-[var(--bg-alt)] p-3 rounded-xl border border-[var(--border)] break-all">{job.error || 'Something went wrong.'}</p>
+        <p className="text-xs text-[var(--positive)] font-semibold mb-5">&#10003; Your free credit was returned.</p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button type="button" onClick={onReset} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--primary)] text-[var(--on-primary)] text-sm font-bold cursor-pointer">
+            <RotateCcw className="w-4 h-4" />Try again
+          </button>
+          <button type="button" onClick={onOpenPricing} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-400 text-sm font-bold cursor-pointer">
+            <Crown className="w-4 h-4 text-amber-400" />Explore 7 Plans
+          </button>
+        </div>
       </div>
     );
   }
@@ -574,7 +591,29 @@ function JobView({ job, onReset }) {
                 </ul>
               </details>
             )}
-            <button type="button" onClick={onReset} className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent)] hover:underline"><Film className="w-4 h-4" />Edit another video</button>
+            {/* Upgrade prompt on finished video */}
+            <div className="mt-6 p-4 rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Crown className="w-4 h-4 text-amber-400" />
+                  <span>Want higher quality (1080p, 2K, 4K, 8K) or more renders?</span>
+                </p>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Free tier is 480p SD. Upgrade anytime to unlock Full HD / 4K and up to 1,500 credits.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenPricing}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-95 text-black text-xs font-black uppercase tracking-wider shrink-0 cursor-pointer shadow-md"
+              >
+                View 7 Plans
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <button type="button" onClick={onReset} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent)] hover:underline cursor-pointer"><Film className="w-4 h-4" />Edit another video</button>
+            </div>
           </div>
         </div>
       </div>

@@ -11,11 +11,11 @@ export const PLANS_DATA = [
     name: 'Free Trial',
     price_inr: 0,
     price_usd: 0,
-    max_res: '720p',
+    max_res: '480p SD',
     max_duration: '30s',
     credits: 2,
     badge: 'Current',
-    features: ['Up to 720p output', '2 free edits daily', 'Standard voices & captions', 'Community queue']
+    features: ['Below 720p (480p SD output)', '2 free credits daily', 'Standard voices & captions', 'Community render queue']
   },
   {
     id: 'plan1',
@@ -100,9 +100,16 @@ export default function PricingModal({ isOpen, onClose, userPlan = 'free', onPla
     setError('');
     setLoadingPlan(plan.id);
     try {
+      const token = localStorage.getItem('wpb_token');
+      const guestId = localStorage.getItem('wpb_guest_id');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (guestId) headers['x-guest-id'] = guestId;
+
       const res = await fetch(`${BACKEND_BASE}/api/payments/dodo/checkout`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({
           plan_id: plan.id,
           return_url: window.location.href
