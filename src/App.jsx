@@ -17,6 +17,7 @@ import VideoEditorPage from './pages/VideoEditorPage.jsx';
 import PricingPage from './pages/PricingPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import SignUpPage from './pages/SignUpPage.jsx';
+import PaymentSuccessPage from './pages/PaymentSuccessPage.jsx';
 import YouTubeSubscribeLinkPage from './pages/YouTubeSubscribeLinkPage.jsx';
 import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
 import { TOOL_ROUTES, TOOL_REDIRECTS } from './data/toolRoutes.js';
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="/ai-video-editor" element={<VideoEditorPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/plans" element={<Navigate to="/pricing" replace />} />
+            <Route path="/payment/success" element={<PaymentSuccessPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignUpPage />} />
             <Route path="/youtube-subscribe-link-generator" element={<YouTubeSubscribeLinkPage />} />

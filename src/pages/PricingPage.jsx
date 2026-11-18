@@ -201,7 +201,7 @@ export default function PricingPage() {
         headers,
         body: JSON.stringify({
           plan_id: plan.id,
-          return_url: window.location.origin + '/ai-video-editor'
+          return_url: window.location.origin + '/payment/success'
         })
       });
 

@@ -113,6 +113,9 @@ export default function VideoEditorPage() {
   const [format, setFormat] = useState('vertical');
   const [overlays, setOverlays] = useState(true);
   const navigate = useNavigate();
+  const [paymentSuccess, setPaymentSuccess] = useState(() => {
+    return typeof window !== 'undefined' && window.location.search.includes('payment=success');
+  });
   const [resolution, setResolution] = useState(480);
   const [session, setSession] = useState(null);
 
@@ -246,6 +249,27 @@ export default function VideoEditorPage() {
   return (
     <div className="py-8 sm:py-12 max-w-5xl mx-auto px-4 sm:px-6">
       <audio ref={audioRef} onEnded={() => setPlaying('')} className="hidden" />
+
+      {paymentSuccess && (
+        <div className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs sm:text-sm flex items-center justify-between gap-3 shadow-md animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <div>
+              <span className="font-black block text-[var(--text)]">🎉 Payment Successful! Plan Entitlements Activated!</span>
+              <span className="text-[var(--text-muted)] text-xs">
+                Your credits and high-resolution export quality are now unlocked and ready to use.
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPaymentSuccess(false)}
+            className="text-[var(--text-muted)] hover:text-[var(--text)] text-xs font-bold px-2 py-1 cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <UserAccountBar
         session={session}
@@ -442,14 +466,14 @@ export default function VideoEditorPage() {
                       type="button"
                       onClick={() => {
                         if (isLocked) {
-                          setShowPricing(true);
+                          navigate('/pricing');
                         } else {
                           setResolution(item.r);
                         }
                       }}
                       className={`py-2 px-2.5 rounded-xl text-center border transition-all cursor-pointer ${
                         isSelected
-                          ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-white font-bold ring-1 ring-[var(--primary)]'
+                          ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--on-primary)] font-bold shadow-sm'
                           : isLocked
                           ? 'border-[var(--border)] opacity-60 hover:opacity-100 text-[var(--text-muted)]'
                           : 'border-[var(--border)] hover:border-[var(--text-muted)] text-[var(--text)]'
@@ -587,11 +611,11 @@ function JobView({ job, onReset, onOpenPricing }) {
             {/* Upgrade prompt on finished video */}
             <div className="mt-6 p-4 rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Crown className="w-4 h-4 text-amber-400" />
+                <p className="text-xs font-bold text-[var(--text)] flex items-center gap-1.5">
+                  <Crown className="w-4 h-4 text-amber-500" />
                   <span>Want higher quality (1080p, 2K, 4K, 8K) or more renders?</span>
                 </p>
-                <p className="text-[11px] text-zinc-400 mt-0.5">
+                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
                   Free tier is 480p SD. Upgrade anytime to unlock Full HD / 4K and up to 1,500 credits.
                 </p>
               </div>

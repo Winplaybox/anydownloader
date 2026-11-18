@@ -334,7 +334,7 @@ export default function Header() {
                       <Link
                         to="/login"
                         onClick={() => setProfileOpen(false)}
-                        className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 text-xs font-bold flex items-center justify-center gap-2 border border-zinc-200 shadow-sm transition-colors cursor-pointer"
+                        className="w-full py-2.5 px-3 rounded-xl bg-[var(--surface)] hover:bg-[var(--bg-alt)] text-[var(--text)] text-xs font-bold flex items-center justify-center gap-2 border border-[var(--border)] shadow-sm transition-colors cursor-pointer"
                       >
                         <GoogleGIcon className="w-4 h-4" />
                         <span>Sign in with Google</span>
@@ -344,7 +344,7 @@ export default function Header() {
                         onClick={() => setProfileOpen(false)}
                         className="w-full py-2 px-3 rounded-xl border border-[var(--border)] bg-[var(--bg-alt)] hover:bg-[var(--border)] text-[var(--text)] text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
                       >
-                        <Mail className="w-3.5 h-3.5 text-zinc-400" />
+                        <Mail className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                         <span>Sign in with Email</span>
                       </Link>
                       <Link
@@ -467,7 +467,7 @@ export default function Header() {
                       <Link
                         to="/login"
                         onClick={() => setDrawer(false)}
-                        className="py-2 px-3 rounded-xl bg-white text-zinc-900 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm border border-zinc-200 cursor-pointer"
+                        className="py-2 px-3 rounded-xl bg-[var(--surface)] text-[var(--text)] text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm border border-[var(--border)] hover:bg-[var(--bg-alt)] cursor-pointer"
                       >
                         <GoogleGIcon className="w-3.5 h-3.5" />
                         <span>Sign In</span>

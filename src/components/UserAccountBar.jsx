@@ -43,18 +43,19 @@ export default function UserAccountBar({ session, onSessionUpdate }) {
     };
     localStorage.setItem('wpb_session_data', JSON.stringify(freshGuest));
     if (onSessionUpdate) onSessionUpdate(freshGuest);
+    window.dispatchEvent(new CustomEvent('session-updated', { detail: freshGuest }));
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-[var(--surface,#12141a)] border border-[var(--border,#262934)] rounded-2xl mb-6 shadow-sm">
+    <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-[var(--surface)] border border-[var(--border)] rounded-2xl mb-6 shadow-sm text-[var(--text)]">
       <div className="flex items-center gap-3">
-        {/* Avatar: colourful gradient for guest / photo for logged in */}
+        {/* Avatar circle */}
         <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-[2px] shadow-sm shrink-0">
-          <div className="w-full h-full bg-[#14161f] rounded-[10px] flex items-center justify-center overflow-hidden">
+          <div className="w-full h-full bg-[var(--bg)] rounded-[10px] flex items-center justify-center overflow-hidden">
             {session?.avatar ? (
               <img src={session.avatar} alt="Avatar" className="w-full h-full object-cover" />
             ) : isAuthenticated ? (
-              <span className="text-white font-black text-sm uppercase">{(session?.name || session?.email || 'U')[0]}</span>
+              <span className="text-[var(--text)] font-black text-sm uppercase">{(session?.name || session?.email || 'U')[0]}</span>
             ) : (
               <span className="text-base" role="img" aria-label="Guest avatar">🤖</span>
             )}
@@ -63,25 +64,25 @@ export default function UserAccountBar({ session, onSessionUpdate }) {
 
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs sm:text-sm font-bold text-white">
+            <span className="text-xs sm:text-sm font-bold text-[var(--text)]">
               {isAuthenticated ? (session.name || session.email) : 'Guest Creator'}
             </span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
               isPaid
-                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                : 'bg-zinc-800 text-zinc-300 border border-zinc-700/80'
+                ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
+                : 'bg-[var(--bg-alt)] text-[var(--text-muted)] border border-[var(--border)]'
             }`}>
-              {isPaid ? <Crown className="w-2.5 h-2.5 text-amber-400" /> : <Sparkles className="w-2.5 h-2.5 text-blue-400" />}
+              {isPaid ? <Crown className="w-2.5 h-2.5 text-amber-500" /> : <Sparkles className="w-2.5 h-2.5 text-blue-500" />}
               {planName}
             </span>
           </div>
-          <div className="text-[11px] text-zinc-400 flex flex-wrap items-center gap-1.5 mt-0.5">
-            <span>Free daily credits:</span>
-            <strong className="text-amber-400 font-bold">{credits}</strong>
-            <span className="text-zinc-600">•</span>
-            <span>Max export: <strong className="text-zinc-200">{maxRes}p {maxRes <= 480 ? 'SD' : 'HD'}</strong></span>
+          <div className="text-[11px] text-[var(--text-muted)] flex flex-wrap items-center gap-1.5 mt-0.5">
+            <span>Credits:</span>
+            <strong className="text-amber-500 font-bold">{credits}</strong>
+            <span className="opacity-40">•</span>
+            <span>Max export: <strong className="text-[var(--text)] font-bold">{maxRes}p {maxRes <= 480 ? 'SD' : 'HD'}</strong></span>
             {maxRes <= 480 && (
-              <span className="text-[10px] text-indigo-400 font-semibold">(Below 720p on Free)</span>
+              <span className="text-[10px] text-blue-500 font-semibold">(Below 720p on Free)</span>
             )}
           </div>
         </div>
@@ -90,7 +91,7 @@ export default function UserAccountBar({ session, onSessionUpdate }) {
       <div className="flex items-center gap-2">
         <Link
           to="/pricing"
-          className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-black text-xs font-black flex items-center gap-1.5 shadow-md shadow-orange-500/20 transition-all uppercase tracking-wide cursor-pointer"
+          className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:opacity-95 text-black text-xs font-black flex items-center gap-1.5 shadow-md shadow-orange-500/10 transition-all uppercase tracking-wide cursor-pointer"
         >
           <Crown className="w-3.5 h-3.5 text-black" />
           <span>{isPaid ? 'Add Credits' : '7-Tier Plans'}</span>
@@ -101,7 +102,7 @@ export default function UserAccountBar({ session, onSessionUpdate }) {
             type="button"
             onClick={handleLogout}
             title="Log out"
-            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 border border-zinc-700/60 transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-alt)] border border-[var(--border)] transition-colors cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
           </button>
@@ -109,16 +110,16 @@ export default function UserAccountBar({ session, onSessionUpdate }) {
           <div className="flex items-center gap-1.5">
             <Link
               to="/login?return=/ai-video-editor"
-              className="px-3 py-2 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 text-xs font-bold flex items-center gap-1.5 border border-zinc-200 shadow-sm transition-colors cursor-pointer"
+              className="px-3 py-2 rounded-xl bg-[var(--surface)] hover:bg-[var(--bg-alt)] text-[var(--text)] text-xs font-bold flex items-center gap-1.5 border border-[var(--border)] shadow-sm transition-colors cursor-pointer"
             >
               <GoogleGIcon />
               <span>Google</span>
             </Link>
             <Link
               to="/login?return=/ai-video-editor"
-              className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 border border-zinc-700/60 transition-colors cursor-pointer"
+              className="px-3 py-2 rounded-xl bg-[var(--bg-alt)] hover:bg-[var(--border)] text-[var(--text)] text-xs font-semibold flex items-center gap-1.5 border border-[var(--border)] transition-colors cursor-pointer"
             >
-              <Mail className="w-3.5 h-3.5 text-zinc-400" />
+              <Mail className="w-3.5 h-3.5 text-[var(--text-muted)]" />
               <span>Email</span>
             </Link>
           </div>

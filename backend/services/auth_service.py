@@ -90,12 +90,31 @@ def _init_db() -> None:
                 conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
             except sqlite3.OperationalError:
                 pass
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN dodo_subscription_id TEXT")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                conn.execute("ALTER TABLE guest_sessions ADD COLUMN plan TEXT DEFAULT 'free'")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                conn.execute("ALTER TABLE guest_sessions ADD COLUMN max_resolution INTEGER DEFAULT 480")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                conn.execute("ALTER TABLE guest_sessions ADD COLUMN dodo_subscription_id TEXT")
+            except sqlite3.OperationalError:
+                pass
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS guest_sessions (
                     guest_id TEXT PRIMARY KEY,
                     ip TEXT,
+                    plan TEXT DEFAULT 'free',
+                    max_resolution INTEGER DEFAULT 480,
                     credits INTEGER DEFAULT 2,
                     last_daily_reset REAL,
+                    dodo_subscription_id TEXT,
                     converted_to_user_id TEXT,
                     created_at REAL,
                     expires_at REAL
@@ -228,14 +247,18 @@ def get_guest_session(guest_id: str) -> Optional[Dict[str, Any]]:
                     _record_ledger(conn, "guest", guest_id, 2, 2, "daily_reset", None, "Daily credit renewal")
                     conn.commit()
                     r["credits"] = 2
+                plan_id = r.get("plan") or "free"
+                plan_info = get_plan(plan_id)
+                max_res = r.get("max_resolution") or (plan_info.get("max_res") if plan_info else 480)
                 return {
                     "guest_id": guest_id,
                     "is_guest": True,
                     "authenticated": False,
-                    "plan": "free",
+                    "plan": plan_id,
+                    "plan_name": plan_info.get("name") if plan_info else "Free Trial (480p SD)",
                     "credits": r.get("credits", 2),
-                    "max_resolution": 480,
-                    "max_duration": 30,
+                    "max_resolution": max_res,
+                    "max_duration": plan_info.get("max_duration", 30) if plan_info else 30,
                     "converted_to": r.get("converted_to_user_id"),
                     "name": "Guest Visitor",
                     "email": None,
@@ -304,8 +327,20 @@ def upsert_user_from_google(google_data: Dict[str, Any], guest_id: Optional[str]
                 "credits": initial_credits
             }
 
-        # If converted from guest, link guest session
+        # If converted from guest, link guest session and migrate upgraded plan or credits
         if guest_id:
+            cursor.execute("SELECT plan, max_resolution, credits, dodo_subscription_id FROM guest_sessions WHERE guest_id = ?", (guest_id,))
+            grow = cursor.fetchone()
+            if grow:
+                gdata = dict(grow)
+                if gdata.get("plan") and gdata["plan"] != "free":
+                    conn.execute("UPDATE users SET plan = ?, dodo_subscription_id = ? WHERE id = ?", (gdata["plan"], gdata.get("dodo_subscription_id"), user["id"]))
+                    user["plan"] = gdata["plan"]
+                extra_credits = max(0, (gdata.get("credits") or 0) - 2)
+                if extra_credits > 0:
+                    conn.execute("UPDATE users SET credits = credits + ? WHERE id = ?", (extra_credits, user["id"]))
+                    user["credits"] = (user.get("credits") or 0) + extra_credits
+                    _record_ledger(conn, "user", user["id"], extra_credits, user["credits"], "guest_transfer", guest_id, "Transferred remaining credits from guest session")
             conn.execute("UPDATE guest_sessions SET converted_to_user_id = ? WHERE guest_id = ?", (user["id"], guest_id))
             conn.commit()
 
@@ -332,26 +367,45 @@ def register_user_with_email(email: str, password: str, name: str = "", guest_id
         if cursor.fetchone():
             return None, "An account with this email already exists. Please sign in."
 
+        # Check if converting from an upgraded guest
+        target_plan = 'free'
+        dodo_sub = None
+        extra_credits = 0
+        if guest_id:
+            cursor.execute("SELECT plan, max_resolution, credits, dodo_subscription_id FROM guest_sessions WHERE guest_id = ?", (guest_id,))
+            grow = cursor.fetchone()
+            if grow:
+                gdata = dict(grow)
+                if gdata.get("plan") and gdata["plan"] != "free":
+                    target_plan = gdata["plan"]
+                    dodo_sub = gdata.get("dodo_subscription_id")
+                extra_credits = max(0, (gdata.get("credits") or 0) - 2)
+
         user_id = f"usr_{uuid.uuid4().hex}"
         initial_credits = 5  # 5 Welcome bonus credits!
+        total_credits = initial_credits + extra_credits
         conn.execute("""
-            INSERT INTO users (id, email, password_hash, name, avatar, plan, credits, daily_credits, last_daily_reset, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'free', ?, 2, ?, ?, ?)
-        """, (user_id, email, pwd_hash, name, avatar, initial_credits, now, now, now))
-        _record_ledger(conn, "user", user_id, initial_credits, initial_credits, "signup_bonus", None, "Welcome bonus credits")
+            INSERT INTO users (id, email, password_hash, name, avatar, plan, credits, daily_credits, dodo_subscription_id, last_daily_reset, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 2, ?, ?, ?, ?)
+        """, (user_id, email, pwd_hash, name, avatar, target_plan, total_credits, dodo_sub, now, now, now))
+        _record_ledger(conn, "user", user_id, initial_credits, total_credits, "signup_bonus", None, "Welcome bonus credits")
+        if extra_credits > 0:
+            _record_ledger(conn, "user", user_id, extra_credits, total_credits, "guest_transfer", guest_id, "Transferred remaining credits from guest session")
 
         if guest_id:
             conn.execute("UPDATE guest_sessions SET converted_to_user_id = ? WHERE guest_id = ?", (user_id, guest_id))
         conn.commit()
 
+        plan_info = get_plan(target_plan)
         user = {
             "id": user_id,
             "email": email,
             "name": name,
             "avatar": avatar,
-            "plan": "free",
-            "credits": initial_credits,
-            "max_resolution": 480,
+            "plan": target_plan,
+            "plan_name": plan_info.get("name") if plan_info else "Free Trial (480p SD)",
+            "credits": total_credits,
+            "max_resolution": plan_info.get("max_res") if plan_info else 480,
             "authenticated": True,
             "is_guest": False
         }
@@ -571,7 +625,12 @@ def get_credit_history(entity_type: str, entity_id: str, limit: int = 50) -> Lis
 
 def upgrade_user_plan(user_id: str, plan_id: str, dodo_subscription_id: Optional[str] = None) -> bool:
     """Upgrades user plan and adds plan credits atomically with ledger entry."""
-    plan = get_plan(plan_id)
+    norm_plan_id = plan_id.lower().replace("_", "")
+    plan = get_plan(norm_plan_id) or get_plan(plan_id)
+    if not plan:
+        log.error("upgrade_user_plan: unknown plan '%s'", plan_id)
+        return False
+    plan_id = plan["id"]
     now = time.time()
     try:
         with sqlite3.connect(DB_PATH) as conn:
@@ -592,6 +651,39 @@ def upgrade_user_plan(user_id: str, plan_id: str, dodo_subscription_id: Optional
             return True
     except Exception as e:
         log.error("upgrade_user_plan error: %s", e)
+        return False
+
+
+def upgrade_guest_plan(guest_id: str, plan_id: str, dodo_subscription_id: Optional[str] = None) -> bool:
+    """Upgrades a guest session with a purchased plan and credits."""
+    norm_plan_id = plan_id.lower().replace("_", "")
+    plan = get_plan(norm_plan_id) or get_plan(plan_id)
+    if not plan:
+        log.error("upgrade_guest_plan: unknown plan '%s'", plan_id)
+        return False
+    plan_id = plan["id"]
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT credits FROM guest_sessions WHERE guest_id = ?", (guest_id,))
+            row = cursor.fetchone()
+            if not row:
+                log.error("upgrade_guest_plan: guest not found %s", guest_id)
+                return False
+            cur_credits = row["credits"]
+            new_credits = cur_credits + plan["credits"]
+            conn.execute("""
+                UPDATE guest_sessions
+                SET plan = ?, max_resolution = ?, credits = ?, dodo_subscription_id = ?
+                WHERE guest_id = ?
+            """, (plan_id, plan["max_res"], new_credits, dodo_subscription_id, guest_id))
+            _record_ledger(conn, "guest", guest_id, plan["credits"], new_credits, "plan_upgrade", dodo_subscription_id, f"Purchased {plan['name']}")
+            conn.commit()
+            log.info("upgrade_guest_plan: %s -> %s (+%s credits, total=%s)", guest_id, plan_id, plan["credits"], new_credits)
+            return True
+    except Exception as e:
+        log.error("upgrade_guest_plan error: %s", e)
         return False
 
 

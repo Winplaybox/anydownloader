@@ -193,13 +193,7 @@ async def process_webhook_event(event: Dict[str, Any]) -> Dict[str, Any]:
             success = auth_service.upgrade_user_plan(user_id, plan_id, dodo_subscription_id=payment_id)
             return {"ok": success, "action": "upgraded_user", "user_id": user_id, "plan": plan_id}
         elif guest_id:
-            identity = {"is_guest": True, "guest_id": guest_id}
-            success = auth_service.add_credits_to_identity(
-                identity,
-                plan.get("credits", 30),
-                reason=f"Purchased {plan['name']} (Guest Plan)",
-                reference_id=payment_id
-            )
-            return {"ok": success, "action": "credited_guest", "guest_id": guest_id, "plan": plan_id}
+            success = auth_service.upgrade_guest_plan(guest_id, plan_id, dodo_subscription_id=payment_id)
+            return {"ok": success, "action": "upgraded_guest", "guest_id": guest_id, "plan": plan_id}
 
     return {"ok": True, "action": "ignored_event_type"}

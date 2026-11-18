@@ -85,7 +85,11 @@ async def mock_checkout_handler(request: Request) -> Response:
             }
         }
         await dodo_service.process_webhook_event(mock_event)
-        return RedirectResponse(url=return_url, status_code=302)
+        target = return_url
+        if "payment=" not in target:
+            sep = "&" if "?" in target else "?"
+            target = f"{target}{sep}payment=success&plan={plan_id}&session_id={session_id}"
+        return RedirectResponse(url=target, status_code=302)
 
     plan = auth_service.get_plan(plan_id) or {}
     html = f"""

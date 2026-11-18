@@ -250,9 +250,9 @@ export default function LoginPage() {
             type="button"
             onClick={handleGoogleFallback}
             disabled={googleLoading}
-            className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 text-xs font-bold flex items-center justify-center gap-2.5 border border-zinc-200 shadow-sm transition-all cursor-pointer"
+            className="w-full py-2.5 px-4 rounded-xl bg-[var(--surface)] hover:bg-[var(--bg-alt)] text-[var(--text)] text-xs font-bold flex items-center justify-center gap-2.5 border border-[var(--border)] shadow-sm transition-all cursor-pointer"
           >
-            {googleLoading ? <Loader2 className="w-4 h-4 animate-spin text-zinc-900" /> : <GoogleGIcon className="w-4 h-4" />}
+            {googleLoading ? <Loader2 className="w-4 h-4 animate-spin text-[var(--text)]" /> : <GoogleGIcon className="w-4 h-4" />}
             <span>Sign in with Google</span>
           </button>
         </div>
