@@ -5,10 +5,16 @@ const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname =
   ? 'http://localhost:8000'
   : 'https://api.winplaybox.in';
 
-// Default Google Client ID or from environment/window
-const GOOGLE_CLIENT_ID = typeof window !== 'undefined'
-  ? (window.__GOOGLE_CLIENT_ID__ || (import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || '1035678489718-sitekit.apps.googleusercontent.com')
+const RAW_CLIENT_ID = typeof window !== 'undefined'
+  ? (window.__GOOGLE_CLIENT_ID__ || (import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || '')
   : '';
+
+const IS_CONFIGURED_GOOGLE = Boolean(
+  RAW_CLIENT_ID &&
+  !RAW_CLIENT_ID.includes('sitekit.apps.googleusercontent.com') &&
+  RAW_CLIENT_ID.includes('.apps.googleusercontent.com')
+);
+const GOOGLE_CLIENT_ID = IS_CONFIGURED_GOOGLE ? RAW_CLIENT_ID : '';
 
 function GoogleGIcon({ className = 'w-4 h-4' }) {
   return (
@@ -39,9 +45,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
     setSuccessMsg('');
   }, [initialMode, isOpen]);
 
-  // Initialize Google Identity Services (GSI) Personalized Button & One-Tap
+  // Initialize Google Identity Services (GSI) Personalized Button (Only when valid client ID is provided)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !IS_CONFIGURED_GOOGLE) return;
 
     let mounted = true;
     function initGsi() {
@@ -67,9 +73,6 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
             width: 290
           });
         }
-
-        // Trigger Google One-Tap prompt
-        window.google.accounts.id.prompt();
       } catch (e) {
         console.warn('Google Identity Services init notice:', e);
       }
@@ -78,7 +81,6 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
     if (window.google?.accounts?.id) {
       initGsi();
     } else {
-      // Poll briefly if script is still loading
       const interval = setInterval(() => {
         if (window.google?.accounts?.id) {
           clearInterval(interval);
@@ -123,13 +125,12 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
     }
   }
 
-  // Fallback Google Sign-In prompt if GSI button is clicked or blocked
-  async function handleGoogleFallback() {
-    if (window.google?.accounts?.id) {
+  async function handleGoogleClick() {
+    if (IS_CONFIGURED_GOOGLE && window.google?.accounts?.id) {
       window.google.accounts.id.prompt();
       return;
     }
-    const testEmail = prompt('Enter your Google email to sign in:');
+    const testEmail = prompt('Enter your Google email to continue:');
     if (!testEmail) return;
     setGoogleLoading(true);
     setError('');
@@ -274,23 +275,23 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
           </div>
         )}
 
-        {/* System 1: Google Auth Login (Site Kit / GSI Personalized Button) */}
-        <div className="space-y-3 mb-5">
-          <div className="flex justify-center min-h-[44px]">
-            {/* Target element for Google Identity Services personalized button */}
-            <div ref={googleBtnRef} className="flex justify-center" />
-          </div>
-
-          {/* Backup Google Button if GSI hasn't populated */}
-          <button
-            type="button"
-            onClick={handleGoogleFallback}
-            disabled={googleLoading}
-            className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 text-xs font-bold flex items-center justify-center gap-2.5 border border-zinc-200 shadow-sm transition-all cursor-pointer"
-          >
-            {googleLoading ? <Loader2 className="w-4 h-4 animate-spin text-zinc-900" /> : <GoogleGIcon className="w-4 h-4" />}
-            <span>Continue with Google</span>
-          </button>
+        {/* System 1: Single Unified Google Auth Button */}
+        <div className="mb-5">
+          {IS_CONFIGURED_GOOGLE ? (
+            <div className="flex justify-center min-h-[44px]">
+              <div ref={googleBtnRef} className="flex justify-center" />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleGoogleClick}
+              disabled={googleLoading}
+              className="w-full py-2.5 px-4 rounded-xl bg-[var(--surface)] hover:bg-[var(--bg-alt)] text-[var(--text)] text-xs font-bold flex items-center justify-center gap-2.5 border border-[var(--border)] shadow-sm transition-all cursor-pointer"
+            >
+              {googleLoading ? <Loader2 className="w-4 h-4 animate-spin text-[var(--text)]" /> : <GoogleGIcon className="w-4 h-4" />}
+              <span>{mode === 'signup' ? 'Sign up with Google' : 'Sign in with Google'}</span>
+            </button>
+          )}
         </div>
 
         {/* Divider */}

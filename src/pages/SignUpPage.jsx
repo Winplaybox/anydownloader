@@ -6,9 +6,17 @@ const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname =
   ? 'http://localhost:8000'
   : 'https://api.winplaybox.in';
 
-const GOOGLE_CLIENT_ID = typeof window !== 'undefined'
-  ? (window.__GOOGLE_CLIENT_ID__ || (import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || '1035678489718-sitekit.apps.googleusercontent.com')
+const RAW_CLIENT_ID = typeof window !== 'undefined'
+  ? (window.__GOOGLE_CLIENT_ID__ || (import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || '')
   : '';
+
+// Real Google OAuth client IDs have format: <id>-<hash>.apps.googleusercontent.com (and not dummy sitekit placeholder)
+const IS_CONFIGURED_GOOGLE = Boolean(
+  RAW_CLIENT_ID &&
+  !RAW_CLIENT_ID.includes('sitekit.apps.googleusercontent.com') &&
+  RAW_CLIENT_ID.includes('.apps.googleusercontent.com')
+);
+const GOOGLE_CLIENT_ID = IS_CONFIGURED_GOOGLE ? RAW_CLIENT_ID : '';
 
 function GoogleGIcon({ className = 'w-4 h-4' }) {
   return (
@@ -50,8 +58,9 @@ export default function SignUpPage() {
     } catch {}
   }, [navigate, returnTo]);
 
-  // Google Identity Services (GSI) Personalized Button init
+  // Google Identity Services (GSI) init (Only when valid client ID is provided)
   useEffect(() => {
+    if (!IS_CONFIGURED_GOOGLE) return;
     let mounted = true;
 
     function initGsi() {
@@ -77,8 +86,6 @@ export default function SignUpPage() {
             width: 320
           });
         }
-
-        window.google.accounts.id.prompt();
       } catch (e) {
         console.warn('GSI init notice:', e);
       }
@@ -131,12 +138,12 @@ export default function SignUpPage() {
     }
   }
 
-  async function handleGoogleFallback() {
-    if (window.google?.accounts?.id) {
+  async function handleGoogleClick() {
+    if (IS_CONFIGURED_GOOGLE && window.google?.accounts?.id) {
       window.google.accounts.id.prompt();
       return;
     }
-    const emailPrompt = prompt('Enter your Google email to register:');
+    const emailPrompt = prompt('Enter your Google account email to register:');
     if (!emailPrompt) return;
     setGoogleLoading(true);
     setError('');
@@ -245,21 +252,23 @@ export default function SignUpPage() {
           </div>
         )}
 
-        {/* System 1: Google Auth (Site Kit / GSI Personalized Button) */}
-        <div className="space-y-3 mb-6">
-          <div className="flex justify-center min-h-[44px]">
-            <div ref={googleBtnRef} className="flex justify-center" />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleGoogleFallback}
-            disabled={googleLoading}
-            className="w-full py-2.5 px-4 rounded-xl bg-[var(--surface)] hover:bg-[var(--bg-alt)] text-[var(--text)] text-xs font-bold flex items-center justify-center gap-2.5 border border-[var(--border)] shadow-sm transition-all cursor-pointer"
-          >
-            {googleLoading ? <Loader2 className="w-4 h-4 animate-spin text-[var(--text)]" /> : <GoogleGIcon className="w-4 h-4" />}
-            <span>Sign up with Google</span>
-          </button>
+        {/* System 1: Single Unified Google Auth Button */}
+        <div className="mb-6">
+          {IS_CONFIGURED_GOOGLE ? (
+            <div className="flex justify-center min-h-[44px]">
+              <div ref={googleBtnRef} className="flex justify-center" />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleGoogleClick}
+              disabled={googleLoading}
+              className="w-full py-2.5 px-4 rounded-xl bg-[var(--surface)] hover:bg-[var(--bg-alt)] text-[var(--text)] text-xs font-bold flex items-center justify-center gap-2.5 border border-[var(--border)] shadow-sm transition-all cursor-pointer"
+            >
+              {googleLoading ? <Loader2 className="w-4 h-4 animate-spin text-[var(--text)]" /> : <GoogleGIcon className="w-4 h-4" />}
+              <span>Sign up with Google</span>
+            </button>
+          )}
         </div>
 
         {/* Divider */}

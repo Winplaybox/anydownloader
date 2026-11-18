@@ -276,7 +276,7 @@ export default function PricingPage() {
               key={plan.id}
               className={`relative flex flex-col justify-between rounded-3xl p-6 sm:p-7 border transition-all ${
                 isPopular
-                  ? 'bg-gradient-to-b from-blue-950/20 via-[var(--surface)] to-[var(--surface)] border-blue-500/50 shadow-xl shadow-blue-500/5 ring-1 ring-blue-500/30'
+                  ? 'bg-[var(--surface)] border-blue-500 shadow-xl shadow-blue-500/10 ring-2 ring-blue-500/20'
                   : 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--text-muted)]'
               }`}
             >
@@ -309,7 +309,7 @@ export default function PricingPage() {
                   </div>
                   <div className="flex justify-between items-center text-[var(--text-muted)]">
                     <span>Monthly Credits:</span>
-                    <strong className="text-amber-400 font-extrabold">{plan.credits} credits</strong>
+                    <strong className="text-amber-500 font-extrabold">{plan.credits} credits</strong>
                   </div>
                   <div className="flex justify-between items-center text-[var(--text-muted)]">
                     <span>Max Video Length:</span>
@@ -320,8 +320,8 @@ export default function PricingPage() {
                 {/* Features List */}
                 <ul className="space-y-2.5 mb-6 text-xs text-[var(--text-muted)]">
                   {plan.features.map((feat, idx) => (
-                    <li key={idx} className="flex items-start gap-2.5">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <li key={idx} className="flex items-start gap-2.5 text-xs font-medium text-[var(--text)]">
+                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                       <span>{feat}</span>
                     </li>
                   ))}
@@ -338,7 +338,7 @@ export default function PricingPage() {
                     isCurrent
                       ? 'bg-[var(--bg-alt)] text-[var(--text-muted)] border border-[var(--border)] cursor-default'
                       : isPopular
-                      ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/20'
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20'
                       : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90 text-black shadow-md'
                   }`}
                 >

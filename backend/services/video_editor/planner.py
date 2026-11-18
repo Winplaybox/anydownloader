@@ -146,6 +146,76 @@ def validate_script(obj: Dict[str, Any], duration: float, need_lines: bool) -> D
     }
 
 
+def _fallback_script(*, brief: str, channel: str, lang: str, caption_script: str, duration: float,
+                     transcript: str, mode: str, user_script: str = "") -> Dict[str, Any]:
+    """Guaranteed fallback script generator if all external LLM providers are down or fail."""
+    if mode == "original":
+        return {
+            "summary": brief or "Original video clip.",
+            "mood": "informative",
+            "hook": {"title": "WATCH THIS", "subtitle": ""},
+            "end_card": {"title": "FOLLOW FOR MORE", "subtitle": channel or ""},
+            "lines": []
+        }
+
+    source_text = user_script.strip() or brief.strip() or transcript.strip() or "Watch this incredible video clip until the end. Like and subscribe for more."
+    raw_sentences = [s.strip() for s in re.split(r'[.\n!?]+', source_text) if len(s.strip()) > 2]
+    if not raw_sentences:
+        raw_sentences = ["Check out what happens in this clip", "Follow and subscribe for more updates"]
+
+    wps = _words_per_second(lang)
+    lines = []
+    cur_t = 0.5
+    for s in raw_sentences:
+        if cur_t >= duration - 2.0:
+            break
+        word_count = max(1, len(s.split()))
+        line_dur = max(1.5, min(4.5, word_count / wps))
+        if cur_t + line_dur > duration - 0.5:
+            line_dur = max(1.0, duration - 0.5 - cur_t)
+        lines.append({
+            "start": round(cur_t, 2),
+            "tts": s,
+            "caption": s
+        })
+        cur_t += line_dur + 0.3
+
+    if cur_t < duration - 2.5:
+        cta_text = f"Subscribe to {channel}" if channel else "Follow for more daily videos"
+        lines.append({
+            "start": round(cur_t, 2),
+            "tts": cta_text,
+            "caption": cta_text
+        })
+
+    return {
+        "summary": brief or "Video content overview.",
+        "mood": "informative",
+        "hook": {"title": "WATCH THIS", "subtitle": ""},
+        "end_card": {"title": "FOLLOW FOR MORE", "subtitle": channel or ""},
+        "lines": lines
+    }
+
+
+def _fallback_metadata(*, brief: str, channel: str, lang: str, duration: float, links: List[str]) -> Dict[str, Any]:
+    """Guaranteed fallback metadata generator if LLM is unavailable."""
+    base_title = (brief.split('.')[0].strip() if brief else "Must Watch Viral Video")[:55]
+    if not base_title:
+        base_title = "Trending Viral Video"
+    link_section = "\n".join(links) if links else ""
+    return {
+        "titles": [
+            f"{base_title} #shorts",
+            f"You Won't Believe This! #shorts",
+            f"{channel or 'Daily Viral'}: {base_title}"
+        ],
+        "description": f"{brief or base_title}\n\nDon't forget to like, share and subscribe!\n{link_section}\n\n#shorts #viral #trending #reels",
+        "tags": "shorts, viral, trending, reels, video, fyp",
+        "hashtags": ["#shorts", "#viral", "#trending", "#reels"],
+        "extras": []
+    }
+
+
 async def plan_script(*, frames: List[bytes], frame_times: List[float], brief: str, channel: str, lang: str,
                       caption_script: str, duration: float, transcript: str, mode: str,
                       user_script: str = "") -> Dict[str, Any]:
@@ -155,9 +225,20 @@ async def plan_script(*, frames: List[bytes], frame_times: List[float], brief: s
     try:
         obj, res = await llm_router.complete_json_vision(SCRIPT_SYSTEM, prompt, frames, temperature=0.6,
                                                          max_tokens=5000)
-    except LLMError as e:
-        raise PlanError(f"AI script service unavailable: {e}") from e
-    out = validate_script(obj, duration, need_lines=(mode != "original"))
+    except Exception as e:
+        log.warning("AI script LLM provider failed, using fallback script builder: %s", e)
+        obj = _fallback_script(brief=brief, channel=channel, lang=lang, caption_script=caption_script,
+                               duration=duration, transcript=transcript, mode=mode, user_script=user_script)
+        res = LLMResult("", "fallback", "script_builder", 10)
+
+    try:
+        out = validate_script(obj, duration, need_lines=(mode != "original"))
+    except Exception as e:
+        log.warning("Script validation failed on LLM output, building robust fallback: %s", e)
+        fallback_obj = _fallback_script(brief=brief, channel=channel, lang=lang, caption_script=caption_script,
+                                        duration=duration, transcript=transcript, mode=mode, user_script=user_script)
+        out = validate_script(fallback_obj, duration, need_lines=(mode != "original"))
+
     out["llm"] = f"{res.provider}:{res.model}"
     return out
 
@@ -259,8 +340,11 @@ async def plan_metadata(*, brief: str, channel: str, lang: str, summary: str, sc
     try:
         obj, res = await llm_router.complete_json(META_SYSTEM, prompt, temperature=0.7, max_tokens=6000,
                                                   budget_s=120)
-    except LLMError:
-        return None
-    out = validate_metadata(obj, links)
-    out["llm"] = f"{res.provider}:{res.model}"
-    return out
+        out = validate_metadata(obj, links)
+        out["llm"] = f"{res.provider}:{res.model}"
+        return out
+    except Exception as e:
+        log.warning("Metadata generation LLM failed, using fallback metadata: %s", e)
+        fallback_obj = _fallback_metadata(brief=brief, channel=channel, lang=lang, duration=duration, links=links)
+        fallback_obj["llm"] = "fallback:metadata_builder"
+        return fallback_obj

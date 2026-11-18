@@ -192,7 +192,7 @@ export default function PricingModal({ isOpen, onClose, userPlan = 'free', onPla
                 key={plan.id}
                 className={`relative flex flex-col justify-between rounded-2xl p-5 border transition-all ${
                   isFeatured
-                    ? 'bg-gradient-to-b from-blue-950/20 via-[var(--surface)] to-[var(--surface)] border-blue-500/50 shadow-md ring-1 ring-blue-500/30'
+                    ? 'bg-[var(--surface)] border-blue-500 shadow-md ring-2 ring-blue-500/20'
                     : 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--text-muted)]'
                 }`}
               >
@@ -208,7 +208,7 @@ export default function PricingModal({ isOpen, onClose, userPlan = 'free', onPla
                   <h3 className="text-base font-bold text-[var(--text)] mb-1">{plan.name}</h3>
                   <div className="flex items-baseline gap-1 mb-3">
                     <span className="text-2xl font-black text-[var(--text)]">{plan.price_inr === 0 ? 'Free' : price}</span>
-                    {plan.price_inr > 0 && <span className="text-xs text-[var(--text-muted)]">/mo</span>}
+                    {plan.price_inr > 0 && <span className="text-xs font-semibold text-[var(--text-muted)]">/mo</span>}
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-[var(--bg-alt)] border border-[var(--border)] mb-4 text-xs space-y-1">
@@ -228,8 +228,8 @@ export default function PricingModal({ isOpen, onClose, userPlan = 'free', onPla
 
                   <ul className="space-y-2 mb-5">
                     {plan.features.map((f, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-[var(--text-muted)]">
-                        <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                      <li key={i} className="flex items-start gap-2 text-xs font-medium text-[var(--text)]">
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                         <span>{f}</span>
                       </li>
                     ))}
@@ -244,8 +244,8 @@ export default function PricingModal({ isOpen, onClose, userPlan = 'free', onPla
                     isCurrent
                       ? 'bg-[var(--bg-alt)] text-[var(--text-muted)] border border-[var(--border)] cursor-default'
                       : isFeatured
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md'
-                      : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-95 text-black shadow-sm'
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md'
+                      : 'bg-[var(--primary)] hover:opacity-90 text-[var(--on-primary)] font-bold shadow-sm'
                   }`}
                 >
                   {loadingPlan === plan.id ? (

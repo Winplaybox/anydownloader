@@ -227,24 +227,14 @@ export default function Header() {
             <NavLink to="/blog" className={linkCls}><Newspaper className="w-4 h-4" />Blog</NavLink>
           </nav>
 
-          {/* Right Nav: Plans Pill + User/Guest Avatar + Theme Toggle */}
+          {/* Right Nav: User/Guest Avatar + Theme Toggle + Mobile Drawer */}
           <div className="flex items-center gap-2">
-            {/* Quick Plans Upgrade Button */}
-            <Link
-              to="/pricing"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-amber-500/15 hover:from-amber-500/25 hover:to-orange-500/25 border border-amber-500/35 text-amber-400 text-xs font-bold transition-all shadow-sm cursor-pointer"
-            >
-              <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span>Plans</span>
-              <span className="px-1.5 py-0.5 rounded bg-amber-500 text-black text-[9px] font-black uppercase">7 Tiers</span>
-            </Link>
-
-            {!isAuthenticated && (
+            {!isAuthenticated && pathname !== '/login' && (
               <Link
                 to="/login"
                 className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--bg-alt)] text-xs font-bold text-[var(--text)] transition-colors cursor-pointer"
               >
-                <LogIn className="w-3.5 h-3.5 text-blue-400" />
+                <LogIn className="w-3.5 h-3.5 text-blue-500" />
                 <span>Sign In</span>
               </Link>
             )}
@@ -330,31 +320,37 @@ export default function Header() {
                   </Link>
 
                   {!isAuthenticated ? (
-                    <div className="space-y-2">
-                      <Link
-                        to="/login"
-                        onClick={() => setProfileOpen(false)}
-                        className="w-full py-2.5 px-3 rounded-xl bg-[var(--surface)] hover:bg-[var(--bg-alt)] text-[var(--text)] text-xs font-bold flex items-center justify-center gap-2 border border-[var(--border)] shadow-sm transition-colors cursor-pointer"
-                      >
-                        <GoogleGIcon className="w-4 h-4" />
-                        <span>Sign in with Google</span>
-                      </Link>
-                      <Link
-                        to="/login"
-                        onClick={() => setProfileOpen(false)}
-                        className="w-full py-2 px-3 rounded-xl border border-[var(--border)] bg-[var(--bg-alt)] hover:bg-[var(--border)] text-[var(--text)] text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                      >
-                        <Mail className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-                        <span>Sign in with Email</span>
-                      </Link>
-                      <Link
-                        to="/signup"
-                        onClick={() => setProfileOpen(false)}
-                        className="block w-full text-center text-[11px] text-blue-400 hover:underline font-bold pt-0.5 cursor-pointer"
-                      >
-                        New user? Sign up for +5 Free Credits
-                      </Link>
-                    </div>
+                    pathname !== '/login' && pathname !== '/signup' ? (
+                      <div className="space-y-2">
+                        <Link
+                          to="/login"
+                          onClick={() => setProfileOpen(false)}
+                          className="w-full py-2.5 px-3 rounded-xl bg-[var(--surface)] hover:bg-[var(--bg-alt)] text-[var(--text)] text-xs font-bold flex items-center justify-center gap-2 border border-[var(--border)] shadow-sm transition-colors cursor-pointer"
+                        >
+                          <GoogleGIcon className="w-4 h-4" />
+                          <span>Sign in with Google</span>
+                        </Link>
+                        <Link
+                          to="/login"
+                          onClick={() => setProfileOpen(false)}
+                          className="w-full py-2 px-3 rounded-xl border border-[var(--border)] bg-[var(--bg-alt)] hover:bg-[var(--border)] text-[var(--text)] text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <Mail className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                          <span>Sign in with Email</span>
+                        </Link>
+                        <Link
+                          to="/signup"
+                          onClick={() => setProfileOpen(false)}
+                          className="block w-full text-center text-[11px] text-blue-500 hover:underline font-bold pt-0.5 cursor-pointer"
+                        >
+                          New user? Sign up for +5 Free Credits
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="p-2 text-center text-xs text-[var(--text-muted)]">
+                        Complete your sign-in to unlock all features
+                      </div>
+                    )
                   ) : (
                     <button
                       type="button"
