@@ -14,6 +14,9 @@ import BlogsPage from './pages/BlogsPage.jsx';
 import UpdatesPage from './pages/UpdatesPage.jsx';
 import ExtensionPage from './pages/ExtensionPage.jsx';
 import VideoEditorPage from './pages/VideoEditorPage.jsx';
+import PricingPage from './pages/PricingPage.jsx';
+import LoginPage from './pages/LoginPage.jsx';
+import SignUpPage from './pages/SignUpPage.jsx';
 import YouTubeSubscribeLinkPage from './pages/YouTubeSubscribeLinkPage.jsx';
 import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
 import { TOOL_ROUTES, TOOL_REDIRECTS } from './data/toolRoutes.js';
@@ -48,6 +51,10 @@ export default function App() {
             {Object.entries(TOOL_REDIRECTS).map(([from, to]) => <Route key={from} path={from} element={<Navigate to={to} replace />} />)}
 
             <Route path="/ai-video-editor" element={<VideoEditorPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/plans" element={<Navigate to="/pricing" replace />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
             <Route path="/youtube-subscribe-link-generator" element={<YouTubeSubscribeLinkPage />} />
             <Route path="/extension" element={<ExtensionPage />} />
             <Route path="/blog" element={<BlogsPage />} />

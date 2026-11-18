@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Upload, Wand2, Mic, Captions, Play, Pause, Loader2, CheckCircle2, AlertCircle, Download, Copy, Check,
   Film, FileText, RotateCcw, Sparkles, Clock, ChevronDown, Video, Music2, Type, Crown
 } from 'lucide-react';
-import PricingModal from '../components/PricingModal';
 import UserAccountBar from '../components/UserAccountBar';
 
 const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
@@ -112,9 +112,9 @@ export default function VideoEditorPage() {
   const [accent, setAccent] = useState('#FFE500');
   const [format, setFormat] = useState('vertical');
   const [overlays, setOverlays] = useState(true);
+  const navigate = useNavigate();
   const [resolution, setResolution] = useState(480);
   const [session, setSession] = useState(null);
-  const [showPricing, setShowPricing] = useState(false);
 
   const [uploadPct, setUploadPct] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -249,7 +249,6 @@ export default function VideoEditorPage() {
 
       <UserAccountBar
         session={session}
-        onOpenPricing={() => setShowPricing(true)}
         onSessionUpdate={(s) => setSession(s)}
       />
 
@@ -275,7 +274,7 @@ export default function VideoEditorPage() {
         </div>
       )}
 
-      {job ? <JobView job={job} onReset={reset} onOpenPricing={() => setShowPricing(true)} /> : (
+      {job ? <JobView job={job} onReset={reset} onOpenPricing={() => navigate('/pricing')} /> : (
         <div className="space-y-5">
           {/* 1. Upload */}
           <Section step={1} icon={Upload} title="Upload your video">
@@ -489,12 +488,6 @@ export default function VideoEditorPage() {
         </div>
       )}
 
-      <PricingModal
-        isOpen={showPricing}
-        onClose={() => setShowPricing(false)}
-        userPlan={session?.plan || 'free'}
-        onPlanUpgraded={(np) => setSession((p) => ({ ...p, plan: np }))}
-      />
     </div>
   );
 }

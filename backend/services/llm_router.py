@@ -2,7 +2,7 @@
 LLM Router - free-tier-first, multi-provider, circuit-broken.
 
 Order (override with LLM_PROVIDER_ORDER="gemini,groq,openrouter,cerebras,pollinations"):
-  gemini      GEMINI_API_KEY        (model: GEMINI_MODEL, default gemini-2.5-flash)
+  gemini      GEMINI_API_KEY        (model: GEMINI_MODEL, default gemini-3.8-flash)
   groq        GROQ_API_KEY          (GROQ_MODEL, default openai/gpt-oss-120b)
   openrouter  OPENROUTER_API_KEY    (OPENROUTER_MODEL, default google/gemma-4-31b-it:free)
   cerebras    CEREBRAS_API_KEY      (CEREBRAS_MODEL, default llama-3.3-70b)
@@ -63,7 +63,7 @@ def _providers() -> Dict[str, _Provider]:
     return {
         "gemini": _Provider("gemini", "gemini",
                             "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                            e("GEMINI_MODEL", "gemini-2.5-flash"), "GEMINI_API_KEY"),
+                            e("GEMINI_MODEL", "gemini-3.8-flash"), "GEMINI_API_KEY"),
         "groq": _Provider("groq", "openai", "https://api.groq.com/openai/v1/chat/completions",
                           e("GROQ_MODEL", "openai/gpt-oss-120b"), "GROQ_API_KEY"),
         "openrouter": _Provider("openrouter", "openai", "https://openrouter.ai/api/v1/chat/completions",
@@ -127,10 +127,10 @@ class LLMRouter:
                     "contents": [{"role": "user", "parts": [{"text": user}]}],
                     "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens,
                                          "responseMimeType": "application/json",
-                                         # 2.5 models count hidden thinking against maxOutputTokens; cap it so
+                                         # 2.5/3.8 models count hidden thinking against maxOutputTokens; cap it so
                                          # the JSON answer itself isn't cut off.
                                          **({"thinkingConfig": {"thinkingBudget": min(1024, max_tokens // 4)}}
-                                            if "2.5" in p.model else {})},
+                                            if ("2.5" in p.model or "3.8" in p.model) else {})},
                     "safetySettings": [{"category": c, "threshold": "BLOCK_MEDIUM_AND_ABOVE"} for c in (
                         "HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH",
                         "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT")],
@@ -215,7 +215,7 @@ class LLMRouter:
                         "contents": [{"role": "user", "parts": parts}],
                         "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens,
                                              "responseMimeType": "application/json",
-                                             **({"thinkingConfig": {"thinkingBudget": 1024}} if "2.5" in p.model else {})},
+                                             **({"thinkingConfig": {"thinkingBudget": 1024}} if ("2.5" in p.model or "3.8" in p.model) else {})},
                         # News/vlog footage (accidents, crowds) must not be refused outright.
                         "safetySettings": [{"category": c, "threshold": "BLOCK_ONLY_HIGH"} for c in (
                             "HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH",

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { User, LogIn, LogOut, Zap, Crown, Sparkles, Loader2, ArrowRight, Mail } from 'lucide-react';
-import AuthModal from './AuthModal.jsx';
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { User, LogIn, LogOut, Zap, Crown, Sparkles, ArrowRight, Mail } from 'lucide-react';
 
 const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
@@ -17,10 +17,8 @@ function GoogleGIcon({ className = 'w-3.5 h-3.5' }) {
   );
 }
 
-export default function UserAccountBar({ session, onOpenPricing, onSessionUpdate }) {
-  const [authOpen, setAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState('signin');
-
+export default function UserAccountBar({ session, onSessionUpdate }) {
+  const navigate = useNavigate();
   const isAuthenticated = session?.authenticated && !session?.is_guest;
   const plan = session?.plan || 'free';
   const planName = session?.plan_name || (plan === 'free' ? 'Free Trial (480p SD)' : plan.toUpperCase());
@@ -90,14 +88,13 @@ export default function UserAccountBar({ session, onOpenPricing, onSessionUpdate
       </div>
 
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onOpenPricing}
+        <Link
+          to="/pricing"
           className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-black text-xs font-black flex items-center gap-1.5 shadow-md shadow-orange-500/20 transition-all uppercase tracking-wide cursor-pointer"
         >
           <Crown className="w-3.5 h-3.5 text-black" />
           <span>{isPaid ? 'Add Credits' : '7-Tier Plans'}</span>
-        </button>
+        </Link>
 
         {isAuthenticated ? (
           <button
@@ -110,36 +107,23 @@ export default function UserAccountBar({ session, onOpenPricing, onSessionUpdate
           </button>
         ) : (
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => { setAuthMode('signin'); setAuthOpen(true); }}
+            <Link
+              to="/login?return=/ai-video-editor"
               className="px-3 py-2 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 text-xs font-bold flex items-center gap-1.5 border border-zinc-200 shadow-sm transition-colors cursor-pointer"
             >
               <GoogleGIcon />
               <span>Google</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setAuthMode('signin'); setAuthOpen(true); }}
+            </Link>
+            <Link
+              to="/login?return=/ai-video-editor"
               className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 border border-zinc-700/60 transition-colors cursor-pointer"
             >
               <Mail className="w-3.5 h-3.5 text-zinc-400" />
               <span>Email</span>
-            </button>
+            </Link>
           </div>
         )}
       </div>
-
-      {/* Auth Modal for Email & Google */}
-      <AuthModal
-        isOpen={authOpen}
-        onClose={() => setAuthOpen(false)}
-        initialMode={authMode}
-        onSuccess={(u) => {
-          if (onSessionUpdate) onSessionUpdate(u);
-          setAuthOpen(false);
-        }}
-      />
     </div>
   );
 }
