@@ -56,6 +56,7 @@ export default function PricingModal({ isOpen, onClose, userPlan = 'free', onPla
         headers,
         body: JSON.stringify({
           plan_id: plan.id,
+          currency: currency,
           return_url: window.location.origin + '/payment/success'
         })
       });
@@ -143,7 +144,7 @@ export default function PricingModal({ isOpen, onClose, userPlan = 'free', onPla
               }`}
             >
               <Clock className="w-3 h-3" />
-              <span>24h Pass (₹99)</span>
+              <span>24h Pass ({formatPrice(DAY_PASS.price_inr, currency)})</span>
             </button>
             <button
               type="button"

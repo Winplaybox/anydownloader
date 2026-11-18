@@ -103,7 +103,8 @@ async def create_checkout_session(
     identity: Dict[str, Any],
     customer_email: Optional[str] = None,
     customer_name: Optional[str] = None,
-    return_url: Optional[str] = None
+    return_url: Optional[str] = None,
+    currency: str = "INR"
 ) -> Dict[str, Any]:
     """Creates a Dodo Payments checkout session for subscription plans."""
     plan = auth_service.get_plan(plan_id) or auth_service.get_plan(plan_id.lower().replace("_", ""))
@@ -116,6 +117,19 @@ async def create_checkout_session(
     email = customer_email or identity.get("email") or f"{guest_id or 'guest'}@winplaybox.in"
     name = customer_name or identity.get("name") or "Valued Creator"
     dest_url = return_url or SUCCESS_RETURN_URL
+    curr = (currency or "INR").upper().strip()
+
+    # Map currency to standard regional country code for localized tax/billing
+    currency_to_country = {
+        "INR": "IN",
+        "EUR": "DE",
+        "USD": "US",
+        "GBP": "GB",
+        "AED": "AE",
+        "CAD": "CA",
+        "AUD": "AU",
+    }
+    country_code = currency_to_country.get(curr, "US")
 
     product_id = DODO_PRODUCT_IDS.get(plan_id) or DODO_PRODUCT_IDS.get(plan_id.lower().replace("_", "")) or f"p_ovd_{plan_id}"
 
@@ -126,19 +140,17 @@ async def create_checkout_session(
         "entity_type": "user" if user_id else "guest",
         "plan_name": plan["name"],
         "max_res": str(plan["max_res"]),
-        "credits": str(plan["credits"])
+        "credits": str(plan["credits"]),
+        "currency": curr
     }
 
     # 1. If live or test API key is provided, call Dodo Payments API
     if DODO_API_KEY:
         try:
             payload = {
+                "billing_currency": curr,
                 "billing": {
-                    "city": "Bengaluru",
-                    "country": "IN",
-                    "state": "KA",
-                    "street": "100 Feet Road",
-                    "zipcode": "560038"
+                    "country": country_code
                 },
                 "customer": {
                     "email": email,

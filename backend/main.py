@@ -2536,7 +2536,7 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
-        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs", "/api/ai/captions", "/api/ai/voice") or request.url.path.startswith(("/api/jobs", "/api/auth", "/api/editor", "/api/payments", "/api/v1", "/api/v2")) or request.url.path.startswith("/admin/"):
+        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs", "/api/ai/captions", "/api/ai/voice") or request.url.path.startswith(("/.well-known", "/api/jobs", "/api/auth", "/api/editor", "/api/payments", "/api/v1", "/api/v2")) or request.url.path.startswith("/admin/"):
             return await call_next(request)
         # OAuth sign-in redirects come from the platform (no allowed origin); the route checks its own signed state.
         if request.method == "GET" and request.url.path.startswith("/oauth/autopilot/"):
@@ -4217,6 +4217,7 @@ routes = [
     Route('/admin/blog/generate', generate_blog_handler, methods=['POST']),
 
     Route('/api/proxy-image', proxy_image_handler, methods=['GET']),
+    Route('/.well-known/apple-developer-merchantid-domain-association', lambda r: Response("7b2276657273696f6e223a312c227073704964223a2243373135454146313845454544444535453039333135433836343534323530313846374442423431324242324631363943323132314246363830363541323339222c22637265617465644f6e223a313736373137303631313131357d", media_type="text/plain; charset=utf-8"), methods=['GET']),
     Route('/admin/engine-versions', engine_versions_handler, methods=['GET']),
     Route('/admin/update-engines', update_engines_handler, methods=['POST']),
     Route("/", health_handler, methods=["GET"]),

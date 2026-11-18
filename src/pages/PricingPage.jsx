@@ -466,6 +466,7 @@ export default function PricingPage() {
         headers,
         body: JSON.stringify({
           plan_id: item.id,
+          currency: currency,
           return_url: window.location.origin + '/payment/success'
         })
       });
@@ -561,7 +562,7 @@ export default function PricingPage() {
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>24-Hour Pass (₹99)</span>
+            <span>24-Hour Pass ({formatPrice(DAY_PASS.price_inr, currency)})</span>
           </button>
           <button
             type="button"

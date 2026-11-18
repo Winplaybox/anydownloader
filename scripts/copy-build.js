@@ -56,15 +56,35 @@ for (const fname of filesToSync) {
   }
 }
 
+// 3b. Ensure .well-known files (Apple Pay merchantid verification)
+const wellKnownSrc = path.join(root, 'public', '.well-known');
+const wellKnownDst = path.join(root, '.well-known');
+if (fs.existsSync(wellKnownSrc)) {
+  fs.mkdirSync(wellKnownDst, { recursive: true });
+  for (const f of fs.readdirSync(wellKnownSrc)) {
+    fs.copyFileSync(path.join(wellKnownSrc, f), path.join(wellKnownDst, f));
+    console.log(`Copied root .well-known/${f}`);
+  }
+}
+
 // 4. Ensure .htaccess in root for Hostinger SPA rewrite and caching
 const htaccess = `<IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
   RewriteRule ^index\\.html$ - [L]
+
+  # Allow direct access to .well-known files (Apple Pay domain verification, etc.)
+  RewriteRule ^\\.well-known/ - [L]
+
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
 </IfModule>
+
+<FilesMatch "^apple-developer-merchantid-domain-association$">
+  ForceType text/plain
+  Header set Content-Type "text/plain; charset=utf-8"
+</FilesMatch>
 
 <IfModule mod_headers.c>
   <FilesMatch "\\.(html|htm)$">

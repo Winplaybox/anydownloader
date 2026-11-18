@@ -28,6 +28,7 @@ async def checkout_handler(request: Request) -> Response:
     customer_email = body.get("email") or request.query_params.get("email")
     customer_name = body.get("name") or request.query_params.get("name")
     return_url = body.get("return_url") or request.query_params.get("return_url")
+    currency = body.get("currency") or request.query_params.get("currency") or "INR"
 
     try:
         session = await dodo_service.create_checkout_session(
@@ -35,7 +36,8 @@ async def checkout_handler(request: Request) -> Response:
             identity=identity,
             customer_email=customer_email,
             customer_name=customer_name,
-            return_url=return_url
+            return_url=return_url,
+            currency=currency
         )
         return JSONResponse(session)
     except Exception as e:

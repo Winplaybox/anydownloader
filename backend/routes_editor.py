@@ -82,31 +82,90 @@ def quota_status(request: Request) -> Dict[str, Any]:
 
 
 def calculate_quote(settings: Dict[str, Any], identity: Dict[str, Any]) -> Dict[str, Any]:
-    """Calculates upfront credit cost and verifies plan resolution entitlements."""
+    """Calculates upfront itemized feature-based credit cost and verifies plan entitlements."""
     res_str = str(settings.get("resolution", settings.get("height", 480))).lower().replace("p", "").strip()
     try:
         height = int(res_str)
     except ValueError:
         height = 480
 
-    # Base credit pricing by resolution
+    # 1. Base resolution export cost
     if height <= 480:
         base_cost = 1
+        res_label = "480p SD Video Render"
     elif height <= 720:
         base_cost = 1
+        res_label = "720p HD Video Render"
     elif height <= 1080:
         base_cost = 1
+        res_label = "1080p Full HD Video Render"
     elif height <= 1440:
         base_cost = 2
+        res_label = "2K QHD (1440p) Cinema Render"
     elif height <= 1800:
         base_cost = 2
+        res_label = "3K Ultra (1800p) Cinema Render"
     elif height <= 2160:
         base_cost = 3
+        res_label = "4K UHD Cinema Render"
     else:
         base_cost = 5
+        res_label = "8K Ultra Cinema Render"
 
-    addon_cost = 0
-    total_cost = base_cost + addon_cost
+    breakdown = [
+        {"key": "resolution", "name": res_label, "credits": base_cost, "icon": "video"}
+    ]
+
+    # 2. Voiceover & Audio Engine
+    mode = str(settings.get("mode", "original")).lower().strip()
+    voice = str(settings.get("voice", "") or "").strip()
+    if mode in ("ai_voiceover", "ai_mix"):
+        voice_cost = 1
+        voice_label = f"AI Neural Voiceover ({voice or 'Standard'})"
+    else:
+        voice_cost = 0
+        voice_label = "Original Video Audio (No AI Voice)"
+    breakdown.append({"key": "voice", "name": voice_label, "credits": voice_cost, "icon": "mic"})
+
+    # 3. AI Scriptwriting vs User Custom Script
+    own_script = str(settings.get("script", "") or "").strip()
+    brief = str(settings.get("brief", "") or "").strip()
+    if own_script:
+        script_cost = 0
+        script_label = "Custom User Script (Zero AI Script Fee)"
+    elif mode in ("ai_voiceover", "ai_mix") and brief:
+        if len(brief) > 250:
+            script_cost = 1
+            script_label = "Longform Viral AI Script & Prompting"
+        else:
+            script_cost = 1
+            script_label = "AI Auto-Script Generation from Brief"
+    else:
+        script_cost = 0
+        script_label = "Standard Script / No Generation"
+    breakdown.append({"key": "script", "name": script_label, "credits": script_cost, "icon": "wand"})
+
+    # 4. Animated Captions Style
+    cap_style = str(settings.get("caption_style", "pop")).lower().strip()
+    if cap_style in ("none", "off", "no"):
+        caption_cost = 0
+        cap_label = "No Captions"
+    else:
+        caption_cost = 1
+        cap_label = f"Animated Word-by-Word Captions ({cap_style.title()})"
+    breakdown.append({"key": "captions", "name": cap_label, "credits": caption_cost, "icon": "captions"})
+
+    # 5. Motion Graphics & Hook/CTA Overlays
+    overlays = settings.get("overlays", True)
+    if isinstance(overlays, str):
+        overlays = overlays.lower() not in ("0", "false", "off", "no")
+    overlay_cost = 1 if overlays else 0
+    overlay_label = "Viral Hook Title + End CTA Graphics" if overlays else "No Hook/CTA Overlays"
+    breakdown.append({"key": "overlays", "name": overlay_label, "credits": overlay_cost, "icon": "sparkles"})
+
+    total_cost = base_cost + voice_cost + script_cost + caption_cost + overlay_cost
+    addon_cost = total_cost - base_cost
+
     current_credits = identity.get("credits", 0)
     user_max_res = identity.get("max_resolution", 480)
 
@@ -114,16 +173,17 @@ def calculate_quote(settings: Dict[str, Any], identity: Dict[str, Any]) -> Dict[
     reason = None
     if current_credits < total_cost:
         can_render = False
-        reason = f"Insufficient credits. This render requires {total_cost} credit(s), you have {current_credits}."
+        reason = f"Insufficient credits. This render with selected features requires {total_cost} credit(s), you have {current_credits}."
     elif height > user_max_res:
         can_render = False
-        reason = f"Your current plan ({identity.get('plan_name', 'Free')}) supports up to {user_max_res}p. Free trial gives up to 480p SD. Upgrade to Plan 1 (720p) or Plan 2 (1080p) to unlock {height}p."
+        reason = f"Your current plan ({identity.get('plan_name', 'Free')}) supports up to {user_max_res}p. Free trial gives up to 480p SD. Upgrade to unlock {height}p."
 
     return {
         "ok": True,
         "base_cost": base_cost,
         "addon_cost": addon_cost,
         "total_cost": total_cost,
+        "breakdown": breakdown,
         "current_credits": current_credits,
         "balance_after": max(0, current_credits - total_cost),
         "can_render": can_render,

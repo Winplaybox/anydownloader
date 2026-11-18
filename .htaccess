@@ -2,10 +2,19 @@
   RewriteEngine On
   RewriteBase /
   RewriteRule ^index\.html$ - [L]
+
+  # Allow direct access to .well-known files (Apple Pay domain verification, etc.)
+  RewriteRule ^\.well-known/ - [L]
+
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
 </IfModule>
+
+<FilesMatch "^apple-developer-merchantid-domain-association$">
+  ForceType text/plain
+  Header set Content-Type "text/plain; charset=utf-8"
+</FilesMatch>
 
 <IfModule mod_headers.c>
   <FilesMatch "\.(html|htm)$">

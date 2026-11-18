@@ -5,6 +5,7 @@ import {
   Film, FileText, RotateCcw, Sparkles, Clock, ChevronDown, Video, Music2, Type, Crown
 } from 'lucide-react';
 import UserAccountBar from '../components/UserAccountBar';
+import PricingModal from '../components/PricingModal';
 
 const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
@@ -118,6 +119,7 @@ export default function VideoEditorPage() {
   });
   const [resolution, setResolution] = useState(480);
   const [session, setSession] = useState(null);
+  const [showPricingModal, setShowPricingModal] = useState(false);
 
   const [uploadPct, setUploadPct] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -243,7 +245,66 @@ export default function VideoEditorPage() {
   }
 
   const outOfQuota = quota && quota.remaining !== null && quota.remaining <= 0;
-  const canSubmit = file && !fileError && !submitting && !outOfQuota && (mode === 'original' || voice);
+
+  const quote = useMemo(() => {
+    // 1. Resolution Cost
+    let resCost = 1;
+    let resLabel = `${resolution}p SD Render`;
+    if (resolution <= 480) { resCost = 1; resLabel = '480p SD Render (Free)'; }
+    else if (resolution <= 720) { resCost = 1; resLabel = '720p HD Render'; }
+    else if (resolution <= 1080) { resCost = 1; resLabel = '1080p FHD Render'; }
+    else if (resolution <= 1440) { resCost = 2; resLabel = '2K QHD (1440p) Render'; }
+    else if (resolution <= 1800) { resCost = 2; resLabel = '3K Ultra (1800p) Render'; }
+    else if (resolution <= 2160) { resCost = 3; resLabel = '4K Cinema UHD Render'; }
+    else { resCost = 5; resLabel = '8K Ultra Studio Render'; }
+
+    // 2. Voiceover Engine
+    const isAiVoice = mode !== 'original';
+    const voiceCost = isAiVoice ? 1 : 0;
+    const voiceLabel = isAiVoice ? `AI Neural Voice (${voice || 'Selected'})` : 'Original Video Audio';
+
+    // 3. AI Scriptwriting vs User Custom Script
+    const hasCustomScript = Boolean(showScript && ownScript && ownScript.trim());
+    const isAiScript = isAiVoice && !hasCustomScript && Boolean(brief && brief.trim());
+    const scriptCost = isAiScript ? 1 : 0;
+    const scriptLabel = hasCustomScript
+      ? 'Custom User Script'
+      : isAiScript
+      ? (brief.length > 250 ? 'Longform AI Viral Script' : 'AI Auto-Script from Brief')
+      : 'Standard Script';
+
+    // 4. Animated Captions Style
+    const hasCaptions = captionStyle && captionStyle !== 'none';
+    const captionCost = hasCaptions ? 1 : 0;
+    const captionLabel = hasCaptions ? `Word-Synced Captions (${captionStyle})` : 'No Captions';
+
+    // 5. Overlays (Hook title + CTA)
+    const overlayCost = overlays ? 1 : 0;
+    const overlayLabel = overlays ? 'Viral Hook Title + End CTA' : 'No Hook/CTA Overlays';
+
+    const totalCost = resCost + voiceCost + scriptCost + captionCost + overlayCost;
+    const userCredits = session?.credits ?? (quota?.remaining != null ? quota.remaining : 2);
+    const canAfford = userCredits >= totalCost;
+    const maxAllowedRes = session?.max_resolution || 480;
+    const resAllowed = resolution <= maxAllowedRes;
+
+    return {
+      totalCost,
+      userCredits,
+      canAfford,
+      resAllowed,
+      maxAllowedRes,
+      items: [
+        { name: resLabel, cost: resCost, active: true },
+        { name: voiceLabel, cost: voiceCost, active: isAiVoice },
+        { name: scriptLabel, cost: scriptCost, active: isAiScript },
+        { name: captionLabel, cost: captionCost, active: hasCaptions },
+        { name: overlayLabel, cost: overlayCost, active: overlays },
+      ]
+    };
+  }, [resolution, mode, voice, showScript, ownScript, brief, captionStyle, overlays, session, quota]);
+
+  const canSubmit = file && !fileError && !submitting && !outOfQuota && (mode === 'original' || voice) && quote.canAfford && quote.resAllowed;
 
   // ===================================================================================================
   return (
@@ -494,23 +555,140 @@ export default function VideoEditorPage() {
             </div>
           </Section>
 
+                    {/* Feature-Based Credit Breakdown Card */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-[var(--border)]">
+              <div>
+                <h4 className="text-xs sm:text-sm font-black text-[var(--text)] flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>Feature Credit Breakdown</span>
+                </h4>
+                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                  Transparent credits per feature: resolution export, neural voice, AI script, synced captions, and viral hook overlays.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-muted)]">Balance:</span>
+                <span className="px-2.5 py-1 rounded-full bg-[var(--bg-alt)] border border-[var(--border)] text-xs font-black text-[var(--text)]">
+                  {quote.userCredits} credits
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowPricingModal(true)}
+                  className="px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black uppercase tracking-wider hover:opacity-90 cursor-pointer shadow-sm"
+                >
+                  + Top Up / Pass
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+              {quote.items.map((it, idx) => (
+                <div
+                  key={idx}
+                  className={`p-2 rounded-xl border flex items-center justify-between gap-2 ${
+                    it.active && it.cost > 0
+                      ? 'border-blue-500/30 bg-blue-500/5'
+                      : 'border-[var(--border)] bg-[var(--bg-alt)] opacity-70'
+                  }`}
+                >
+                  <span className="font-semibold text-[var(--text)] truncate">{it.name}</span>
+                  <span
+                    className={`shrink-0 font-mono text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                      it.cost > 0 ? 'bg-blue-600 text-white' : 'bg-[var(--border)] text-[var(--text-muted)]'
+                    }`}
+                  >
+                    {it.cost > 0 ? `+${it.cost} cr` : '0 cr'}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-[var(--border)]">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-bold text-[var(--text)]">Total Required:</span>
+                <span className="text-sm font-black text-amber-500">{quote.totalCost} Credits</span>
+                <span className="text-[var(--text-muted)]">
+                  ({quote.userCredits >= quote.totalCost ? `${quote.userCredits - quote.totalCost} will remain` : 'Not enough credits'})
+                </span>
+              </div>
+
+              {!quote.canAfford && (
+                <div className="flex items-center gap-2 text-xs text-amber-400 font-bold">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Need {quote.totalCost - quote.userCredits} more credit(s)</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPricingModal(true)}
+                    className="underline hover:text-amber-300 cursor-pointer"
+                  >
+                    Get 24h Pass (15 cr) or Pack
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Submit */}
           <div className="sticky bottom-3 z-10">
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 shadow-[var(--shadow-2)] flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <div className="flex-1 text-xs text-[var(--text-muted)]">
-                {submitError ? <span className="text-[var(--negative)] font-semibold flex items-center gap-1.5"><AlertCircle className="w-4 h-4" />{submitError}</span>
-                  : outOfQuota ? <span className="text-[var(--negative)] font-semibold">You've used today's {quota.limit} free edits. Come back after midnight (IST).</span>
-                    : submitting ? `Uploading… ${uploadPct}%` : 'Takes about 2–5 minutes. You can keep this tab open or come back later.'}
+                {submitError ? (
+                  <span className="text-[var(--negative)] font-semibold flex items-center gap-1.5"><AlertCircle className="w-4 h-4" />{submitError}</span>
+                ) : !quote.resAllowed ? (
+                  <span className="text-amber-400 font-semibold flex items-center gap-1.5">
+                    <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+                    Target {resolution}p export requires a plan upgrade (current allows {quote.maxAllowedRes}p).
+                  </span>
+                ) : !quote.canAfford ? (
+                  <span className="text-amber-400 font-semibold flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                    Insufficient credits ({quote.totalCost} needed, {quote.userCredits} available). Adjust features or top up.
+                  </span>
+                ) : outOfQuota ? (
+                  <span className="text-[var(--negative)] font-semibold">You've used today's {quota.limit} free edits. Come back after midnight (IST).</span>
+                ) : submitting ? (
+                  `Uploading… ${uploadPct}%`
+                ) : (
+                  `Ready to render with ${quote.totalCost} credits. Takes about 2–5 minutes.`
+                )}
               </div>
-              <button type="button" disabled={!canSubmit} onClick={submit}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[var(--primary)] text-[var(--on-primary)] text-sm font-black disabled:opacity-40 disabled:cursor-not-allowed">
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {submitting ? `Uploading ${uploadPct}%` : 'Create my video'}
-              </button>
+
+              {!quote.canAfford || !quote.resAllowed ? (
+                <button
+                  type="button"
+                  onClick={() => setShowPricingModal(true)}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-95 text-black text-sm font-black cursor-pointer shadow-md"
+                >
+                  <Crown className="w-4 h-4" />
+                  {!quote.resAllowed ? `Unlock ${resolution}p Quality` : `Get Credits (${quote.totalCost} cr needed)`}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!canSubmit}
+                  onClick={submit}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[var(--primary)] text-[var(--on-primary)] text-sm font-black disabled:opacity-40 disabled:cursor-not-allowed shadow-md cursor-pointer"
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {submitting ? `Uploading ${uploadPct}%` : `Create my video (${quote.totalCost} cr)`}
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* PRICING MODAL POPUP */}
+      <PricingModal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+        userPlan={session?.plan || 'free'}
+        onPlanUpgraded={() => {
+          setShowPricingModal(false);
+          window.location.reload();
+        }}
+      />
 
     </div>
   );
