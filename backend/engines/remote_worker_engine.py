@@ -1,10 +1,14 @@
 import os
+import asyncio
+import urllib.parse
 import httpx
 
 try:
     from backend.utils.worker_config import get_worker_config, worker_headers
+    from backend.utils.security import is_safe_cdn_host, verify_safe_upstream_url, verify_public_dns_resolution
 except (ModuleNotFoundError, ImportError):
     from utils.worker_config import get_worker_config, worker_headers
+    from utils.security import is_safe_cdn_host, verify_safe_upstream_url, verify_public_dns_resolution
 from typing import AsyncIterator, Dict, Any, Optional, List
 
 try:
@@ -85,8 +89,36 @@ class RemoteWorkerEngine:
         )
 
     async def open_stream(self, item: RawItem, ctx: ExtractContext) -> AsyncIterator[bytes]:
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            async with client.stream("GET", item.url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
-                resp.raise_for_status()
-                async for chunk in resp.aiter_bytes(chunk_size=65536):
+        if not item.url:
+            raise ValueError("Remote worker returned an empty media URL.")
+        current = item.url
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
+            response = None
+            for _ in range(6):
+                parsed = urllib.parse.urlsplit(current)
+                if (
+                    parsed.scheme != "https" or not parsed.hostname
+                    or not is_safe_cdn_host(parsed.hostname)
+                    or not verify_safe_upstream_url(current)
+                    or not await asyncio.to_thread(verify_public_dns_resolution, current)
+                ):
+                    raise ValueError("Remote worker returned an unsafe media URL or redirect.")
+                request = client.build_request("GET", current, headers={"User-Agent": "Mozilla/5.0"})
+                response = await client.send(request, stream=True, follow_redirects=False)
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get("location")
+                    await response.aclose()
+                    response = None
+                    if not location:
+                        raise ValueError("Remote media redirect has no location.")
+                    current = urllib.parse.urljoin(current, location)
+                    continue
+                break
+            if response is None:
+                raise ValueError("Remote media URL exceeded the redirect limit.")
+            try:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes(chunk_size=65536):
                     yield chunk
+            finally:
+                await response.aclose()
