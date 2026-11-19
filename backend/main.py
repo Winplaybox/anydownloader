@@ -2474,7 +2474,7 @@ async def stream_download_handler(request):
         "Referer": upstream_referer
     }
 
-    client = httpx.AsyncClient(headers=client_headers, follow_redirects=True, timeout=90.0)
+    client = httpx.AsyncClient(headers=client_headers, follow_redirects=False, timeout=90.0)
 
     async def stream_chunks():
         try:
@@ -2684,17 +2684,7 @@ async def download_proxy_handler(request):
             target_url = payload["variant_url"]
             filename = payload.get("filename") or filename
         else:
-            # Resilient fallback: recover download payload safely if token signature key rotated
-            try:
-                b64_part = token.split(".", 1)[0] if "." in token else token
-                padding = '=' * (4 - (len(b64_part) % 4)) if len(b64_part) % 4 != 0 else ''
-                raw_data = json.loads(base64.urlsafe_b64decode(b64_part + padding).decode('utf-8'))
-                candidate_u = raw_data.get("u")
-                if candidate_u and await asyncio.to_thread(is_safe_cdn_url, candidate_u):
-                    target_url = candidate_u
-                    filename = raw_data.get("f") or filename
-            except Exception:
-                pass
+            # Invalid or expired tokens are not authenticated by decoding payload bytes.
 
     if not target_url and url_param:
         clean_u = url_param.strip()
@@ -3168,7 +3158,7 @@ async def proxy_image_handler(request):
 
     if not target_url and url_param:
         clean_u = url_param.strip()
-        if is_safe_cdn_url(clean_u):
+        if await asyncio.to_thread(is_safe_cdn_url, clean_u):
             target_url = clean_u
 
     # Unwrap /api/stream?url= if present
@@ -3185,7 +3175,7 @@ async def proxy_image_handler(request):
     if not target_url:
         return JSONResponse({"error": "Valid token or permitted CDN url is required"}, status_code=403)
 
-    if not is_safe_cdn_url(target_url):
+    if not await asyncio.to_thread(is_safe_cdn_url, target_url):
         return JSONResponse({"error": "Target CDN host not permitted"}, status_code=403)
 
     # Browser headers with modern User-Agent & Accept to prevent CDN 403 Forbidden
@@ -3199,7 +3189,7 @@ async def proxy_image_handler(request):
 
 
     try:
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
             resp = await client.get(target_url, headers=upstream_headers)
             # If upstream CDN rejects the custom referer, retry with clean headers
             if resp.status_code != 200:
