@@ -427,10 +427,27 @@ def _has_active_job(ck: str) -> bool:
     return False
 
 
+def _job_owner_keys(request: Request) -> set[str]:
+    identity = resolve_request_identity(request)
+    keys = {
+        str(identity.get("user_id") or "").strip(),
+        str(identity.get("guest_id") or "").strip(),
+        _client_key(request),
+    }
+    return {key for key in keys if key}
+
+
+def _job_access_allowed(request: Request, job: Dict[str, Any]) -> bool:
+    owner = str(job.get("client") or "")
+    if owner and owner in _job_owner_keys(request):
+        return True
+    return bool(authenticate_admin(request, allow_bearer_jwt=False))
+
+
 async def job_status_handler(request: Request) -> Response:
     jid = request.path_params.get("id", "")
     job = pipeline.load_job(jid)
-    if not job:
+    if not job or not _job_access_allowed(request, job):
         return error(request, 404, "NotFound", "Job not found or expired.")
     return JSONResponse({"ok": True, "job": pipeline.public_job(job)}, headers=NO_STORE)
 
@@ -439,7 +456,7 @@ async def job_file_handler(request: Request) -> Response:
     jid = request.path_params.get("id", "")
     kind = request.path_params.get("kind", "")
     job = pipeline.load_job(jid)
-    if not job or job.get("status") != "done":
+    if not job or not _job_access_allowed(request, job) or job.get("status") != "done":
         return error(request, 404, "NotFound", "Job is not ready.")
     p = pipeline.file_path(jid, kind)
     if not p:
@@ -448,14 +465,13 @@ async def job_file_handler(request: Request) -> Response:
             "voiceover": "audio/wav", "metadata": "text/plain; charset=utf-8"}.get(kind, "application/octet-stream")
     dl_name = f"ovd_ai_editor_{jid[:8]}.{'mp4' if kind == 'video' else 'srt' if kind == 'srt' else 'wav' if kind == 'voiceover' else 'txt'}"
     return FileResponse(p, media_type=mime, filename=dl_name,
-                        headers={"Cache-Control": "private, max-age=3600"})
+                        headers={"Cache-Control": "private, no-store"})
 
 
 async def health_handler(request: Request) -> Response:
     return JSONResponse({
         "ok": True,
         "service": "ai_video_editor",
-        "work_dir": pipeline.WORK_DIR,
         "concurrency": pipeline.CONCURRENCY,
         "timestamp": time.time()
     }, headers=NO_STORE)
