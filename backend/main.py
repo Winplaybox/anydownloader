@@ -3505,24 +3505,34 @@ async def channel_publish_handler(request):
     return JSONResponse(res)
 
 async def video_download_handler(request):
-    filename = request.query_params.get("file")
-    if not filename or not filename.endswith(".mp4"):
-        return JSONResponse({"ok": False, "error": "Invalid file parameter"}, status_code=400)
-    safe_filename = os.path.basename(filename)
-    filepath = os.path.join(tempfile.gettempdir(), safe_filename)
-    if not os.path.exists(filepath):
-        return JSONResponse({"ok": False, "error": "File not found or expired"}, status_code=404)
-    return FileResponse(filepath, media_type="video/mp4", filename=safe_filename)
+    filename = request.query_params.get("file", "")
+    try:
+        from backend.utils.generated_asset import resolve_generated_asset
+    except (ModuleNotFoundError, ImportError):
+        from utils.generated_asset import resolve_generated_asset
+    filepath = resolve_generated_asset(filename, "video")
+    if not filepath:
+        return JSONResponse({"ok": False, "error": "File not found or expired."}, status_code=404)
+    return FileResponse(
+        filepath, media_type="video/mp4", filename=os.path.basename(filepath),
+        headers={"Cache-Control": "private, no-store"},
+    )
+
 
 async def audio_download_handler(request):
-    filename = request.query_params.get("file")
-    if not filename or not (filename.endswith(".mp3") or filename.endswith(".wav")):
-        return JSONResponse({"ok": False, "error": "Invalid file parameter"}, status_code=400)
-    safe_filename = os.path.basename(filename)
-    filepath = os.path.join(tempfile.gettempdir(), safe_filename)
-    if not os.path.exists(filepath):
-        return JSONResponse({"ok": False, "error": "File not found or expired"}, status_code=404)
-    return FileResponse(filepath, media_type="audio/mpeg", filename=safe_filename)
+    filename = request.query_params.get("file", "")
+    try:
+        from backend.utils.generated_asset import resolve_generated_asset
+    except (ModuleNotFoundError, ImportError):
+        from utils.generated_asset import resolve_generated_asset
+    filepath = resolve_generated_asset(filename, "audio")
+    if not filepath:
+        return JSONResponse({"ok": False, "error": "File not found or expired."}, status_code=404)
+    media_type = "audio/mpeg" if filename.endswith(".mp3") else "audio/wav"
+    return FileResponse(
+        filepath, media_type=media_type, filename=os.path.basename(filepath),
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 # =====================================================================
