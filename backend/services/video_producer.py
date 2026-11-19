@@ -128,7 +128,7 @@ class VideoProducerService:
         transitions between scene beats, neural audio synchronization, and memory-safe limits.
         """
         self._ensure_ffmpeg_path()
-        reel_id = uuid.uuid4().hex[:12]
+        reel_id = uuid.uuid4().hex
         filename = f"wpb_master_story_{reel_id}.mp4"
 
         if not output_path:
@@ -294,7 +294,7 @@ class VideoProducerService:
                 output_path=output_path
             )
 
-        reel_id = uuid.uuid4().hex[:12]
+        reel_id = uuid.uuid4().hex
         filename = f"wpb_master_reel_{reel_id}.mp4"
         if not output_path:
             out_dir = tempfile.gettempdir()
