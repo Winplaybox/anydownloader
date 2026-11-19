@@ -7,7 +7,7 @@ import tempfile
 import time
 from typing import Optional
 
-_VIDEO_NAME = re.compile(r"wpb_master_(?:story|reel)_[0-9a-f]{12}\.mp4\Z")
+_VIDEO_NAME = re.compile(r"wpb_master_(?:story|reel)_[0-9a-f]{12,32}\.mp4\Z")
 _AUDIO_NAMES = {"wpb_audio_master.mp3", "wpb_audio_master.wav"}
 _RETENTION_SECONDS = 2 * 60 * 60
 
