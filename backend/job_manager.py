@@ -610,6 +610,8 @@ class JobManager:
                     job["progress"] = 75 + int(5 * (index + 1) / len(sources))
                     self._save_job_db(job)
 
+                sources = local_sources
+
             if self._is_cancelled(job_id):
                 raise asyncio.CancelledError()
             job["progress"] = 82
