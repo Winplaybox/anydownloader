@@ -45,6 +45,42 @@ class TestCoreContracts(unittest.TestCase):
         self.assertFalse(is_ip_allowed("127.0.0.1"))
         self.assertFalse(is_ip_allowed("169.254.169.254"))
 
+    def test_ssrf_rejects_local_and_ambiguous_urls(self):
+        from backend.utils.security import verify_safe_upstream_url
+        blocked = [
+            "http://localhost/",
+            "http://127.0.0.1/",
+            "http://10.1.2.3/",
+            "http://192.168.1.1/",
+            "http://172.20.0.1/",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://[::1]/",
+            "http://user:pass@example.com/",
+            "http://127.1/",
+            "http://0x7f000001/",
+            "http://bad_host.example/",
+            "http://example.com:99999/",
+            "//evil.example/path",
+            "/not-api/path",
+            "/api/../admin",
+            "/api\\\\admin",
+        ]
+        for url in blocked:
+            with self.subTest(url=url):
+                self.assertFalse(verify_safe_upstream_url(url))
+
+    def test_ssrf_allows_public_urls_and_api_paths(self):
+        from backend.utils.security import verify_safe_upstream_url
+        allowed = [
+            "https://example.com/path",
+            "https://video.twimg.com/media/clip.mp4",
+            "https://sub.example.co.uk:443/path",
+            "/api/stream?id=123",
+        ]
+        for url in allowed:
+            with self.subTest(url=url):
+                self.assertTrue(verify_safe_upstream_url(url))
+
     def test_token_lifecycle(self):
         url = "https://video.twimg.com/media/clip.mp4"
         tok = sign_download_token(url, "clip.mp4", ttl_seconds=60)
