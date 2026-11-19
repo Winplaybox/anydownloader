@@ -13,6 +13,7 @@ import secrets
 import socket
 import urllib.parse
 import hmac
+import base64
 from typing import Dict, Any, Optional, List
 import static_ffmpeg
 import httpx
@@ -38,6 +39,8 @@ class JobManager:
         self.worker_id = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
         self.lease_seconds = max(60, int(os.environ.get("JOB_LEASE_SECONDS", "300")))
         self.max_attempts = max(1, min(5, int(os.environ.get("JOB_MAX_ATTEMPTS", "3"))))
+        owner_secret = os.environ.get("WPB_VAULT_SECRET", "").split(",")[0].strip()
+        self.owner_secret = owner_secret.encode("utf-8") if owner_secret else secrets.token_bytes(32)
 
     def _connect(self):
         conn = sqlite3.connect(self.db_path, timeout=15)
@@ -67,12 +70,14 @@ class JobManager:
                 "max_attempts": "INTEGER NOT NULL DEFAULT 3",
                 "next_run_at": "REAL NOT NULL DEFAULT 0", "lease_owner": "TEXT",
                 "lease_expires_at": "REAL", "cancel_requested": "INTEGER NOT NULL DEFAULT 0",
+                "idempotency_key": "TEXT", "idempotency_owner": "TEXT", "request_fingerprint": "TEXT",
             }
             for name, definition in migrations.items():
                 if name not in existing:
                     conn.execute(f"ALTER TABLE jobs ADD COLUMN {name} {definition}")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_queue ON jobs(status, next_run_at, lease_expires_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_owner ON jobs(owner_token_hash)")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency ON jobs(idempotency_owner, idempotency_key)")
             conn.commit()
         try:
             os.chmod(self.db_path, 0o600)
@@ -112,6 +117,15 @@ class JobManager:
     def _owner_hash(raw_token: str) -> str:
         return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
+    def _owner_token_for_job(self, job_id: str) -> str:
+        raw = hmac.new(self.owner_secret, f"ovd-job-owner:{job_id}".encode("utf-8"), hashlib.sha256).digest()
+        return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+    @staticmethod
+    def _fingerprint(value: Dict[str, Any]) -> str:
+        canonical = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
     @staticmethod
     def _validate_source_page(source_url: Optional[str]) -> Optional[str]:
         if not source_url:
@@ -134,6 +148,7 @@ class JobManager:
     async def create_job(
         self, tokens: List[str], action: str, source_url: Optional[str] = None,
         height: int = 1080, title: Optional[str] = None,
+        idempotency_key: Optional[str] = None, owner_context: str = "anonymous",
     ):
         if action not in {"merge", "mp3", "zip"}:
             raise ValueError("Unsupported job action.")
@@ -165,26 +180,63 @@ class JobManager:
             ):
                 raise ValueError("Download token does not reference an approved public media CDN.")
 
-        job_id = str(uuid.uuid4())
-        owner_token = secrets.token_urlsafe(32)
+        if idempotency_key is not None:
+            idempotency_key = str(idempotency_key).strip()
+            if not re.fullmatch(r"[A-Za-z0-9._:-]{8,128}", idempotency_key):
+                raise ValueError("Idempotency-Key must be 8-128 safe characters.")
+        owner_fingerprint = hashlib.sha256(str(owner_context).encode("utf-8")).hexdigest()
         ext = "mp4" if action == "merge" else ("mp3" if action == "mp3" else "zip")
         clean = re.sub(r'[\\/*?:"<>|]', "", str(title or "")).strip()
         clean = re.sub(r"\s+", "_", clean)[:60]
         filename = f"{clean}.{ext}" if clean else f"ovd_{action}_{job_id[:8]}.{ext}"
         now = time.time()
         payload = {"tokens": tokens, "source_url": safe_source_url, "height": height}
-        with self._connect() as conn:
-            conn.execute("""
-                INSERT INTO jobs (
-                    id, action, status, progress, output_file, download_url, filename,
-                    error, created_at, updated_at, payload_json, owner_token_hash,
-                    attempts, max_attempts, next_run_at, cancel_requested
-                ) VALUES (?, ?, 'queued', 0, NULL, NULL, ?, NULL, ?, ?, ?, ?, 0, ?, ?, 0)
-            """, (
-                job_id, action, filename, now, now, json.dumps(payload, separators=(",", ":")),
-                self._owner_hash(owner_token), self.max_attempts, now,
-            ))
-            conn.commit()
+        fingerprint = self._fingerprint({
+            "action": action, "tokens": tokens, "source_url": safe_source_url,
+            "height": height, "title": title or "",
+        })
+        if idempotency_key:
+            with self._connect() as conn:
+                existing = conn.execute("""
+                    SELECT id, request_fingerprint FROM jobs
+                    WHERE idempotency_owner=? AND idempotency_key=?
+                """, (owner_fingerprint, idempotency_key)).fetchone()
+            if existing:
+                if existing["request_fingerprint"] != fingerprint:
+                    raise ValueError("Idempotency-Key was already used for a different request.")
+                existing_id = existing["id"]
+                return existing_id, self._owner_token_for_job(existing_id)
+
+        job_id = str(uuid.uuid4())
+        owner_token = self._owner_token_for_job(job_id)
+        try:
+            with self._connect() as conn:
+                conn.execute("""
+                    INSERT INTO jobs (
+                        id, action, status, progress, output_file, download_url, filename,
+                        error, created_at, updated_at, payload_json, owner_token_hash,
+                        attempts, max_attempts, next_run_at, cancel_requested,
+                        idempotency_key, idempotency_owner, request_fingerprint
+                    ) VALUES (?, ?, 'queued', 0, NULL, NULL, ?, NULL, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?, ?)
+                """, (
+                    job_id, action, filename, now, now, json.dumps(payload, separators=(",", ":")),
+                    self._owner_hash(owner_token), self.max_attempts, now,
+                    idempotency_key, owner_fingerprint if idempotency_key else None,
+                    fingerprint if idempotency_key else None,
+                ))
+                conn.commit()
+        except sqlite3.IntegrityError:
+            if not idempotency_key:
+                raise
+            with self._connect() as conn:
+                existing = conn.execute("""
+                    SELECT id, request_fingerprint FROM jobs
+                    WHERE idempotency_owner=? AND idempotency_key=?
+                """, (owner_fingerprint, idempotency_key)).fetchone()
+            if not existing or existing["request_fingerprint"] != fingerprint:
+                raise ValueError("Idempotency-Key conflicts with another job request.")
+            existing_id = existing["id"]
+            return existing_id, self._owner_token_for_job(existing_id)
         self.jobs[job_id] = {
             "id": job_id, "action": action, "status": "queued", "progress": 0,
             "output_file": None, "download_url": None, "filename": filename,
