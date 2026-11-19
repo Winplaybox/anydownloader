@@ -2530,7 +2530,11 @@ async def stream_download_handler(request):
 
 async def readiness_handler(request):
     production = os.environ.get("WPB_ENV", "").lower() in ("prod", "production") or bool(os.environ.get("RENDER"))
-    checks = {"job_database": False, "token_store": False, "ffmpeg": False, "persistent_jobs_dir_configured": (not production) or bool(os.environ.get("JOBS_DIR"))}
+    checks = {
+        "job_database": False, "token_store": False, "ffmpeg": False,
+        "job_worker": bool(job_manager._worker_task and not job_manager._worker_task.done()),
+        "persistent_jobs_dir_configured": (not production) or bool(os.environ.get("JOBS_DIR")),
+    }
     try:
         with job_manager._connect() as conn:
             conn.execute("SELECT 1").fetchone()
@@ -2540,6 +2544,8 @@ async def readiness_handler(request):
     store_name = getattr(getattr(token_vault, "store", None), "name", "unknown")
     checks["token_store"] = store_name in ("redis", "upstash") if production else store_name != "unknown"
     checks["ffmpeg"] = bool(shutil.which("ffmpeg"))
+    if not production and not checks["job_worker"]:
+        checks["job_worker"] = True
     ready = all(checks.values())
     return JSONResponse(
         {"status": "ready" if ready else "not_ready", "checks": checks},
@@ -3153,7 +3159,12 @@ def _public_job(job):
         "id", "action", "status", "progress", "download_url",
         "filename", "error", "created_at", "updated_at", "attempts",
     )
-    return {key: job.get(key) for key in allowed if key in job}
+    public = {key: job.get(key) for key in allowed if key in job}
+    if job.get("status") == "failed":
+        public["error"] = "Job failed. Please retry or choose another source."
+    elif job.get("status") == "cancelled":
+        public["error"] = "Job was cancelled."
+    return public
 
 
 async def get_job_handler(request):
