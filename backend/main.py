@@ -3049,57 +3049,109 @@ async def unified_extract_handler(request):
 async def create_job_handler(request):
     try:
         body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "Invalid request body."}, status_code=400)
         tokens = body.get("tokens", [])
         action = body.get("action", "merge")
         url = body.get("url") or body.get("source_url")
         title = body.get("title")
-        height = int(body.get("height", 1080))
-        if not tokens and not url:
-            return JSONResponse({"ok": False, "error": "tokens list or url is required"}, status_code=400)
-        job_id = await job_manager.create_job(tokens, action, source_url=url, height=height, title=title)
-        return JSONResponse({"ok": True, "job_id": job_id})
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        height = body.get("height", 1080)
+        if not tokens:
+            return JSONResponse({"ok": False, "error": "A signed media token is required."}, status_code=400)
+        job_id, access_token = await job_manager.create_job(
+            tokens, action, source_url=url, height=height, title=title,
+        )
+        return JSONResponse(
+            {"ok": True, "job_id": job_id, "access_token": access_token, "status": "queued"},
+            status_code=202,
+            headers={"Cache-Control": "no-store"},
+        )
+    except (ValueError, TypeError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Could not queue this job. Please retry."}, status_code=503)
+
+
+def _job_access_token(request):
+    return (
+        request.headers.get("x-job-token", "").strip()
+        or request.query_params.get("access_token", "").strip()
+    )
+
+
+def _public_job(job):
+    allowed = (
+        "id", "action", "status", "progress", "download_url",
+        "filename", "error", "created_at", "updated_at", "attempts",
+    )
+    return {key: job.get(key) for key in allowed if key in job}
+
 
 async def get_job_handler(request):
     job_id = request.path_params.get("id")
+    if not job_manager.authorize_job(job_id, _job_access_token(request)):
+        return JSONResponse({"ok": False, "error": "Job not found."}, status_code=404)
     job = job_manager.get_job(job_id)
     if not job:
-        return JSONResponse({"ok": False, "error": "Job not found"}, status_code=404)
-    return JSONResponse({"ok": True, "job": {k: v for k, v in job.items() if k != "output_file"}})
+        return JSONResponse({"ok": False, "error": "Job not found."}, status_code=404)
+    return JSONResponse(
+        {"ok": True, "job": _public_job(job)},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def cancel_job_handler(request):
+    job_id = request.path_params.get("id")
+    if not job_manager.cancel_job(job_id, _job_access_token(request)):
+        return JSONResponse({"ok": False, "error": "Job not found."}, status_code=404)
+    return JSONResponse({"ok": True, "status": "cancellation_requested"}, headers={"Cache-Control": "no-store"})
+
 
 async def get_job_file_handler(request):
     job_id = request.path_params.get("id")
+    if not job_manager.authorize_job(job_id, _job_access_token(request)):
+        return JSONResponse({"ok": False, "error": "Job not found."}, status_code=404)
     job = job_manager.get_job(job_id)
     if not job:
-        return JSONResponse({"ok": False, "error": "Job not found"}, status_code=404)
+        return JSONResponse({"ok": False, "error": "Job not found."}, status_code=404)
     if job.get("status") != "done":
         return JSONResponse({
-            "ok": False,
-            "status": job.get("status"),
+            "ok": False, "status": job.get("status"),
             "progress": job.get("progress", 0),
-            "error": "Job is still processing or has failed."
-        }, status_code=400)
+            "error": "Job is still processing or has failed.",
+        }, status_code=409)
     dl = job.get("download_url") or ""
-    if dl and not dl.startswith(("/api/jobs", f"/api/jobs/{job_id}")) and "api/jobs" not in dl:
-        from starlette.responses import RedirectResponse
-        return RedirectResponse(dl, status_code=302)
+    if dl and not dl.startswith("/api/jobs/"):
+        parsed = urllib.parse.urlsplit(dl)
+        if parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password:
+            return RedirectResponse(dl, status_code=302)
+        return JSONResponse({"ok": False, "error": "Invalid job result URL."}, status_code=502)
     filepath = job.get("output_file")
-    if not filepath or not os.path.exists(filepath):
-        return JSONResponse({"ok": False, "error": "File expired"}, status_code=404)
+    if not filepath or not os.path.isfile(filepath):
+        return JSONResponse({"ok": False, "error": "File expired."}, status_code=404)
     filename = job.get("filename") or "download.mp4"
-    return FileResponse(filepath, filename=filename)
+    return FileResponse(filepath, filename=filename, headers={"Cache-Control": "private, no-store"})
+
 
 async def create_zip_handler(request):
     try:
         body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "Invalid request body."}, status_code=400)
         tokens = body.get("tokens", [])
         if not tokens:
-            return JSONResponse({"ok": False, "error": "tokens list is required"}, status_code=400)
-        job_id = await job_manager.create_job(tokens, "zip")
-        return JSONResponse({"ok": True, "job_id": job_id})
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+            return JSONResponse({"ok": False, "error": "Signed media tokens are required."}, status_code=400)
+        job_id, access_token = await job_manager.create_job(tokens, "zip", title=body.get("title"))
+        return JSONResponse(
+            {"ok": True, "job_id": job_id, "access_token": access_token, "status": "queued"},
+            status_code=202,
+            headers={"Cache-Control": "no-store"},
+        )
+    except (ValueError, TypeError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Could not queue this ZIP job. Please retry."}, status_code=503)
+
 
 async def proxy_image_handler(request):
     token = request.query_params.get("token")
@@ -4184,6 +4236,7 @@ routes = [
     Route('/api/download', _tracked('download', download_proxy_handler), methods=['GET']),
     Route('/api/jobs', create_job_handler, methods=['POST']),
     Route('/api/jobs/{id}', get_job_handler, methods=['GET']),
+    Route('/api/jobs/{id}/cancel', cancel_job_handler, methods=['POST']),
     Route('/api/jobs/{id}/file', get_job_file_handler, methods=['GET']),
     Route('/api/zip', create_zip_handler, methods=['POST']),
     Route('/api/contact', contact_handler, methods=['POST']),
@@ -4217,7 +4270,11 @@ middleware = [
 ]
 
 
-app = Starlette(debug=False, routes=routes, middleware=middleware)
+async def _startup_job_queue():
+    job_manager.start()
+
+
+app = Starlette(debug=False, routes=routes, middleware=middleware, on_startup=[_startup_job_queue])
 
 if __name__ == "__main__":
     import uvicorn
