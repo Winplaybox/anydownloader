@@ -18,9 +18,9 @@ import static_ffmpeg
 import httpx
 
 try:
-    from backend.utils.security import verify_download_token
+    from backend.utils.security import verify_download_token, is_safe_cdn_host, verify_safe_upstream_url, verify_public_dns_resolution
 except (ModuleNotFoundError, ImportError):
-    from utils.security import verify_download_token
+    from utils.security import verify_download_token, is_safe_cdn_host, verify_safe_upstream_url, verify_public_dns_resolution
 
 static_ffmpeg.add_paths()
 
@@ -155,6 +155,15 @@ class JobManager:
             payload = verify_download_token(token)
             if not payload or not payload.get("variant_url"):
                 raise ValueError("A download token is invalid or expired.")
+            media_url = payload["variant_url"]
+            parsed_media = urllib.parse.urlsplit(media_url)
+            if (
+                parsed_media.scheme != "https" or not parsed_media.hostname
+                or not is_safe_cdn_host(parsed_media.hostname)
+                or not verify_safe_upstream_url(media_url)
+                or not verify_public_dns_resolution(media_url)
+            ):
+                raise ValueError("Download token does not reference an approved public media CDN.")
 
         job_id = str(uuid.uuid4())
         owner_token = secrets.token_urlsafe(32)
@@ -479,25 +488,51 @@ class JobManager:
                 job["filename"] = f"ovd_gallery_{job_id[:8]}.zip"
                 output_path = os.path.join(JOBS_DIR, job["filename"])
                 with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                    async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
                         total_bytes = 0
                         for idx, src in enumerate(sources):
                             if self._is_cancelled(job_id):
                                 raise asyncio.CancelledError()
-                            async with client.stream("GET", src, headers={"User-Agent": "Mozilla/5.0"}) as resp:
-                                resp.raise_for_status()
-                                declared = int(resp.headers.get("content-length", "0") or 0)
+                            current_url = src
+                            response = None
+                            for _redirect in range(6):
+                                if not await asyncio.to_thread(
+                                    lambda u=current_url: (
+                                        urllib.parse.urlsplit(u).scheme == "https"
+                                        and bool(urllib.parse.urlsplit(u).hostname)
+                                        and is_safe_cdn_host(urllib.parse.urlsplit(u).hostname)
+                                        and verify_safe_upstream_url(u)
+                                        and verify_public_dns_resolution(u)
+                                    )
+                                ):
+                                    raise ValueError("ZIP source or redirect is not an approved public CDN.")
+                                request = client.build_request("GET", current_url, headers={"User-Agent": "Mozilla/5.0"})
+                                response = await client.send(request, stream=True, follow_redirects=False)
+                                if response.status_code in (301, 302, 303, 307, 308):
+                                    location = response.headers.get("location")
+                                    await response.aclose()
+                                    if not location:
+                                        raise ValueError("ZIP source returned an invalid redirect.")
+                                    current_url = urllib.parse.urljoin(current_url, location)
+                                    response = None
+                                    continue
+                                break
+                            if response is None:
+                                raise ValueError("ZIP source exceeded the redirect limit.")
+                            async with response:
+                                response.raise_for_status()
+                                declared = int(response.headers.get("content-length", "0") or 0)
                                 if declared > 50 * 1024 * 1024:
                                     raise ValueError("ZIP item exceeds the 50 MB limit.")
                                 parts = []
                                 item_bytes = 0
-                                async for chunk in resp.aiter_bytes():
+                                async for chunk in response.aiter_bytes():
                                     item_bytes += len(chunk)
                                     total_bytes += len(chunk)
                                     if item_bytes > 50 * 1024 * 1024 or total_bytes > 300 * 1024 * 1024:
                                         raise ValueError("ZIP archive exceeded its size limit.")
                                     parts.append(chunk)
-                                ext = "png" if urllib.parse.urlsplit(src).path.lower().endswith(".png") else "jpg"
+                                ext = "png" if urllib.parse.urlsplit(current_url).path.lower().endswith(".png") else "jpg"
                                 zf.writestr(f"media_{idx+1}.{ext}", b"".join(parts))
                             job["progress"] = int(25 + (70 * (idx + 1) / len(sources)))
                             self._save_job_db(job)
