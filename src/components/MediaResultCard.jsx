@@ -321,7 +321,7 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
       setJob({ id: 'pending', status: 'queued', progress: 15, targetKey });
       const r = await fetch(`${BACKEND_BASE}/api/jobs`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
         body: JSON.stringify({
           action: 'merge',
           tokens,
@@ -350,7 +350,7 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
     setDlError(null);
     try {
       const r = await fetch(`${BACKEND_BASE}/api/zip`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens }),
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ tokens }),
       });
       const j = await r.json();
       if (!r.ok || !j.ok || !j.job_id || !j.access_token) {
