@@ -365,6 +365,19 @@ class JobManager:
         self.jobs[job_id] = job
         return job
 
+    def get_stats(self):
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS total FROM jobs GROUP BY status"
+            ).fetchall()
+            totals = {row["status"]: int(row["total"]) for row in rows}
+        return {
+            "counts": totals,
+            "worker_running": bool(self._worker_task and not self._worker_task.done()),
+            "lease_seconds": self.lease_seconds,
+            "max_attempts": self.max_attempts,
+        }
+
     def _is_cancelled(self, job_id: str) -> bool:
         with self._connect() as conn:
             row = conn.execute("SELECT cancel_requested FROM jobs WHERE id=?", (job_id,)).fetchone()
