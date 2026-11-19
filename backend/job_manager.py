@@ -292,7 +292,7 @@ class JobManager:
                     )
                     with self._connect() as conn:
                         current = conn.execute("SELECT status FROM jobs WHERE id=?", (job_id,)).fetchone()
-                        if current and current["status"] == "processing":
+                        if current and current["status"] in ("processing", "done"):
                             conn.execute("""
                                 UPDATE jobs SET status='done', progress=100, lease_owner=NULL,
                                     lease_expires_at=NULL, updated_at=? WHERE id=? AND lease_owner=?
@@ -519,7 +519,7 @@ class JobManager:
                                 break
                             if response is None:
                                 raise ValueError("ZIP source exceeded the redirect limit.")
-                            async with response:
+                                    try:
                                 response.raise_for_status()
                                 declared = int(response.headers.get("content-length", "0") or 0)
                                 if declared > 50 * 1024 * 1024:
@@ -534,6 +534,8 @@ class JobManager:
                                     parts.append(chunk)
                                 ext = "png" if urllib.parse.urlsplit(current_url).path.lower().endswith(".png") else "jpg"
                                 zf.writestr(f"media_{idx+1}.{ext}", b"".join(parts))
+                            finally:
+                                await response.aclose()
                             job["progress"] = int(25 + (70 * (idx + 1) / len(sources)))
                             self._save_job_db(job)
 
