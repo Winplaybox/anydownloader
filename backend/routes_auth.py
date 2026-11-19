@@ -2,9 +2,16 @@
 from __future__ import annotations
 
 import logging
+import asyncio
+import hashlib
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
+
+try:
+    from backend.security.zero_trust import client_ip, rate_limit
+except (ModuleNotFoundError, ImportError):
+    from security.zero_trust import client_ip, rate_limit
 
 from backend.services.auth_service import (
     create_guest_session,
@@ -19,6 +26,29 @@ from backend.services.auth_service import (
 )
 
 log = logging.getLogger("wpb.routes_auth")
+
+
+async def _auth_rate_limited(request: Request, action: str, limit: int, window: int, identifier: str = "") -> bool:
+    ip = client_ip(request)
+    allowed, _ = await asyncio.to_thread(rate_limit, f"auth:{action}:ip", ip, limit, window)
+    if not allowed:
+        return True
+    if identifier:
+        account_key = hashlib.sha256(identifier.strip().lower().encode("utf-8")).hexdigest()
+        account_allowed, _ = await asyncio.to_thread(
+            rate_limit, f"auth:{action}:account", account_key, max(3, limit // 2), window
+        )
+        if not account_allowed:
+            return True
+    return False
+
+
+def _rate_limited_response() -> JSONResponse:
+    return JSONResponse(
+        {"ok": False, "error": "Too many authentication attempts. Please try again later."},
+        status_code=429,
+        headers={"Cache-Control": "no-store", "Retry-After": "60"},
+    )
 
 
 async def session_handler(request: Request) -> Response:
@@ -40,6 +70,8 @@ async def session_handler(request: Request) -> Response:
 
 async def google_auth_handler(request: Request) -> Response:
     """Verifies Google One-Tap or OAuth token and logs the user in."""
+    if await _auth_rate_limited(request, "google", 20, 900):
+        return _rate_limited_response()
     try:
         body = await request.json()
     except Exception:
@@ -84,6 +116,8 @@ async def google_auth_handler(request: Request) -> Response:
 
 async def register_handler(request: Request) -> Response:
     """Registers a new account using email & password."""
+    if await _auth_rate_limited(request, "register", 6, 3600):
+        return _rate_limited_response()
     try:
         body = await request.json()
     except Exception:
@@ -124,6 +158,8 @@ async def login_handler(request: Request) -> Response:
         return JSONResponse({"ok": False, "error": "Invalid JSON body"}, status_code=400)
 
     email = body.get("email")
+    if await _auth_rate_limited(request, "login", 12, 900, str(email or "")):
+        return _rate_limited_response()
     password = body.get("password")
 
     user, err = login_user_with_email(email, password)
