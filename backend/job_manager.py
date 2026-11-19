@@ -519,7 +519,7 @@ class JobManager:
                                 break
                             if response is None:
                                 raise ValueError("ZIP source exceeded the redirect limit.")
-                                    try:
+                            try:
                                 response.raise_for_status()
                                 declared = int(response.headers.get("content-length", "0") or 0)
                                 if declared > 50 * 1024 * 1024:
