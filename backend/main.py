@@ -2451,7 +2451,7 @@ async def stream_download_handler(request):
     if not target_url:
         return Response("Missing target stream url", status_code=400)
 
-    if not is_safe_cdn_url(target_url):
+    if not await asyncio.to_thread(is_safe_cdn_url, target_url):
         return Response("Target host not permitted for streaming proxy", status_code=400)
 
     # Set upstream referer matched to platform CDN
@@ -2690,7 +2690,7 @@ async def download_proxy_handler(request):
                 padding = '=' * (4 - (len(b64_part) % 4)) if len(b64_part) % 4 != 0 else ''
                 raw_data = json.loads(base64.urlsafe_b64decode(b64_part + padding).decode('utf-8'))
                 candidate_u = raw_data.get("u")
-                if candidate_u and is_safe_cdn_url(candidate_u):
+                if candidate_u and await asyncio.to_thread(is_safe_cdn_url, candidate_u):
                     target_url = candidate_u
                     filename = raw_data.get("f") or filename
             except Exception:
@@ -2698,7 +2698,7 @@ async def download_proxy_handler(request):
 
     if not target_url and url_param:
         clean_u = url_param.strip()
-        if is_safe_cdn_url(clean_u):
+        if await asyncio.to_thread(is_safe_cdn_url, clean_u):
             target_url = clean_u
         elif clean_u.startswith("/api/") or clean_u.startswith("/"):
             target_url = clean_u
