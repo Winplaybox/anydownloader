@@ -126,8 +126,17 @@ class JobManager:
     def _owner_hash(raw_token: str) -> str:
         return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
-    def _owner_token_for_job(self, job_id: str) -> str:
-        raw = hmac.new(self.owner_secret, f"ovd-job-owner:{job_id}".encode("utf-8"), hashlib.sha256).digest()
+    def _owner_token_for_job(
+        self, job_id: str, idempotency_key: Optional[str] = None,
+        owner_context: str = "anonymous",
+    ) -> str:
+        # Bind recoverable idempotency capabilities to the high-entropy caller key
+        # and requester context, not only to the job id.
+        material = "\\0".join((
+            "ovd-job-owner-v2", job_id, idempotency_key or "",
+            str(owner_context or "anonymous"),
+        ))
+        raw = hmac.new(self.owner_secret, material.encode("utf-8"), hashlib.sha256).digest()
         return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
     @staticmethod
@@ -225,9 +234,9 @@ class JobManager:
                 if existing["request_fingerprint"] != fingerprint:
                     raise ValueError("Idempotency-Key was already used for a different request.")
                 existing_id = existing["id"]
-                return existing_id, self._owner_token_for_job(existing_id)
+                return existing_id, self._owner_token_for_job(existing_id, idempotency_key, owner_context)
 
-        owner_token = self._owner_token_for_job(job_id)
+        owner_token = self._owner_token_for_job(job_id, idempotency_key, owner_context)
         try:
             with self._connect() as conn:
                 conn.execute("""
@@ -255,7 +264,7 @@ class JobManager:
             if not existing or existing["request_fingerprint"] != fingerprint:
                 raise ValueError("Idempotency-Key conflicts with another job request.")
             existing_id = existing["id"]
-            return existing_id, self._owner_token_for_job(existing_id)
+            return existing_id, self._owner_token_for_job(existing_id, idempotency_key, owner_context)
         self.jobs[job_id] = {
             "id": job_id, "action": action, "status": "queued", "progress": 0,
             "output_file": None, "download_url": None, "filename": filename,
