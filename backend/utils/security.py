@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import hmac
 import hashlib
@@ -98,53 +99,63 @@ def is_ip_allowed(ip_str: str) -> bool:
         return False
 
 def verify_safe_upstream_url(target_url: str) -> bool:
+    """Reject malformed URLs and obvious local/private destinations before fetching.
+
+    This is a static validation layer. DNS resolution and connection-time IP pinning
+    must also be enforced by the HTTP client to fully prevent DNS-rebinding SSRF.
     """
-    Robust SSRF Protection:
-    1. Permits internal routing (/api/...)
-    2. Enforces http/https for upstream URLs.
-    3. Strictly blocks private/internal hosts (localhost, 127.0.0.1, 169.254.169.254, RFC1918 subnets).
-    4. Permits all public internet domains and CDNs.
-    """
+    if not isinstance(target_url, str) or not target_url:
+        return False
+    target_clean = target_url.strip()
+    if target_clean != target_url or any(ord(ch) < 32 for ch in target_url):
+        return False
+
+    # Allow only explicit application-relative API paths (not protocol-relative URLs).
+    if target_clean.startswith("/"):
+        if target_clean.startswith("//") or "\\" in target_clean:
+            return False
+        path = urllib.parse.urlsplit(target_clean).path
+        return path.startswith("/api/") and not any(seg in (".", "..") for seg in path.split("/"))
+
     try:
-        if not target_url or not isinstance(target_url, str):
+        parsed = urllib.parse.urlsplit(target_clean)
+        if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
             return False
-        
-        target_clean = target_url.strip()
-        if target_clean.startswith("/api/") or target_clean.startswith("/"):
-            return True
-
-        parsed = urllib.parse.urlparse(target_clean)
-        if parsed.scheme not in ("http", "https"):
+        if parsed.username is not None or parsed.password is not None:
             return False
-
-        host = (parsed.netloc or "").split(":")[0].strip().lower()
+        # urlsplit.hostname handles bracketed IPv6 correctly; accessing port also
+        # validates malformed/out-of-range ports.
+        host = parsed.hostname
+        _ = parsed.port
         if not host:
             return False
-
-        # Strictly block localhost, cloud-metadata, and internal hostnames
-        if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "169.254.169.254", "metadata.google.internal", "instance-data"):
-            return False
-        if host.endswith(".local") or host.endswith(".internal") or host.endswith(".lan"):
+        host = host.rstrip(".").lower()
+        if not host or "%" in host or not host.isascii():
             return False
 
-        # Block private IPv4 subnets
-        if any(host.startswith(p) for p in ("10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.2", "172.3")):
-            return False
-
-        # Check numeric IP ranges
+        # Reject ambiguous numeric host representations (e.g. 127.1, octal, hex).
         try:
             ip = ipaddress.ip_address(host)
             return is_ip_allowed(str(ip))
         except ValueError:
-            pass
+            if re.fullmatch(r"[0-9.]+", host) or host.startswith("0x"):
+                return False
 
-        # Fast path for known media CDNs
-        if is_safe_cdn_host(host):
-            return True
+        if host in ("localhost", "metadata.google.internal", "instance-data"):
+            return False
+        if host.endswith((".local", ".internal", ".lan", ".localhost")):
+            return False
 
-        # Any public internet host with a dot is permitted
-        return "." in host
-    except Exception:
+        # Hostname syntax: valid DNS labels, no empty labels or underscores.
+        labels = host.split(".")
+        if len(labels) < 2 or any(
+            not label or len(label) > 63
+            or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", label)
+            for label in labels
+        ):
+            return False
+        return True
+    except (ValueError, UnicodeError):
         return False
 
 def sign_download_token(variant_url: str, filename: str, ttl_seconds: int = 86400) -> str:
