@@ -81,6 +81,10 @@ class JobManager:
                 if name not in existing:
                     conn.execute(f"ALTER TABLE jobs ADD COLUMN {name} {definition}")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_queue ON jobs(status, next_run_at, lease_expires_at)")
+            conn.execute("""
+                UPDATE jobs SET status='failed', error='Legacy job cannot be resumed; the previous version did not persist its input payload.'
+                WHERE status IN ('queued', 'processing') AND payload_json IS NULL
+            """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_owner ON jobs(owner_token_hash)")
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency ON jobs(idempotency_owner, idempotency_key)")
             conn.commit()
@@ -135,6 +139,8 @@ class JobManager:
     def _validate_source_page(source_url: Optional[str]) -> Optional[str]:
         if not source_url:
             return None
+        if len(str(source_url)) > 4096:
+            raise ValueError("Source URL is too long.")
         parsed = urllib.parse.urlsplit(str(source_url).strip())
         host = (parsed.hostname or "").lower().rstrip(".")
         allowed = (
@@ -202,7 +208,7 @@ class JobManager:
         job_id = str(uuid.uuid4())
         clean = re.sub(r'[\\/*?:"<>|]', "", str(title or "")).strip()
         clean = re.sub(r"\s+", "_", clean)[:60]
-        filename = f"{clean}.{ext}" if clean else f"ovd_{action}_{job_id[:8]}.{ext}"
+        filename = f"{clean}_{job_id[:8]}.{ext}" if clean else f"ovd_{action}_{job_id[:8]}.{ext}"
         now = time.time()
         payload = {"tokens": tokens, "source_url": safe_source_url, "height": height}
         fingerprint = self._fingerprint({
@@ -479,6 +485,8 @@ class JobManager:
                     try:
                         worker_url = await _download_via_worker(source_url, "video", height=height)
                         if worker_url:
+                            if self._is_cancelled(job_id):
+                                raise asyncio.CancelledError()
                             parsed_result = urllib.parse.urlsplit(worker_url)
                             if parsed_result.scheme != "https" or not parsed_result.hostname or parsed_result.username or parsed_result.password:
                                 raise RuntimeError("Worker returned an invalid result URL.")
@@ -509,6 +517,8 @@ class JobManager:
                             await _run_download_limited(run_download_video_task, source_url, height, output_path)
                         else:
                             await asyncio.to_thread(run_download_video_task, source_url, height, output_path)
+                        if self._is_cancelled(job_id):
+                            raise asyncio.CancelledError()
                         if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:
                             job["output_file"] = output_path
                             job["status"] = "done"
@@ -639,11 +649,18 @@ class JobManager:
                             job["progress"] = int(25 + (70 * (idx + 1) / len(sources)))
                             self._save_job_db(job)
 
+            if self._is_cancelled(job_id):
+                raise asyncio.CancelledError()
             job["output_file"] = output_path
             job["status"] = "done"
             job["progress"] = 100
             job["download_url"] = f"/api/jobs/{job_id}/file"
             self._save_job_db(job)
+            if job.get("output_file") and os.path.isfile(job["output_file"]):
+                try:
+                    os.chmod(job["output_file"], 0o600)
+                except OSError:
+                    pass
 
         except Exception as e:
             job["error"] = str(e)[:500]
