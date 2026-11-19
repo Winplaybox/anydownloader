@@ -3105,6 +3105,8 @@ async def create_job_handler(request):
             return JSONResponse({"ok": False, "error": "A signed media token is required."}, status_code=400)
         job_id, access_token = await job_manager.create_job(
             tokens, action, source_url=url, height=height, title=title,
+            idempotency_key=request.headers.get("idempotency-key"),
+            owner_context=_zt_client_ip(request),
         )
         return JSONResponse(
             {"ok": True, "job_id": job_id, "access_token": access_token, "status": "queued"},
@@ -3186,7 +3188,11 @@ async def create_zip_handler(request):
         tokens = body.get("tokens", [])
         if not tokens:
             return JSONResponse({"ok": False, "error": "Signed media tokens are required."}, status_code=400)
-        job_id, access_token = await job_manager.create_job(tokens, "zip", title=body.get("title"))
+        job_id, access_token = await job_manager.create_job(
+            tokens, "zip", title=body.get("title"),
+            idempotency_key=request.headers.get("idempotency-key"),
+            owner_context=_zt_client_ip(request),
+        )
         return JSONResponse(
             {"ok": True, "job_id": job_id, "access_token": access_token, "status": "queued"},
             status_code=202,
