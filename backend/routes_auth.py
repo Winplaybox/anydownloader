@@ -70,6 +70,9 @@ async def session_handler(request: Request) -> Response:
 
 async def google_auth_handler(request: Request) -> Response:
     """Verifies Google One-Tap or OAuth token and logs the user in."""
+    cl = request.headers.get("content-length", "")
+    if cl.isdigit() and int(cl) > 32 * 1024:
+        return JSONResponse({"ok": False, "error": "Request body too large."}, status_code=413)
     if await _auth_rate_limited(request, "google", 20, 900):
         return _rate_limited_response()
     try:
@@ -116,6 +119,9 @@ async def google_auth_handler(request: Request) -> Response:
 
 async def register_handler(request: Request) -> Response:
     """Registers a new account using email & password."""
+    cl = request.headers.get("content-length", "")
+    if cl.isdigit() and int(cl) > 32 * 1024:
+        return JSONResponse({"ok": False, "error": "Request body too large."}, status_code=413)
     if await _auth_rate_limited(request, "register", 6, 3600):
         return _rate_limited_response()
     try:
@@ -152,13 +158,18 @@ async def register_handler(request: Request) -> Response:
 
 async def login_handler(request: Request) -> Response:
     """Authenticates an account using email & password."""
+    cl = request.headers.get("content-length", "")
+    if cl.isdigit() and int(cl) > 32 * 1024:
+        return JSONResponse({"ok": False, "error": "Request body too large."}, status_code=413)
+    if await _auth_rate_limited(request, "login", 12, 900):
+        return _rate_limited_response()
     try:
         body = await request.json()
     except Exception:
         return JSONResponse({"ok": False, "error": "Invalid JSON body"}, status_code=400)
 
     email = body.get("email")
-    if await _auth_rate_limited(request, "login", 12, 900, str(email or "")):
+    if await _auth_rate_limited(request, "login-account", 12, 900, str(email or "")):
         return _rate_limited_response()
     password = body.get("password")
 
