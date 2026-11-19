@@ -110,7 +110,10 @@ def rate_limit(bucket: str, key: str, limit: int, window: int) -> Tuple[bool, in
         n = store.incr(k, window + 1)
     except Exception:
         log.exception("rate limiter store failure")
-        return True, limit  # fail-open on limiter only; auth stays fail-closed
+        # Production defaults to fail-closed; development remains fail-open.
+        fail_open_default = "0" if IS_PRODUCTION else "1"
+        fail_open = os.environ.get("WPB_RATE_LIMIT_FAIL_OPEN", fail_open_default) == "1"
+        return (True, limit) if fail_open else (False, 0)
     return n <= limit, max(0, limit - n)
 
 
