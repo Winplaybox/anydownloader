@@ -21,6 +21,9 @@ log = logging.getLogger("routes_payments")
 
 async def checkout_handler(request: Request) -> Response:
     """Creates a Dodo Payments checkout session for subscription plans."""
+    cl = request.headers.get("content-length", "")
+    if cl.isdigit() and int(cl) > 32 * 1024:
+        return JSONResponse({"ok": False, "error": "Request body too large."}, status_code=413)
     allowed, _ = rate_limit("payments:checkout", client_ip(request), 10, 900)
     if not allowed:
         return JSONResponse(
@@ -59,6 +62,9 @@ async def checkout_handler(request: Request) -> Response:
 
 async def webhook_handler(request: Request) -> Response:
     """Receives and verifies Dodo Payments webhooks."""
+    cl = request.headers.get("content-length", "")
+    if cl.isdigit() and int(cl) > 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "Webhook payload too large."}, status_code=413)
     payload_bytes = await request.body()
     headers = {k.lower(): v for k, v in request.headers.items()}
 
