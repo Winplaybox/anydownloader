@@ -201,6 +201,24 @@ def is_safe_cdn_url(target_url: str) -> bool:
     except Exception:
         return False
 
+async def _safe_cdn_stream(client, target_url: str, headers=None, max_redirects: int = 5):
+    """Open a CDN stream while re-validating every redirect target."""
+    current = target_url
+    for _ in range(max_redirects + 1):
+        if not await asyncio.to_thread(is_safe_cdn_url, current):
+            raise ValueError("Upstream URL or redirect target is not an approved public CDN.")
+        request = client.build_request("GET", current, headers=headers)
+        response = await client.send(request, stream=True, follow_redirects=False)
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location")
+            await response.aclose()
+            if not location:
+                raise ValueError("Upstream returned a redirect without a location.")
+            current = urllib.parse.urljoin(current, location)
+            continue
+        return response
+    raise ValueError("Upstream exceeded the redirect limit.")
+
 def format_duration(seconds: Optional[int]) -> str:
     if not seconds:
         return "Live / Unknown"
@@ -2475,21 +2493,29 @@ async def stream_download_handler(request):
     }
 
     client = httpx.AsyncClient(headers=client_headers, follow_redirects=False, timeout=90.0)
+    try:
+        upstream_resp = await _safe_cdn_stream(client, target_url, headers=client_headers)
+    except Exception:
+        await client.aclose()
+        return Response("Upstream URL or redirect was rejected.", status_code=502)
 
     async def stream_chunks():
         try:
-            async with client.stream("GET", target_url) as resp:
-                async for chunk in resp.aiter_bytes(chunk_size=1024 * 64):
-                    yield chunk
+            async for chunk in upstream_resp.aiter_bytes(chunk_size=1024 * 64):
+                yield chunk
         finally:
+            await upstream_resp.aclose()
             await client.aclose()
 
     headers = {
         "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8''{safe_filename}',
-        "Content-Type": "application/octet-stream"
+        "Content-Type": upstream_resp.headers.get("content-type", "application/octet-stream"),
     }
+    for key in ("content-length", "content-range", "accept-ranges"):
+        if key in upstream_resp.headers:
+            headers[{"content-length": "Content-Length", "content-range": "Content-Range", "accept-ranges": "Accept-Ranges"}[key]] = upstream_resp.headers[key]
 
-    return StreamingResponse(stream_chunks(), headers=headers)
+    return StreamingResponse(stream_chunks(), status_code=upstream_resp.status_code, headers=headers)
 
 async def health_handler(request):
     import shutil
@@ -2738,14 +2764,13 @@ async def download_proxy_handler(request):
     if "range" in request.headers:
         req_headers["range"] = request.headers["range"]
 
-    client = httpx.AsyncClient(headers=req_headers, follow_redirects=True, timeout=120.0)
+    client = httpx.AsyncClient(headers=req_headers, follow_redirects=False, timeout=120.0)
 
     try:
-        upstream_req = client.build_request("GET", target_url)
-        upstream_resp = await client.send(upstream_req, stream=True)
+        upstream_resp = await _safe_cdn_stream(client, target_url, headers=req_headers)
     except Exception:
         await client.aclose()
-        return error_response(ErrorCode.UPSTREAM_FAILED, "The platform didn't respond. Try again.")
+        return error_response(ErrorCode.UPSTREAM_FAILED, "The platform didn't respond or returned an unsafe redirect.")
 
     async def stream_generator():
         try:
@@ -3190,25 +3215,29 @@ async def proxy_image_handler(request):
 
     try:
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
-            resp = await client.get(target_url, headers=upstream_headers)
-            # If upstream CDN rejects the custom referer, retry with clean headers
-            if resp.status_code != 200:
-                resp = await client.get(target_url, headers={"User-Agent": USER_AGENT})
-
-            if resp.status_code != 200:
-                return JSONResponse({"error": f"Upstream returned {resp.status_code}"}, status_code=502)
-
-            media_type = resp.headers.get("content-type") or "image/jpeg"
+            resp = await _safe_cdn_stream(client, target_url, headers=upstream_headers)
+            media_type = (resp.headers.get("content-type") or "image/jpeg").split(";", 1)[0].lower()
+            if not media_type.startswith("image/"):
+                await resp.aclose()
+                return JSONResponse({"error": "Upstream did not return an image."}, status_code=502)
+            chunks = []
+            total = 0
+            async for chunk in resp.aiter_bytes():
+                total += len(chunk)
+                if total > 25 * 1024 * 1024:
+                    await resp.aclose()
+                    return JSONResponse({"error": "Image exceeds the proxy size limit."}, status_code=413)
+                chunks.append(chunk)
+            await resp.aclose()
             return Response(
-                resp.content,
-                media_type=media_type,
+                b"".join(chunks), media_type=media_type,
                 headers={
                     "Access-Control-Allow-Origin": "*",
                     "Cache-Control": "public, max-age=86400, immutable",
-                }
+                },
             )
-    except Exception as e:
-        return JSONResponse({"error": f"Upstream image fetch failed: {str(e)}"}, status_code=502)
+    except Exception:
+        return JSONResponse({"error": "Upstream image fetch failed or was redirected to an unsafe URL."}, status_code=502)
 
 async def engine_versions_handler(request):
     return JSONResponse({
