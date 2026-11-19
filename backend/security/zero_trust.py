@@ -129,7 +129,9 @@ def admin_locked(ip: str) -> bool:
     try:
         return store.get(_fail_key(ip)) >= ADMIN_FAIL_LIMIT
     except Exception:
-        return False
+        log.exception("admin lockout store failure")
+        # Do not disable brute-force protection when the shared counter is unavailable.
+        return bool(IS_PRODUCTION)
 
 
 def record_admin_failure(ip: str) -> None:
@@ -411,7 +413,7 @@ def cors_kwargs() -> Dict[str, Any]:
         "allow_origin_regex": pattern,
         "allow_methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Authorization", "Content-Type", "X-Admin-Key", "X-Request-ID",
-                          "X-Extension-Key", "X-Auth-Token", "cf-turnstile-response", "x-guest-id", "X-Guest-ID",
+                          "X-Extension-Key", "X-Auth-Token", "X-Job-Token", "cf-turnstile-response", "x-guest-id", "X-Guest-ID",
                           "x-ovd-source", "x-ovd-medium", "x-ovd-channel", "x-ovd-referrer",
                           "X-OVD-Source", "X-OVD-Medium", "X-OVD-Channel", "X-OVD-Referrer"],
         "expose_headers": ["X-Request-ID"],
