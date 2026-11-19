@@ -352,6 +352,8 @@ class JobManager:
         ffmpeg_bin = shutil.which("ffmpeg")
 
         try:
+            if self._is_cancelled(job_id):
+                raise asyncio.CancelledError()
             # 1. High-speed worker delegation (runs on Hostinger VPS: fast network, hardware ffmpeg, residential IP)
             if action == "merge" and source_url:
                 job["progress"] = 35
@@ -370,6 +372,9 @@ class JobManager:
                     try:
                         worker_url = await _download_via_worker(source_url, "video", height=height)
                         if worker_url:
+                            parsed_result = urllib.parse.urlsplit(worker_url)
+                            if parsed_result.scheme != "https" or not parsed_result.hostname or parsed_result.username or parsed_result.password:
+                                raise RuntimeError("Worker returned an invalid result URL.")
                             job["download_url"] = worker_url
                             job["status"] = "done"
                             job["progress"] = 100
@@ -415,6 +420,8 @@ class JobManager:
                     raise ValueError("Invalid or expired download token.")
                 sources.append(payload["variant_url"])
 
+            if self._is_cancelled(job_id):
+                raise asyncio.CancelledError()
             job["progress"] = 75
             self._save_job_db(job)
             output_path = os.path.join(JOBS_DIR, job["filename"])
@@ -439,7 +446,12 @@ class JobManager:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                stdout, stderr = await proc.communicate()
+                try:
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=900)
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    await proc.communicate()
+                    raise RuntimeError("FFmpeg job exceeded the 15-minute execution limit.")
                 if proc.returncode != 0:
                     err_msg = (stderr or b"").decode("utf-8", errors="ignore")[-200:]
                     print(f"[job_manager] ffmpeg failed (code {proc.returncode}): {err_msg}", flush=True)
@@ -454,7 +466,12 @@ class JobManager:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                await proc.communicate()
+                try:
+                    await asyncio.wait_for(proc.communicate(), timeout=900)
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    await proc.communicate()
+                    raise RuntimeError("FFmpeg job exceeded the 15-minute execution limit.")
                 if proc.returncode != 0:
                     raise RuntimeError("ffmpeg mp3 conversion failed.")
 
@@ -463,11 +480,25 @@ class JobManager:
                 output_path = os.path.join(JOBS_DIR, job["filename"])
                 with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
                     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                        total_bytes = 0
                         for idx, src in enumerate(sources):
-                            resp = await client.get(src, headers={"User-Agent": "Mozilla/5.0"})
-                            if resp.status_code == 200:
-                                ext = "jpg" if ".png" not in src else "png"
-                                zf.writestr(f"media_{idx+1}.{ext}", resp.content)
+                            if self._is_cancelled(job_id):
+                                raise asyncio.CancelledError()
+                            async with client.stream("GET", src, headers={"User-Agent": "Mozilla/5.0"}) as resp:
+                                resp.raise_for_status()
+                                declared = int(resp.headers.get("content-length", "0") or 0)
+                                if declared > 50 * 1024 * 1024:
+                                    raise ValueError("ZIP item exceeds the 50 MB limit.")
+                                parts = []
+                                item_bytes = 0
+                                async for chunk in resp.aiter_bytes():
+                                    item_bytes += len(chunk)
+                                    total_bytes += len(chunk)
+                                    if item_bytes > 50 * 1024 * 1024 or total_bytes > 300 * 1024 * 1024:
+                                        raise ValueError("ZIP archive exceeded its size limit.")
+                                    parts.append(chunk)
+                                ext = "png" if urllib.parse.urlsplit(src).path.lower().endswith(".png") else "jpg"
+                                zf.writestr(f"media_{idx+1}.{ext}", b"".join(parts))
                             job["progress"] = int(25 + (70 * (idx + 1) / len(sources)))
                             self._save_job_db(job)
 
@@ -478,34 +509,35 @@ class JobManager:
             self._save_job_db(job)
 
         except Exception as e:
-            job["status"] = "failed"
-            job["error"] = str(e)
+            job["error"] = str(e)[:500]
             self._save_job_db(job)
+            raise
 
     async def _cleanup_loop(self):
-        """Auto-deletes temporary job files older than 2 hours."""
+        """Delete expired terminal jobs; queued and leased work remains durable."""
         while True:
             await asyncio.sleep(600)
-            now = time.time()
-            to_del = []
-            for jid, j in list(self.jobs.items()):
-                if now - j.get("created_at", now) > 7200:
-                    f = j.get("output_file")
-                    if f and os.path.exists(f):
-                        try:
-                            os.remove(f)
-                        except Exception:
-                            pass
-                    to_del.append(jid)
-            for jid in to_del:
-                self.jobs.pop(jid, None)
-
+            cutoff = time.time() - 7200
             try:
-                with sqlite3.connect(self.db_path) as conn:
-                    conn.execute("DELETE FROM jobs WHERE created_at < ?", (now - 7200,))
+                with self._connect() as conn:
+                    rows = conn.execute("""
+                        SELECT id, output_file FROM jobs
+                        WHERE created_at < ? AND status IN ('done', 'failed', 'cancelled')
+                    """, (cutoff,)).fetchall()
+                    for row in rows:
+                        path = row["output_file"]
+                        if path and os.path.isfile(path):
+                            try:
+                                os.remove(path)
+                            except OSError:
+                                pass
+                    conn.execute("""
+                        DELETE FROM jobs WHERE created_at < ?
+                        AND status IN ('done', 'failed', 'cancelled')
+                    """, (cutoff,))
                     conn.commit()
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[job_manager] cleanup error: {type(exc).__name__}", flush=True)
 
 
 job_manager = JobManager()
