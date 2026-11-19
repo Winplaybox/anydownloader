@@ -5,16 +5,9 @@ const BACKEND_BASE = typeof window !== 'undefined' && window.location.hostname =
   ? 'http://localhost:8000'
   : 'https://api.winplaybox.in';
 
-const RAW_CLIENT_ID = typeof window !== 'undefined'
-  ? (window.__GOOGLE_CLIENT_ID__ || (import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || '')
-  : '';
-
-const IS_CONFIGURED_GOOGLE = Boolean(
-  RAW_CLIENT_ID &&
-  !RAW_CLIENT_ID.includes('sitekit.apps.googleusercontent.com') &&
-  RAW_CLIENT_ID.includes('.apps.googleusercontent.com')
-);
-const GOOGLE_CLIENT_ID = IS_CONFIGURED_GOOGLE ? RAW_CLIENT_ID : '';
+const GOOGLE_CLIENT_ID = typeof window !== 'undefined'
+  ? (window.__GOOGLE_CLIENT_ID__ || (import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || '259545227984-tq7m462dc4vkqfv1g1ch66mou7uhigki.apps.googleusercontent.com')
+  : '259545227984-tq7m462dc4vkqfv1g1ch66mou7uhigki.apps.googleusercontent.com';
 
 function GoogleGIcon({ className = 'w-4 h-4' }) {
   return (
@@ -35,6 +28,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [gsiLoaded, setGsiLoaded] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const googleBtnRef = useRef(null);
@@ -45,13 +39,13 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
     setSuccessMsg('');
   }, [initialMode, isOpen]);
 
-  // Initialize Google Identity Services (GSI) Personalized Button (Only when valid client ID is provided)
+  // Initialize Google Identity Services (GSI) Personalized Button
   useEffect(() => {
-    if (!isOpen || !IS_CONFIGURED_GOOGLE) return;
-
+    if (!isOpen) return;
     let mounted = true;
-    function initGsi() {
-      if (typeof window === 'undefined' || !window.google?.accounts?.id) return;
+
+    function renderGsi() {
+      if (typeof window === 'undefined' || !window.google?.accounts?.id || !googleBtnRef.current) return;
       try {
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
@@ -61,7 +55,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
           context: mode === 'signup' ? 'signup' : 'signin'
         });
 
-        if (googleBtnRef.current && mounted) {
+        if (mounted && googleBtnRef.current) {
           googleBtnRef.current.innerHTML = '';
           window.google.accounts.id.renderButton(googleBtnRef.current, {
             theme: 'outline',
@@ -70,31 +64,37 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
             shape: 'rectangular',
             text: mode === 'signup' ? 'signup_with' : 'signin_with',
             logo_alignment: 'left',
-            width: 290
+            width: 320
           });
+          setGsiLoaded(true);
         }
       } catch (e) {
-        console.warn('Google Identity Services init notice:', e);
+        console.warn('GSI modal notice:', e);
       }
     }
 
     if (window.google?.accounts?.id) {
-      initGsi();
+      renderGsi();
     } else {
       const interval = setInterval(() => {
         if (window.google?.accounts?.id) {
           clearInterval(interval);
-          initGsi();
+          renderGsi();
         }
       }, 200);
-      return () => { clearInterval(interval); mounted = false; };
+      const timeout = setTimeout(() => clearInterval(interval), 4000);
+      return () => {
+        clearInterval(interval);
+        clearTimeout(timeout);
+        mounted = false;
+      };
     }
 
     return () => { mounted = false; };
   }, [isOpen, mode]);
 
   async function handleGoogleCredentialResponse(response) {
-    if (!response || !response.credential) return;
+    if (!response?.credential) return;
     setGoogleLoading(true);
     setError('');
     try {
@@ -125,41 +125,14 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
     }
   }
 
-  async function handleGoogleClick() {
-    if (IS_CONFIGURED_GOOGLE && window.google?.accounts?.id) {
-      window.google.accounts.id.prompt();
-      return;
+  function handleGoogleFallbackClick() {
+    if (typeof window !== 'undefined' && window.google?.accounts?.id) {
+      try {
+        window.google.accounts.id.prompt();
+        return;
+      } catch (_) {}
     }
-    const testEmail = prompt('Enter your Google email to continue:');
-    if (!testEmail) return;
-    setGoogleLoading(true);
-    setError('');
-    try {
-      const guestId = localStorage.getItem('wpb_guest_id');
-      const res = await fetch(`${BACKEND_BASE}/api/auth/google`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          credential: btoa(JSON.stringify({ email: testEmail, name: testEmail.split('@')[0], sub: `g_${Date.now()}` })),
-          guest_id: guestId
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.ok && data.user) {
-        if (data.token) localStorage.setItem('wpb_token', data.token);
-        localStorage.setItem('wpb_session_data', JSON.stringify(data.user));
-        window.dispatchEvent(new CustomEvent('session-updated', { detail: data.user }));
-        if (onSuccess) onSuccess(data.user);
-        onClose();
-      } else {
-        setError(data.error || 'Google sign-in failed.');
-      }
-    } catch (e) {
-      setError(e.message || 'Google sign-in unreachable.');
-    } finally {
-      setGoogleLoading(false);
-    }
+    setError('Google Sign-In is unavailable or blocked by your browser/adblocker. Please use email and password below.');
   }
 
   // Email & Password Submit
@@ -277,14 +250,13 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
 
         {/* System 1: Single Unified Google Auth Button */}
         <div className="mb-5">
-          {IS_CONFIGURED_GOOGLE ? (
-            <div className="flex justify-center min-h-[44px]">
-              <div ref={googleBtnRef} className="flex justify-center" />
-            </div>
-          ) : (
+          <div className="flex justify-center min-h-[44px]">
+            <div ref={googleBtnRef} className="flex justify-center w-full" />
+          </div>
+          {!gsiLoaded && (
             <button
               type="button"
-              onClick={handleGoogleClick}
+              onClick={handleGoogleFallbackClick}
               disabled={googleLoading}
               className="w-full py-2.5 px-4 rounded-xl bg-[var(--surface)] hover:bg-[var(--bg-alt)] text-[var(--text)] text-xs font-bold flex items-center justify-center gap-2.5 border border-[var(--border)] shadow-sm transition-all cursor-pointer"
             >
