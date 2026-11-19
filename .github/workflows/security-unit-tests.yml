@@ -5,14 +5,18 @@ on:
     paths:
       - "backend/security/**"
       - "backend/routes_temp_media.py"
+      - "backend/utils/security.py"
       - "tests/test_temp_media_auth.py"
+      - "tests/test_core.py"
       - ".github/workflows/security-unit-tests.yml"
   push:
     branches: [main]
     paths:
       - "backend/security/**"
       - "backend/routes_temp_media.py"
+      - "backend/utils/security.py"
       - "tests/test_temp_media_auth.py"
+      - "tests/test_core.py"
       - ".github/workflows/security-unit-tests.yml"
 
 permissions:
@@ -28,6 +32,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install minimal test dependency
-        run: python -m pip install --disable-pip-version-check starlette
+        run: python -m pip install --disable-pip-version-check starlette httpx
       - name: Run temp media auth tests
         run: python tests/test_temp_media_auth.py
+      - name: Run core security and URL tests
+        run: python tests/test_core.py
