@@ -10,6 +10,9 @@ services:
       - "${API_BIND_ADDRESS:-127.0.0.1}:${PORT:-8000}:8000"
     environment:
       PORT: "8000"
+      WPB_ENV: production
+      JOBS_DIR: /tmp/ovd_jobs
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL}"
       ALLOW_GENERIC_URLS: "${ALLOW_GENERIC_URLS:-true}"
       ADMIN_API_KEY: "${ADMIN_API_KEY:?Set ADMIN_API_KEY}"
       WPB_ADMIN_KEY: "${WPB_ADMIN_KEY:-}"
