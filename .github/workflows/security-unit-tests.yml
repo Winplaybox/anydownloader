@@ -1,69 +1,43 @@
-name: Security unit tests
+name: Security and production readiness tests
 
 on:
   pull_request:
     paths:
-      - "backend/security/**"
-      - "backend/routes_temp_media.py"
-      - "backend/utils/security.py"
-      - "backend/job_manager.py"
-      - "backend/engines/remote_worker_engine.py"
-      - "backend/services/subtitles_service.py"
-      - "backend/utils/worker_config.py"
-      - "backend/utils/generated_asset.py"
+      - "backend/**"
       - "src/components/MediaResultCard.jsx"
       - "docker-compose.yml"
-      - "tests/test_worker_config.py"
-      - "tests/test_generated_asset.py"
-      - "tests/test_job_manager_reliability.py"
-      - "tests/test_production_security_policy.py"
-      - "backend/main.py"
-      - "backend/job_manager.py"
-      - "backend/engines/remote_worker_engine.py"
-      - "backend/services/subtitles_service.py"
-      - "backend/utils/worker_config.py"
-      - "backend/utils/generated_asset.py"
-      - "src/components/MediaResultCard.jsx"
-      - "docker-compose.yml"
-      - "tests/test_worker_config.py"
-      - "tests/test_generated_asset.py"
-      - "tests/test_job_manager_reliability.py"
-      - "tests/test_production_security_policy.py"
-      - "docs/PRODUCTION_COMPOSE_SECURITY.md"
-      - "tests/test_temp_media_auth.py"
-      - "tests/test_core.py"
-      - "tests/test_rate_limit_failure_policy.py"
+      - "docs/**"
+      - "tests/**"
       - ".github/workflows/security-unit-tests.yml"
   push:
     branches: [main]
     paths:
-      - "backend/security/**"
-      - "backend/routes_temp_media.py"
-      - "backend/utils/security.py"
-      - "tests/test_temp_media_auth.py"
-      - "tests/test_core.py"
-      - "tests/test_rate_limit_failure_policy.py"
+      - "backend/**"
+      - "src/components/MediaResultCard.jsx"
+      - "docker-compose.yml"
+      - "docs/**"
+      - "tests/**"
       - ".github/workflows/security-unit-tests.yml"
 
 permissions:
   contents: read
 
 jobs:
-  temp-media-auth:
+  security-and-reliability:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install minimal test dependency
+      - name: Install focused test dependencies
         run: python -m pip install --disable-pip-version-check starlette httpx static-ffmpeg
       - name: Compile backend and tests
         run: python -m compileall -q backend tests
-      - name: Run temp media auth tests
+      - name: Run temp media auth and URL tests
         run: python tests/test_temp_media_auth.py
-      - name: Run core security and URL tests
+      - name: Run core security and token tests
         run: python tests/test_core.py
       - name: Run rate limiter failure policy tests
         run: python tests/test_rate_limit_failure_policy.py
