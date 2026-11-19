@@ -35,6 +35,7 @@ try:
         refund_credit_for_job,
         resolve_request_identity,
     )
+    from backend.utils.job_access import job_owner_matches
 except (ModuleNotFoundError, ImportError):  # pragma: no cover
     from security.token_vault import store  # type: ignore
     from security.zero_trust import authenticate_admin, client_ip, error, rate_limit  # type: ignore
@@ -46,6 +47,7 @@ except (ModuleNotFoundError, ImportError):  # pragma: no cover
         refund_credit_for_job,
         resolve_request_identity,
     )
+    from utils.job_access import job_owner_matches
 
 DAILY_LIMIT = int(os.environ.get("EDITOR_DAILY_LIMIT", "2"))
 MAX_UPLOAD_MB = int(os.environ.get("EDITOR_MAX_UPLOAD_MB", "100"))
@@ -427,19 +429,9 @@ def _has_active_job(ck: str) -> bool:
     return False
 
 
-def _job_owner_keys(request: Request) -> set[str]:
-    identity = resolve_request_identity(request)
-    keys = {
-        str(identity.get("user_id") or "").strip(),
-        str(identity.get("guest_id") or "").strip(),
-        _client_key(request),
-    }
-    return {key for key in keys if key}
-
-
 def _job_access_allowed(request: Request, job: Dict[str, Any]) -> bool:
-    owner = str(job.get("client") or "")
-    if owner and owner in _job_owner_keys(request):
+    identity = resolve_request_identity(request)
+    if job_owner_matches(job, identity, fallback_key=_client_key(request)):
         return True
     return bool(authenticate_admin(request, allow_bearer_jwt=False))
 
