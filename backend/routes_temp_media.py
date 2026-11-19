@@ -1,15 +1,4 @@
-"""Temporary public media hosting for automations (Make.com -> Instagram/Facebook).
-
-Instagram's Graph API only accepts a public video URL, so an automation uploads
-the MP4 here, gets a short-lived public link, publishes, then deletes it.
-
-    POST   /api/temp-media        X-API-Key required. multipart field "file" (or raw body).
-                                  -> {"ok", "id", "url", "expires_at", "bytes"}
-    GET    /api/temp-media/{id}   public, Range-capable (Instagram/Facebook fetch it)
-    DELETE /api/temp-media/{id}   X-API-Key required
-Files auto-expire after TEMP_MEDIA_TTL_HOURS (default 6). A Render free instance
-also wipes /tmp on every restart, so nothing piles up.
-"""
+"""Temporary public media hosting with fail-closed public URL generation."""
 import hmac
 import os
 import re
@@ -17,6 +6,7 @@ import shutil
 import tempfile
 import time
 import uuid
+from urllib.parse import urlsplit
 
 from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route
@@ -24,23 +14,16 @@ from starlette.routing import Route
 STORE_DIR = os.environ.get("TEMP_MEDIA_DIR") or os.path.join(tempfile.gettempdir(), "ovd_temp_media")
 TTL_SECONDS = int(float(os.environ.get("TEMP_MEDIA_TTL_HOURS", "6")) * 3600)
 MAX_BYTES = int(os.environ.get("TEMP_MEDIA_MAX_MB", "300")) * 1024 * 1024
+IS_PRODUCTION = os.environ.get("WPB_ENV", "").lower() in ("prod", "production") or bool(os.environ.get("RENDER"))
 ALLOWED_EXT = {
-    "mp4": "video/mp4",
-    "mov": "video/quicktime",
-    "webm": "video/webm",
-    "mp3": "audio/mpeg",
-    "m4a": "audio/mp4",
-    "wav": "audio/wav",
-    "jpg": "image/jpeg",
-    "jpeg": "image/jpeg",
-    "png": "image/png",
-    "webp": "image/webp",
+    "mp4": "video/mp4", "mov": "video/quicktime", "webm": "video/webm",
+    "mp3": "audio/mpeg", "m4a": "audio/mp4", "wav": "audio/wav",
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp",
 }
 _ID_RE = re.compile(r"[0-9a-f]{32}\.(?:mp4|mov|webm|mp3|m4a|wav|jpg|jpeg|png|webp)")
 
 
 def _authorized(request) -> bool:
-    # No source-code fallback credentials: missing deployment secrets deny access.
     auto_key = os.environ.get("AUTOMATION_API_KEY", "").strip()
     worker_key = os.environ.get("WORKER_KEY", "").strip()
     worker_secret = os.environ.get("WORKER_SECRET", "").strip()
@@ -48,13 +31,10 @@ def _authorized(request) -> bool:
     auth = request.headers.get("authorization", "")
     if auth.startswith("Bearer "):
         given = given or auth[7:].strip()
-
     if not given:
         return False
-    for expected in (auto_key, worker_key, worker_secret):
-        if expected and hmac.compare_digest(given.encode(), expected.encode()):
-            return True
-    return False
+    return any(expected and hmac.compare_digest(given.encode(), expected.encode())
+               for expected in (auto_key, worker_key, worker_secret))
 
 
 def _purge_expired() -> None:
@@ -70,12 +50,41 @@ def _purge_expired() -> None:
             pass
 
 
+def _validated_base_url(value: str, require_https: bool = False) -> str:
+    parsed = urlsplit(value.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError("PUBLIC_BASE_URL must be an absolute HTTP(S) URL without credentials.")
+    if require_https and parsed.scheme != "https":
+        raise ValueError("PUBLIC_BASE_URL must use HTTPS in production.")
+    if parsed.query or parsed.fragment:
+        raise ValueError("PUBLIC_BASE_URL must not contain a query or fragment.")
+    try:
+        _ = parsed.port
+    except ValueError as exc:
+        raise ValueError("PUBLIC_BASE_URL contains an invalid port.") from exc
+    return value.strip().rstrip("/")
+
+
 def _public_base(request) -> str:
-    base = os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
-    if base:
-        return base
-    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
-    return f"{proto}://{request.headers.get('host', request.url.netloc)}"
+    configured = os.environ.get("PUBLIC_BASE_URL", "").strip()
+    if configured:
+        return _validated_base_url(configured, require_https=IS_PRODUCTION)
+    if IS_PRODUCTION:
+        raise RuntimeError("PUBLIC_BASE_URL must be configured in production.")
+
+    # Development fallback: never trust forwarded headers or accept a malformed Host.
+    host = request.headers.get("host", "")
+    if not host or any(ch in host for ch in ("@", "/", "\\", "\n", "\r")):
+        raise ValueError("Invalid Host header.")
+    parsed_host = urlsplit("//" + host)
+    if not parsed_host.hostname or parsed_host.username or parsed_host.password:
+        raise ValueError("Invalid Host header.")
+    try:
+        _ = parsed_host.port
+    except ValueError as exc:
+        raise ValueError("Invalid Host header.") from exc
+    scheme = request.url.scheme if request.url.scheme in ("http", "https") else "http"
+    return f"{scheme}://{host}"
 
 
 def _ext_for(filename: str, content_type: str) -> str:
@@ -91,9 +100,12 @@ def _ext_for(filename: str, content_type: str) -> str:
 async def upload_handler(request):
     if not _authorized(request):
         return JSONResponse({"ok": False, "error": "X-API-Key required."}, status_code=401)
+    try:
+        public_base = _public_base(request)
+    except (ValueError, RuntimeError):
+        return JSONResponse({"ok": False, "error": "Public media URL configuration is invalid."}, status_code=503)
     _purge_expired()
     os.makedirs(STORE_DIR, exist_ok=True)
-
     tmp_path = os.path.join(STORE_DIR, f".upload_{uuid.uuid4().hex}")
     written = 0
     ctype = request.headers.get("content-type", "")
@@ -126,17 +138,15 @@ async def upload_handler(request):
         return JSONResponse({"ok": False, "error": f"File is larger than {MAX_BYTES // (1024 * 1024)} MB."}, status_code=413)
 
     if written == 0:
-        os.remove(tmp_path)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
         return JSONResponse({"ok": False, "error": "Empty file."}, status_code=400)
 
     media_id = f"{uuid.uuid4().hex}.{_ext_for(filename, file_ctype)}"
     shutil.move(tmp_path, os.path.join(STORE_DIR, media_id))
     return JSONResponse({
-        "ok": True,
-        "id": media_id,
-        "url": f"{_public_base(request)}/api/temp-media/{media_id}",
-        "bytes": written,
-        "expires_at": int(time.time()) + TTL_SECONDS,
+        "ok": True, "id": media_id, "url": f"{public_base}/api/temp-media/{media_id}",
+        "bytes": written, "expires_at": int(time.time()) + TTL_SECONDS,
     })
 
 
