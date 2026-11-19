@@ -112,7 +112,7 @@ ALLOWED_ORIGINS = [
         "https://ovd.winplaybox.in,https://winplaybox.in,http://localhost:5173,http://localhost:3000,http://testserver"
     ).split(",") if o.strip()
 ]
-EXTENSION_SECRET_KEY = os.environ.get("EXTENSION_SECRET_KEY", "wpb_ext_9f83e2a74c1048b9ad51f63cb7e90812")
+EXTENSION_SECRET_KEY = os.environ.get("EXTENSION_SECRET_KEY", "").strip()
 # Server-to-server key for automations (Make.com, n8n, cron). Send as `X-API-Key`.
 # Unset = disabled. Keep it out of the repo: set it only in the Render dashboard.
 AUTOMATION_API_KEY = os.environ.get("AUTOMATION_API_KEY", "").strip()
