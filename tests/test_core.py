@@ -1,5 +1,6 @@
 import sys
 import os
+os.environ.setdefault("WPB_VAULT_SECRET", "test_vault_secret_for_tests_" + "z" * 30)
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import unittest
