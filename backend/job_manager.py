@@ -40,7 +40,7 @@ class JobManager:
         self.worker_id = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
         self.lease_seconds = max(60, int(os.environ.get("JOB_LEASE_SECONDS", "300")))
         self.max_attempts = max(1, min(5, int(os.environ.get("JOB_MAX_ATTEMPTS", "3"))))
-        owner_secret = os.environ.get("WPB_VAULT_SECRET", "").split(",")[0].strip()
+        owner_secret = (os.environ.get("JOB_OWNER_SECRET") or os.environ.get("WPB_VAULT_SECRET", "").split(",")[0]).strip()
         self.owner_secret = owner_secret.encode("utf-8") if owner_secret else secrets.token_bytes(32)
 
     @contextmanager
@@ -184,6 +184,11 @@ class JobManager:
         if action == "merge" and (not isinstance(height, int) or height < 144 or height > 2160):
             raise ValueError("Video height must be between 144 and 2160.")
         safe_source_url = self._validate_source_page(source_url)
+        if safe_source_url and (
+            not verify_safe_upstream_url(safe_source_url)
+            or not await asyncio.to_thread(verify_public_dns_resolution, safe_source_url)
+        ):
+            raise ValueError("Source page must resolve only to public IP addresses.")
         if title is not None and len(str(title)) > 120:
             raise ValueError("Job title must be 120 characters or fewer.")
         for token in tokens:
@@ -217,7 +222,7 @@ class JobManager:
         job_id = str(uuid.uuid4())
         clean = re.sub(r'[\\/*?:"<>|]', "", str(title or "")).strip()
         clean = re.sub(r"\s+", "_", clean)[:60]
-        filename = f"{clean}_{job_id[:8]}.{ext}" if clean else f"ovd_{action}_{job_id[:8]}.{ext}"
+        filename = f"{clean}_{job_id[:16]}.{ext}" if clean else f"ovd_{action}_{job_id[:16]}.{ext}"
         now = time.time()
         payload = {"tokens": tokens, "source_url": safe_source_url, "height": height}
         fingerprint = self._fingerprint({
@@ -664,7 +669,7 @@ class JobManager:
                     raise RuntimeError("ffmpeg mp3 conversion failed.")
 
             elif action == "zip":
-                job["filename"] = f"ovd_gallery_{job_id[:8]}.zip"
+                job["filename"] = f"ovd_gallery_{job_id[:16]}.zip"
                 output_path = os.path.join(JOBS_DIR, job["filename"])
                 with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
                     async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
@@ -766,6 +771,15 @@ class JobManager:
                         AND status IN ('done', 'failed', 'cancelled')
                     """, (cutoff,))
                     conn.commit()
+                    # Remove abandoned partial inputs and output temp files left by a crashed process.
+                    for name in os.listdir(JOBS_DIR):
+                        path = os.path.join(JOBS_DIR, name)
+                        if name.endswith(".part") or (name.startswith(".") and "_input_" in name and name.endswith(".media")):
+                            try:
+                                if os.path.isfile(path) and os.path.getmtime(path) < time.time() - 1800:
+                                    os.remove(path)
+                            except OSError:
+                                pass
             except Exception as exc:
                 print(f"[job_manager] cleanup error: {type(exc).__name__}", flush=True)
 
