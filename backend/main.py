@@ -2517,6 +2517,36 @@ async def stream_download_handler(request):
 
     return StreamingResponse(stream_chunks(), status_code=upstream_resp.status_code, headers=headers)
 
+async def readiness_handler(request):
+    production = os.environ.get("WPB_ENV", "").lower() in ("prod", "production") or bool(os.environ.get("RENDER"))
+    checks = {"job_database": False, "token_store": False, "ffmpeg": False, "persistent_jobs_dir_configured": bool(os.environ.get("JOBS_DIR"))}
+    try:
+        with job_manager._connect() as conn:
+            conn.execute("SELECT 1").fetchone()
+        checks["job_database"] = True
+    except Exception:
+        pass
+    store_name = getattr(getattr(token_vault, "store", None), "name", "unknown")
+    checks["token_store"] = store_name in ("redis", "upstash") if production else store_name != "unknown"
+    checks["ffmpeg"] = bool(shutil.which("ffmpeg"))
+    ready = all(checks.values())
+    return JSONResponse(
+        {"status": "ready" if ready else "not_ready", "checks": checks},
+        status_code=200 if ready else 503,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def queue_metrics_handler(request):
+    try:
+        return JSONResponse(
+            {"ok": True, "queue": job_manager.get_stats()},
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Queue metrics unavailable."}, status_code=503)
+
+
 async def health_handler(request):
     import shutil
     ffmpeg_available = bool(shutil.which("ffmpeg"))
@@ -4244,6 +4274,7 @@ routes = [
     Route('/api/v1/channels/list', channels_list_handler, methods=['GET']),
     Route('/api/v1/channels/publish', channel_publish_handler, methods=['POST']),
     Route('/api/v1/system/diag', diag_handler, methods=['GET']),
+    Route('/api/v1/system/queue', queue_metrics_handler, methods=['GET']),
     Route('/api/v1/video/generate-reel', generate_reel_handler, methods=['POST']),
     Route('/api/v1/video/download', video_download_handler, methods=['GET']),
     Route('/api/v1/audio/download', audio_download_handler, methods=['GET']),
@@ -4270,6 +4301,7 @@ routes = [
     Route('/admin/update-engines', update_engines_handler, methods=['POST']),
     Route("/", health_handler, methods=["GET"]),
     Route("/health", health_handler, methods=["GET"]),
+    Route("/health/ready", readiness_handler, methods=["GET"]),
     Route("/api/health", health_handler, methods=["GET"]),
     Route("/api/{platform}/extract", platform_extract_handler, methods=["POST"]),
     Route("/api/{platform}/{feature}", platform_extract_handler, methods=["POST"]),
@@ -4289,7 +4321,42 @@ middleware = [
 ]
 
 
+def _validate_production_configuration():
+    production = os.environ.get("WPB_ENV", "").lower() in ("prod", "production") or bool(os.environ.get("RENDER"))
+    if not production:
+        return
+
+    missing = []
+    if len(EXTENSION_SECRET_KEY) < 32:
+        missing.append("EXTENSION_SECRET_KEY (at least 32 characters)")
+    if not os.environ.get("PUBLIC_BASE_URL", "").strip():
+        missing.append("PUBLIC_BASE_URL (canonical HTTPS host)")
+    if not os.environ.get("JOBS_DIR", "").strip():
+        missing.append("JOBS_DIR (persistent writable disk path)")
+    admin_key = (os.environ.get("WPB_ADMIN_KEY") or os.environ.get("ADMIN_API_KEY") or "").strip()
+    admin_jwt_configured = bool(
+        os.environ.get("SUPABASE_JWT_SECRET", "").strip()
+        and os.environ.get("WPB_ADMIN_EMAILS", "").strip()
+    )
+    if len(admin_key) < 32 and not admin_jwt_configured:
+        missing.append("WPB_ADMIN_KEY/ADMIN_API_KEY (32+ characters) or Supabase admin JWT configuration")
+
+    public_base = urllib.parse.urlsplit(os.environ.get("PUBLIC_BASE_URL", "").strip())
+    if public_base.scheme != "https" or not public_base.hostname or public_base.username or public_base.password or public_base.query or public_base.fragment:
+        missing.append("PUBLIC_BASE_URL must be a valid absolute HTTPS URL without credentials/query/fragment")
+    store_name = getattr(getattr(token_vault, "store", None), "name", "unknown")
+    if store_name not in ("redis", "upstash"):
+        missing.append("shared Redis/Upstash token replay store")
+    if missing:
+        raise RuntimeError("Production configuration incomplete: " + "; ".join(missing))
+
+    os.makedirs(os.environ["JOBS_DIR"], exist_ok=True)
+    if not os.access(os.environ["JOBS_DIR"], os.W_OK):
+        raise RuntimeError("JOBS_DIR is not writable; configure a persistent writable volume.")
+
+
 async def _startup_job_queue():
+    _validate_production_configuration()
     job_manager.start()
 
 
