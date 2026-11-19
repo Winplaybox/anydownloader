@@ -756,15 +756,19 @@ class JobManager:
             try:
                 with self._connect() as conn:
                     rows = conn.execute("""
-                        SELECT id, output_file FROM jobs
+                        SELECT id, output_file, filename FROM jobs
                         WHERE created_at < ? AND status IN ('done', 'failed', 'cancelled')
                     """, (cutoff,)).fetchall()
                     for row in rows:
                         path = row["output_file"]
-                        if path and os.path.isfile(path):
+                        candidates = [path, os.path.join(JOBS_DIR, row["filename"] or "")]
+                        for candidate in candidates:
+                            if not candidate:
+                                continue
                             try:
-                                os.remove(path)
-                            except OSError:
+                                if os.path.basename(candidate) == os.path.basename(os.path.normpath(candidate)) and os.path.commonpath((os.path.realpath(JOBS_DIR), os.path.realpath(candidate))) == os.path.realpath(JOBS_DIR) and os.path.isfile(candidate):
+                                    os.remove(candidate)
+                            except (OSError, ValueError):
                                 pass
                     conn.execute("""
                         DELETE FROM jobs WHERE created_at < ?
