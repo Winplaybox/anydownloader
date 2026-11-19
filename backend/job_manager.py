@@ -333,6 +333,85 @@ class JobManager:
         data["payload"] = json.loads(data.get("payload_json") or "{}")
         return data
 
+    @staticmethod
+    def _approved_media_url(url: str) -> bool:
+        try:
+            parsed = urllib.parse.urlsplit(url)
+            return bool(
+                parsed.scheme == "https" and parsed.hostname
+                and is_safe_cdn_host(parsed.hostname)
+                and verify_safe_upstream_url(url)
+                and verify_public_dns_resolution(url)
+            )
+        except Exception:
+            return False
+
+    async def _download_media_source(self, source_url: str, destination: str, job_id: str) -> str:
+        """Download an approved CDN source to bounded local storage before FFmpeg."""
+        max_mb = max(10, min(int(os.environ.get("JOB_MAX_SOURCE_MB", "1024")), 2048))
+        max_bytes = max_mb * 1024 * 1024
+        temporary = destination + ".part"
+        current_url = source_url
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(60.0, connect=15.0),
+                follow_redirects=False,
+            ) as client:
+                response = None
+                for _ in range(6):
+                    if not await asyncio.to_thread(self._approved_media_url, current_url):
+                        raise ValueError("Media URL or redirect is not an approved public CDN.")
+                    request = client.build_request(
+                        "GET", current_url,
+                        headers={
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+                            "Referer": "https://www.youtube.com/",
+                        },
+                    )
+                    response = await client.send(request, stream=True, follow_redirects=False)
+                    if response.status_code in (301, 302, 303, 307, 308):
+                        location = response.headers.get("location")
+                        await response.aclose()
+                        response = None
+                        if not location:
+                            raise ValueError("Media source returned a redirect without a location.")
+                        current_url = urllib.parse.urljoin(current_url, location)
+                        continue
+                    break
+                if response is None:
+                    raise ValueError("Media source exceeded the redirect limit.")
+                try:
+                    response.raise_for_status()
+                    declared = int(response.headers.get("content-length", "0") or 0)
+                    if declared > max_bytes:
+                        raise ValueError(f"Source media exceeds the {max_mb} MB job limit.")
+                    written = 0
+                    with open(temporary, "wb") as output:
+                        async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):
+                            if await asyncio.to_thread(self._is_cancelled, job_id):
+                                raise asyncio.CancelledError()
+                            written += len(chunk)
+                            if written > max_bytes:
+                                raise ValueError(f"Source media exceeds the {max_mb} MB job limit.")
+                            output.write(chunk)
+                    if written == 0:
+                        raise ValueError("Source media is empty.")
+                finally:
+                    await response.aclose()
+            os.replace(temporary, destination)
+            try:
+                os.chmod(destination, 0o600)
+            except OSError:
+                pass
+            return destination
+        except BaseException:
+            if os.path.exists(temporary):
+                try:
+                    os.remove(temporary)
+                except OSError:
+                    pass
+            raise
+
     async def _wait_ffmpeg(self, process, job_id: str):
         communication = asyncio.create_task(process.communicate())
         for _ in range(900):
@@ -455,6 +534,7 @@ class JobManager:
         return bool(row and row["cancel_requested"])
 
     async def _process_job(self, job_id: str, tokens: List[str], action: str, source_url: Optional[str] = None, height: int = 1080):
+        source_files = []
         job = self.jobs.get(job_id)
         if not job:
             return
@@ -498,36 +578,6 @@ class JobManager:
                     except Exception as we:
                         print(f"[job_manager] worker delegation failed, falling back to local task: {we}", flush=True)
 
-                # Fallback to local yt-dlp download task if source_url is available
-                try:
-                    from backend.main import _run_download_limited, run_download_video_task
-                except Exception:
-                    try:
-                        from main import _run_download_limited, run_download_video_task
-                    except Exception:
-                        run_download_video_task = None
-                        _run_download_limited = None
-
-                if run_download_video_task:
-                    job["progress"] = 65
-                    self._save_job_db(job)
-                    output_path = os.path.join(JOBS_DIR, job["filename"])
-                    try:
-                        if _run_download_limited:
-                            await _run_download_limited(run_download_video_task, source_url, height, output_path)
-                        else:
-                            await asyncio.to_thread(run_download_video_task, source_url, height, output_path)
-                        if self._is_cancelled(job_id):
-                            raise asyncio.CancelledError()
-                        if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:
-                            job["output_file"] = output_path
-                            job["status"] = "done"
-                            job["progress"] = 100
-                            job["download_url"] = f"/api/jobs/{job_id}/file"
-                            self._save_job_db(job)
-                            return
-                    except Exception as lde:
-                        print(f"[job_manager] local yt-dlp task failed, trying ffmpeg stream merge: {lde}", flush=True)
 
             # Verify tokens only through the security module; do not decode unsigned payloads.
             sources = []
@@ -549,16 +599,24 @@ class JobManager:
                     raise ValueError("Media source URL is no longer an approved public CDN.")
                 sources.append(media_url)
 
+            if action in ("merge", "mp3"):
+                local_sources = []
+                for index, source in enumerate(sources):
+                    if self._is_cancelled(job_id):
+                        raise asyncio.CancelledError()
+                    local_path = os.path.join(JOBS_DIR, f".{job_id}_input_{index + 1}.media")
+                    local_sources.append(await self._download_media_source(source, local_path, job_id))
+                    source_files.append(local_path)
+                    job["progress"] = 75 + int(5 * (index + 1) / len(sources))
+                    self._save_job_db(job)
+
             if self._is_cancelled(job_id):
                 raise asyncio.CancelledError()
-            job["progress"] = 75
+            job["progress"] = 82
             self._save_job_db(job)
             output_path = os.path.join(JOBS_DIR, job["filename"])
-
-            ua_args = [
-                "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
-                "-headers", "Referer: https://www.youtube.com/\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0\r\n"
-            ]
+            # FFmpeg processes only local bounded files; no remote protocol is enabled.
+            ua_args = ["-protocol_whitelist", "file,pipe"]
             if action == "merge":
                 if not ffmpeg_bin:
                     raise RuntimeError("ffmpeg not found for video merging.")
@@ -666,6 +724,13 @@ class JobManager:
             job["error"] = str(e)[:500]
             self._save_job_db(job)
             raise
+        finally:
+            for source_file in source_files:
+                try:
+                    if os.path.isfile(source_file):
+                        os.remove(source_file)
+                except OSError:
+                    pass
 
     async def _cleanup_loop(self):
         """Delete expired terminal jobs; queued and leased work remains durable."""
