@@ -64,6 +64,44 @@ class TestDurableJobManager(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await self.manager.create_job([self.token], "merge", source_url="https://attacker.example/")
 
+    async def test_idempotency_returns_same_job_and_owner_token(self):
+        with patch("backend.job_manager.verify_public_dns_resolution", return_value=True):
+            first_id, first_token = await self.manager.create_job(
+                [self.token], "merge", height=720,
+                idempotency_key="merge-request-123", owner_context="203.0.113.10",
+            )
+            second_id, second_token = await self.manager.create_job(
+                [self.token], "merge", height=720,
+                idempotency_key="merge-request-123", owner_context="203.0.113.10",
+            )
+        self.assertEqual(first_id, second_id)
+        self.assertEqual(first_token, second_token)
+        self.assertTrue(self.manager.authorize_job(first_id, second_token))
+
+    async def test_idempotency_key_rejects_different_payload(self):
+        with patch("backend.job_manager.verify_public_dns_resolution", return_value=True):
+            await self.manager.create_job(
+                [self.token], "merge", height=720,
+                idempotency_key="merge-request-456", owner_context="203.0.113.10",
+            )
+            with self.assertRaises(ValueError):
+                await self.manager.create_job(
+                    [self.token], "merge", height=1080,
+                    idempotency_key="merge-request-456", owner_context="203.0.113.10",
+                )
+
+    async def test_idempotency_is_scoped_to_requester_context(self):
+        with patch("backend.job_manager.verify_public_dns_resolution", return_value=True):
+            first_id, _ = await self.manager.create_job(
+                [self.token], "merge", height=720,
+                idempotency_key="merge-request-789", owner_context="203.0.113.10",
+            )
+            second_id, _ = await self.manager.create_job(
+                [self.token], "merge", height=720,
+                idempotency_key="merge-request-789", owner_context="203.0.113.11",
+            )
+        self.assertNotEqual(first_id, second_id)
+
     async def test_queue_schema_migrates_legacy_table(self):
         path = os.path.join(self.temp.name, "legacy.db")
         with sqlite3.connect(path) as conn:
