@@ -10,6 +10,7 @@ on:
       - "docs/PRODUCTION_COMPOSE_SECURITY.md"
       - "tests/test_temp_media_auth.py"
       - "tests/test_core.py"
+      - "tests/test_rate_limit_failure_policy.py"
       - ".github/workflows/security-unit-tests.yml"
   push:
     branches: [main]
@@ -19,6 +20,7 @@ on:
       - "backend/utils/security.py"
       - "tests/test_temp_media_auth.py"
       - "tests/test_core.py"
+      - "tests/test_rate_limit_failure_policy.py"
       - ".github/workflows/security-unit-tests.yml"
 
 permissions:
@@ -39,3 +41,5 @@ jobs:
         run: python tests/test_temp_media_auth.py
       - name: Run core security and URL tests
         run: python tests/test_core.py
+      - name: Run rate limiter failure policy tests
+        run: python tests/test_rate_limit_failure_policy.py
