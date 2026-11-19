@@ -9,6 +9,11 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, RedirectResponse
 from starlette.routing import Route
 
+try:
+    from backend.security.zero_trust import client_ip, rate_limit
+except (ModuleNotFoundError, ImportError):
+    from security.zero_trust import client_ip, rate_limit
+
 from backend.services import auth_service, dodo_service
 
 log = logging.getLogger("routes_payments")
@@ -16,6 +21,12 @@ log = logging.getLogger("routes_payments")
 
 async def checkout_handler(request: Request) -> Response:
     """Creates a Dodo Payments checkout session for subscription plans."""
+    allowed, _ = rate_limit("payments:checkout", client_ip(request), 10, 900)
+    if not allowed:
+        return JSONResponse(
+            {"ok": False, "error": "Too many checkout attempts. Try again later."},
+            status_code=429, headers={"Cache-Control": "no-store", "Retry-After": "60"},
+        )
     try:
         body: Dict[str, Any] = await request.json() if request.method == "POST" else {}
     except Exception:
