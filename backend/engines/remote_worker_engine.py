@@ -1,5 +1,10 @@
 import os
 import httpx
+
+try:
+    from backend.utils.worker_config import get_worker_config, worker_headers
+except (ModuleNotFoundError, ImportError):
+    from utils.worker_config import get_worker_config, worker_headers
 from typing import AsyncIterator, Dict, Any, Optional, List
 
 try:
@@ -15,28 +20,18 @@ class RemoteWorkerEngine:
     async def extract(self, url: str, ctx: ExtractContext) -> Optional[RawResult]:
         if os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("WORKER_URL"):
             return None
-        worker_url = os.environ.get("WORKER_URL", "https://worker.winplaybox.in").strip()
-        worker_secret = (
-            os.environ.get("WORKER_SECRET", "").strip()
-            or os.environ.get("WORKER_KEY", "").strip()
-            or "wpb_worker_3047a7d0cb90d81830e004fbc0e61f6428f7e3cb"
-        )
-        if not worker_url:
-            # Gracefully skip if remote worker is not configured — do NOT crash the chain
+        worker_config = get_worker_config()
+        if not worker_config:
             return None
-
-        headers = {
-            "Authorization": f"Bearer {worker_secret}",
-            "X-Worker-Key": worker_secret,
-            "Content-Type": "application/json"
-        }
+        worker_url, worker_secret = worker_config
+        headers = worker_headers(worker_secret)
         payload = {
             "url": url,
             "content_type": ctx.content_type,
             "platform_id": ctx.platform_id
         }
 
-        async with httpx.AsyncClient(timeout=min(ctx.timeout, 25.0), follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=min(ctx.timeout, 25.0), follow_redirects=False) as client:
             try:
                 resp = await client.post(f"{worker_url.rstrip('/')}/extract", json=payload, headers=headers)
                 if resp.status_code != 200:
