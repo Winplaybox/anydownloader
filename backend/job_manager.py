@@ -229,6 +229,12 @@ class JobManager:
         now = time.time()
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            conn.execute("""
+                UPDATE jobs SET status='failed', error='Worker lease expired after maximum attempts.',
+                    lease_owner=NULL, lease_expires_at=NULL, updated_at=?
+                WHERE status='processing' AND lease_expires_at IS NOT NULL
+                    AND lease_expires_at < ? AND attempts >= max_attempts
+            """, (now, now))
             row = conn.execute("""
                 SELECT id FROM jobs
                 WHERE (status='queued' AND next_run_at <= ?)
@@ -255,6 +261,20 @@ class JobManager:
         data = dict(claimed)
         data["payload"] = json.loads(data.get("payload_json") or "{}")
         return data
+
+    async def _wait_ffmpeg(self, process, job_id: str):
+        communication = asyncio.create_task(process.communicate())
+        for _ in range(900):
+            if communication.done():
+                return await communication
+            if await asyncio.to_thread(self._is_cancelled, job_id):
+                process.kill()
+                await communication
+                raise asyncio.CancelledError()
+            await asyncio.sleep(1)
+        process.kill()
+        await communication
+        raise RuntimeError("FFmpeg job exceeded the 15-minute execution limit.")
 
     async def _heartbeat(self, job_id: str):
         while True:
@@ -455,12 +475,7 @@ class JobManager:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                try:
-                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=900)
-                except asyncio.TimeoutError:
-                    proc.kill()
-                    await proc.communicate()
-                    raise RuntimeError("FFmpeg job exceeded the 15-minute execution limit.")
+                stdout, stderr = await self._wait_ffmpeg(proc, job_id)
                 if proc.returncode != 0:
                     err_msg = (stderr or b"").decode("utf-8", errors="ignore")[-200:]
                     print(f"[job_manager] ffmpeg failed (code {proc.returncode}): {err_msg}", flush=True)
@@ -475,12 +490,7 @@ class JobManager:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                try:
-                    await asyncio.wait_for(proc.communicate(), timeout=900)
-                except asyncio.TimeoutError:
-                    proc.kill()
-                    await proc.communicate()
-                    raise RuntimeError("FFmpeg job exceeded the 15-minute execution limit.")
+                await self._wait_ffmpeg(proc, job_id)
                 if proc.returncode != 0:
                     raise RuntimeError("ffmpeg mp3 conversion failed.")
 
