@@ -1,0 +1,25 @@
+name: Compose security configuration
+
+on:
+  pull_request:
+    paths:
+      - "docker-compose.yml"
+      - "docs/PRODUCTION_COMPOSE_SECURITY.md"
+      - ".github/workflows/compose-security.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compose-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose configuration
+        run: |
+          export ADMIN_API_KEY=ci-admin-key-not-real-32chars-minimum
+          export TOKEN_HMAC_SECRET=ci-token-hmac-secret-not-real
+          export EXTENSION_SECRET_KEY=ci-extension-secret-not-real
+          export WPB_VAULT_SECRET=ci-vault-secret-32-characters-not-real
+          docker compose config --quiet
