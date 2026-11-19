@@ -10,24 +10,19 @@ import urllib.parse
 from typing import Dict, Any, Optional
 
 DOWNLOAD_SECRET = (
-    os.environ.get("DOWNLOAD_SIGNING_SECRET")
-    or os.environ.get("TOKEN_HMAC_SECRET")
-    or (os.environ.get("WPB_VAULT_SECRET", "").split(",")[0] if os.environ.get("WPB_VAULT_SECRET") else None)
-    or "wpb_ovd_secure_hmac_sign_key_9f83e2a74c10"
+    os.environ.get("DOWNLOAD_SIGNING_SECRET", "").strip()
+    or os.environ.get("TOKEN_HMAC_SECRET", "").strip()
+    or (os.environ.get("WPB_VAULT_SECRET", "").split(",")[0].strip() if os.environ.get("WPB_VAULT_SECRET") else "")
 )
-
-# Multi-key verification list to ensure zero failures across environments & key rotations
+# Only configured environment secrets are accepted for signature verification.
 POSSIBLE_DOWNLOAD_SECRETS = list(dict.fromkeys([
     s for s in [
         DOWNLOAD_SECRET,
-        os.environ.get("DOWNLOAD_SIGNING_SECRET"),
-        os.environ.get("TOKEN_HMAC_SECRET"),
-        os.environ.get("WPB_VAULT_SECRET", "").split(",")[0] if os.environ.get("WPB_VAULT_SECRET") else None,
-        "wpb_ovd_secure_hmac_sign_key_9f83e2a74c10",
-        "ovd_hmac_secret_key_change_me",
+        os.environ.get("DOWNLOAD_SIGNING_SECRET", "").strip(),
+        os.environ.get("TOKEN_HMAC_SECRET", "").strip(),
+        os.environ.get("WPB_VAULT_SECRET", "").split(",")[0].strip() if os.environ.get("WPB_VAULT_SECRET") else "",
     ] if s
 ]))
-
 # Allowed CDN Domains for Upstream Streaming (SSRF Guard)
 ALLOWED_CDN_DOMAINS = [
     "twimg.com",
@@ -157,6 +152,8 @@ def sign_download_token(variant_url: str, filename: str, ttl_seconds: int = 8640
     Signs variant download info into a tamper-proof HMAC token.
     TTL defaults to 24 hours (86400 seconds) so users can download files without early expiration.
     """
+    if not DOWNLOAD_SECRET:
+        raise RuntimeError("Download signing secret is not configured.")
     exp = int(time.time()) + ttl_seconds
     payload = {
         "u": variant_url,
@@ -175,49 +172,46 @@ def sign_download_token(variant_url: str, filename: str, ttl_seconds: int = 8640
     return f"{b64_payload}.{sig}"
 
 def verify_download_token(token: str) -> Optional[Dict[str, Any]]:
-    """
-    Verifies token payload and SSRF safety.
-    Ultra-resilient across multi-worker environments, secret rotations, and clock drifts.
-    Never fails legitimate public media downloads.
-    """
+    """Verify HMAC signatures, expiry, and upstream URL safety for signed tokens."""
     if not token or not isinstance(token, str):
         return None
-
     token = token.strip()
-
-    # Direct URL passed as token
-    if token.startswith("http://") or token.startswith("https://") or token.startswith("/api/"):
+    # Legacy direct URLs are retained for compatibility; validate their scheme and host.
+    if token.startswith(("http://", "https://", "/api/")):
         if verify_safe_upstream_url(token):
-            return {
-                "variant_url": token,
-                "filename": "download.mp4",
-                "exp": int(time.time()) + 86400
-            }
-
-    if "." in token:
-        b64_payload = token.split(".", 1)[0]
-    else:
-        b64_payload = token
-
-    # Decode payload
-    padding = '=' * (4 - (len(b64_payload) % 4)) if len(b64_payload) % 4 != 0 else ''
+            return {"variant_url": token, "filename": "download.mp4", "exp": int(time.time()) + 86400}
+        return None
+    if token.count(".") != 1:
+        return None
+    b64_payload, signature = token.split(".", 1)
+    if not b64_payload or not signature:
+        return None
+    secrets_to_check = [s for s in POSSIBLE_DOWNLOAD_SECRETS if s]
+    if not secrets_to_check:
+        return None
+    valid_signature = False
+    for secret in secrets_to_check:
+        expected = hmac.new(secret.encode("utf-8"), b64_payload.encode("ascii"), hashlib.sha256).hexdigest()
+        if hmac.compare_digest(expected, signature):
+            valid_signature = True
+            break
+    if not valid_signature:
+        return None
+    padding = "=" * (-len(b64_payload) % 4)
     try:
-        raw_json = base64.urlsafe_b64decode(b64_payload + padding)
-        data = json.loads(raw_json.decode('utf-8'))
+        data = json.loads(base64.urlsafe_b64decode(b64_payload + padding).decode("utf-8"))
     except Exception:
         return None
-
+    if not isinstance(data, dict):
+        return None
     variant_url = data.get("u")
-    if not variant_url:
+    exp = data.get("exp")
+    if not isinstance(variant_url, str) or not exp:
         return None
-
-    # Verify SSRF safety of the extracted target URL
-    if not verify_safe_upstream_url(variant_url):
+    try:
+        exp = int(exp)
+    except (TypeError, ValueError):
         return None
-
-    return {
-        "variant_url": variant_url,
-        "filename": data.get("f", "download.mp4"),
-        "exp": data.get("exp")
-    }
-
+    if exp <= int(time.time()) or not verify_safe_upstream_url(variant_url):
+        return None
+    return {"variant_url": variant_url, "filename": data.get("f", "download.mp4"), "exp": exp}
