@@ -3117,7 +3117,7 @@ async def create_job_handler(request):
         job_id, access_token = await job_manager.create_job(
             tokens, action, source_url=url, height=height, title=title,
             idempotency_key=request.headers.get("idempotency-key"),
-            owner_context=_zt_client_ip(request),
+            owner_context=_job_owner_context(request),
         )
         return JSONResponse(
             {"ok": True, "job_id": job_id, "access_token": access_token, "status": "queued"},
@@ -3128,6 +3128,17 @@ async def create_job_handler(request):
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     except Exception:
         return JSONResponse({"ok": False, "error": "Could not queue this job. Please retry."}, status_code=503)
+
+
+def _job_owner_context(request):
+    session = (
+        request.cookies.get("wpb_session")
+        or request.cookies.get("wpb_guest")
+        or request.headers.get("x-guest-id", "")
+        or _zt_bearer(request)
+    )
+    binding = hashlib.sha256(session.encode("utf-8")).hexdigest() if session else "anonymous"
+    return f"{_zt_client_ip(request)}:{binding}:{request.headers.get('origin', '')}"
 
 
 def _job_access_token(request):
@@ -3202,7 +3213,7 @@ async def create_zip_handler(request):
         job_id, access_token = await job_manager.create_job(
             tokens, "zip", title=body.get("title"),
             idempotency_key=request.headers.get("idempotency-key"),
-            owner_context=_zt_client_ip(request),
+            owner_context=_job_owner_context(request),
         )
         return JSONResponse(
             {"ok": True, "job_id": job_id, "access_token": access_token, "status": "queued"},
@@ -4367,6 +4378,8 @@ def _validate_production_configuration():
     missing = []
     if len(EXTENSION_SECRET_KEY) < 32:
         missing.append("EXTENSION_SECRET_KEY (at least 32 characters)")
+    if len(os.environ.get("JOB_OWNER_SECRET", "").strip()) < 32:
+        missing.append("JOB_OWNER_SECRET (at least 32 characters; keep stable to preserve job access tokens)")
     if not os.environ.get("PUBLIC_BASE_URL", "").strip():
         missing.append("PUBLIC_BASE_URL (canonical HTTPS host)")
     if not os.environ.get("JOBS_DIR", "").strip():
