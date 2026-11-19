@@ -15,6 +15,11 @@ import json
 import urllib.request
 import urllib.parse
 import httpx
+
+try:
+    from backend.utils.worker_config import get_worker_config, worker_headers
+except (ModuleNotFoundError, ImportError):
+    from utils.worker_config import get_worker_config, worker_headers
 from typing import Dict, Any, List, Optional
 
 class SubtitlesService:
@@ -230,15 +235,14 @@ class SubtitlesService:
         except Exception:
             # Fallback to PC Worker if local yt-dlp was blocked
             try:
-                worker_url = os.environ.get("WORKER_URL", "https://worker.winplaybox.in").strip().rstrip("/")
-                worker_key = (
-                    os.environ.get("WORKER_SECRET", "").strip()
-                    or os.environ.get("WORKER_KEY", "").strip()
-                    or "wpb_worker_3047a7d0cb90d81830e004fbc0e61f6428f7e3cb"
-                )
-                if worker_url:
-                    headers = {"Content-Type": "application/json", "X-Worker-Key": worker_key, "Authorization": f"Bearer {worker_key}"}
-                    w_resp = httpx.post(f"{worker_url}/extract", json={"url": media_url}, headers=headers, timeout=20.0)
+                worker_config = get_worker_config()
+                if worker_config:
+                    worker_url, worker_key = worker_config
+                    headers = worker_headers(worker_key)
+                    w_resp = httpx.post(
+                        f"{worker_url}/extract", json={"url": media_url},
+                        headers=headers, timeout=20.0, follow_redirects=False,
+                    )
                     if w_resp.status_code == 200:
                         w_data = w_resp.json()
                         w_items = w_data.get("items", []) or []
