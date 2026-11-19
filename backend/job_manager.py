@@ -164,8 +164,10 @@ class JobManager:
         if action == "merge" and (not isinstance(height, int) or height < 144 or height > 2160):
             raise ValueError("Video height must be between 144 and 2160.")
         safe_source_url = self._validate_source_page(source_url)
+        if title is not None and len(str(title)) > 120:
+            raise ValueError("Job title must be 120 characters or fewer.")
         for token in tokens:
-            if not isinstance(token, str) or token.startswith(("http://", "https://", "/api/")):
+            if not isinstance(token, str) or len(token) > 4096 or token.startswith(("http://", "https://", "/api/")):
                 raise ValueError("Only signed download tokens are accepted.")
             payload = verify_download_token(token)
             if not payload or not payload.get("variant_url"):
@@ -186,6 +188,7 @@ class JobManager:
                 raise ValueError("Idempotency-Key must be 8-128 safe characters.")
         owner_fingerprint = hashlib.sha256(str(owner_context).encode("utf-8")).hexdigest()
         ext = "mp4" if action == "merge" else ("mp3" if action == "mp3" else "zip")
+        job_id = str(uuid.uuid4())
         clean = re.sub(r'[\\/*?:"<>|]', "", str(title or "")).strip()
         clean = re.sub(r"\s+", "_", clean)[:60]
         filename = f"{clean}.{ext}" if clean else f"ovd_{action}_{job_id[:8]}.{ext}"
@@ -207,7 +210,6 @@ class JobManager:
                 existing_id = existing["id"]
                 return existing_id, self._owner_token_for_job(existing_id)
 
-        job_id = str(uuid.uuid4())
         owner_token = self._owner_token_for_job(job_id)
         try:
             with self._connect() as conn:
