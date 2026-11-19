@@ -111,7 +111,7 @@ def verify_safe_upstream_url(target_url: str) -> bool:
 
     # Allow only explicit application-relative API paths (not protocol-relative URLs).
     if target_clean.startswith("/"):
-        if target_clean.startswith("//") or "\\\\" in target_clean:
+        if target_clean.startswith("//") or "\\" in target_clean:
             return False
         path = urllib.parse.urlsplit(target_clean).path
         return path.startswith("/api/") and not any(seg in (".", "..") for seg in path.split("/"))
