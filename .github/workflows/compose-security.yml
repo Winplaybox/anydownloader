@@ -22,4 +22,5 @@ jobs:
           export TOKEN_HMAC_SECRET=ci-token-hmac-secret-not-real
           export EXTENSION_SECRET_KEY=ci-extension-secret-not-real
           export WPB_VAULT_SECRET=ci-vault-secret-32-characters-not-real
+          export PUBLIC_BASE_URL=https://api.example.test
           docker compose config --quiet
