@@ -2519,7 +2519,7 @@ async def stream_download_handler(request):
 
 async def readiness_handler(request):
     production = os.environ.get("WPB_ENV", "").lower() in ("prod", "production") or bool(os.environ.get("RENDER"))
-    checks = {"job_database": False, "token_store": False, "ffmpeg": False, "persistent_jobs_dir_configured": bool(os.environ.get("JOBS_DIR"))}
+    checks = {"job_database": False, "token_store": False, "ffmpeg": False, "persistent_jobs_dir_configured": (not production) or bool(os.environ.get("JOBS_DIR"))}
     try:
         with job_manager._connect() as conn:
             conn.execute("SELECT 1").fetchone()
