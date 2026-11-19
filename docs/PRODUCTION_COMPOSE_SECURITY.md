@@ -8,6 +8,7 @@ Set these in the deployment environment; do not commit a populated `.env` file:
 - `TOKEN_HMAC_SECRET`: signing secret for legacy token flows.
 - `EXTENSION_SECRET_KEY`: extension signing secret.
 - `WPB_VAULT_SECRET`: token vault key(s); production keys must be at least 32 characters.
+- `EXTENSION_SECRET_KEY`: extension signing secret. The API no longer ships a source-code fallback; if missing, extension-key authentication will fail closed.
 
 Generate a secret locally with:
 
