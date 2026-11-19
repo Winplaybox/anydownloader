@@ -5,6 +5,9 @@ services:
       dockerfile: Dockerfile
     container_name: ovd-api
     restart: unless-stopped
+    cpus: "${API_CPUS:-2.0}"
+    mem_limit: "${API_MEMORY_LIMIT:-4g}"
+    pids_limit: 256
     # Default to localhost behind a reverse proxy. Direct exposure is opt-in.
     ports:
       - "${API_BIND_ADDRESS:-127.0.0.1}:${PORT:-8000}:8000"
@@ -36,8 +39,10 @@ services:
     image: redis:7-alpine
     container_name: ovd-redis
     restart: unless-stopped
+    cpus: "0.50"
+    mem_limit: 512m
     # Redis is private to the Compose network; no host port is published.
-    command: ["redis-server", "--appendonly", "yes", "--protected-mode", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--protected-mode", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
