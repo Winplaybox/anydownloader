@@ -14,6 +14,7 @@ import socket
 import urllib.parse
 import hmac
 import base64
+from contextlib import contextmanager
 from typing import Dict, Any, Optional, List
 import static_ffmpeg
 import httpx
@@ -42,13 +43,17 @@ class JobManager:
         owner_secret = os.environ.get("WPB_VAULT_SECRET", "").split(",")[0].strip()
         self.owner_secret = owner_secret.encode("utf-8") if owner_secret else secrets.token_bytes(32)
 
+    @contextmanager
     def _connect(self):
         conn = sqlite3.connect(self.db_path, timeout=15)
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA busy_timeout=15000")
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=FULL")
-        return conn
+        try:
+            conn.execute("PRAGMA busy_timeout=15000")
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=FULL")
+            yield conn
+        finally:
+            conn.close()
 
     def _init_db(self):
         with self._connect() as conn:
