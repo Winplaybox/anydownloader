@@ -6,6 +6,8 @@ on:
       - "backend/security/**"
       - "backend/routes_temp_media.py"
       - "backend/utils/security.py"
+      - "backend/main.py"
+      - "docs/PRODUCTION_COMPOSE_SECURITY.md"
       - "tests/test_temp_media_auth.py"
       - "tests/test_core.py"
       - ".github/workflows/security-unit-tests.yml"
