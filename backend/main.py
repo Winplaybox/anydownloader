@@ -45,12 +45,12 @@ except (ModuleNotFoundError, ImportError):
 try:
     from backend.utils.errors import AppError, ErrorCode, error_response
     from backend.utils.url_normalizer import normalize_url
-    from backend.utils.security import verify_download_token
+    from backend.utils.security import verify_download_token, is_safe_cdn_host, verify_public_dns_resolution
     from backend.extractors.registry import registry
 except ModuleNotFoundError:
     from utils.errors import AppError, ErrorCode, error_response
     from utils.url_normalizer import normalize_url
-    from utils.security import verify_download_token
+    from utils.security import verify_download_token, is_safe_cdn_host, verify_public_dns_resolution
     from extractors.registry import registry
 import html
 import hashlib
@@ -70,6 +70,11 @@ except Exception as _ffmpeg_err:
     pass
 
 from typing import Optional
+
+try:
+    from backend.utils.worker_config import get_worker_config, worker_headers
+except (ModuleNotFoundError, ImportError):
+    from utils.worker_config import get_worker_config, worker_headers
 
 import yt_dlp
 import httpx
@@ -185,25 +190,14 @@ def _yo_extract_opts() -> Dict[str, Any]:
     return robust_opts("extract")
 
 def is_safe_cdn_url(target_url: str) -> bool:
-    """Validates target URL is a public web resource (http/https) and prevents SSRF."""
+    """Accept only configured media CDN domains with public DNS answers."""
     try:
+        parsed = urllib.parse.urlsplit(target_url)
+        hostname = parsed.hostname or ""
+        if not is_safe_cdn_host(hostname):
+            return False
         from backend.utils.security import verify_safe_upstream_url
-        return verify_safe_upstream_url(target_url)
-    except Exception:
-        pass
-    try:
-        from utils.security import verify_safe_upstream_url
-        return verify_safe_upstream_url(target_url)
-    except Exception:
-        pass
-    try:
-        parsed = urllib.parse.urlparse(target_url)
-        if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            return False
-        hostname = parsed.netloc.split(":")[0].strip().lower()
-        if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254"):
-            return False
-        return True
+        return verify_safe_upstream_url(target_url) and verify_public_dns_resolution(target_url)
     except Exception:
         return False
 
@@ -2319,22 +2313,14 @@ def run_download_audio_task(source_url: str, quality: str, output_template: str)
 async def _download_via_worker(url: str, kind: str = "video", height: int = 1080, quality: str = "192") -> Optional[str]:
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return None
-    worker_url = os.environ.get("WORKER_URL", "https://worker.winplaybox.in").strip().rstrip("/")
-    worker_key = (
-        os.environ.get("WORKER_SECRET", "").strip()
-        or os.environ.get("WORKER_KEY", "").strip()
-        or "wpb_worker_3047a7d0cb90d81830e004fbc0e61f6428f7e3cb"
-    )
-    if not worker_url:
+    worker_config = get_worker_config()
+    if not worker_config:
         return None
-    headers = {
-        "Content-Type": "application/json",
-        "X-Worker-Key": worker_key,
-        "Authorization": f"Bearer {worker_key}"
-    }
+    worker_url, worker_key = worker_config
+    headers = worker_headers(worker_key)
     payload = {"url": url, "kind": kind, "height": height, "quality": quality}
     try:
-        async with httpx.AsyncClient(timeout=180.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=180.0, follow_redirects=False) as client:
             resp = await client.post(f"{worker_url}/download", json=payload, headers=headers)
             if resp.status_code == 200:
                 data = resp.json()
@@ -3126,17 +3112,7 @@ async def proxy_image_handler(request):
         if payload and payload.get("variant_url"):
             target_url = payload["variant_url"]
         else:
-            # Resilient fallback: decode base64 payload if token HMAC secret rotated or expired
-            try:
-                if "." in token:
-                    b64_part = token.split(".", 1)[0]
-                    padding = '=' * (4 - (len(b64_part) % 4)) if len(b64_part) % 4 != 0 else ''
-                    raw_data = json.loads(base64.urlsafe_b64decode(b64_part + padding).decode('utf-8'))
-                    candidate_u = raw_data.get("u")
-                    if candidate_u and is_safe_cdn_url(candidate_u):
-                        target_url = candidate_u
-            except Exception:
-                pass
+            # Invalid/expired tokens are not accepted by decoding their unsigned payload.
 
     if not target_url and url_param:
         clean_u = url_param.strip()
