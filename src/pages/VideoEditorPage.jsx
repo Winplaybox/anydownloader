@@ -339,12 +339,24 @@ export default function VideoEditorPage() {
 
       <div className="mb-6 sm:mb-8">
         <div className="flex flex-wrap items-center gap-2 mb-3">
-          <span className="px-2.5 py-0.5 rounded-md bg-[var(--accent-bg)] text-[var(--accent)] border border-[var(--accent)]/30 text-xs font-semibold uppercase tracking-wider">New · Free</span>
-          {quota && (
-            <span className={`px-2.5 py-0.5 rounded-md text-xs font-semibold border ${outOfQuota ? 'bg-[var(--negative-bg)] text-[var(--negative)] border-[var(--negative)]/30' : 'bg-[var(--positive-bg)] text-[var(--positive)] border-[var(--positive)]/30'}`}>
-              {quota.unlimited ? 'Unlimited (admin)' : `${quota.remaining} of ${quota.limit} free edits left today`}
-            </span>
-          )}
+          <span className="px-2.5 py-0.5 rounded-md bg-[var(--accent-bg)] text-[var(--accent)] border border-[var(--accent)]/30 text-xs font-semibold uppercase tracking-wider">
+            AI Video Studio
+          </span>
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-bold border bg-emerald-500/10 text-emerald-500 border-emerald-500/30 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{session?.credits ?? 2} Credits Available</span>
+          </span>
+          <span className="px-2.5 py-0.5 rounded-md text-xs font-bold border bg-blue-500/10 text-blue-500 border-blue-500/30 flex items-center gap-1.5">
+            <Crown className="w-3.5 h-3.5" />
+            <span>Quality: {session?.max_resolution || 480}p {session?.max_resolution >= 1080 ? 'FHD' : 'SD'}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowPricingModal(true)}
+            className="px-2.5 py-0.5 rounded-md text-xs font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 to-orange-500 text-black hover:opacity-90 shadow-sm cursor-pointer ml-auto"
+          >
+            Upgrade / 7 Plans →
+          </button>
         </div>
         <h1 className="text-3xl sm:text-4xl font-black text-[var(--text)] tracking-tight mb-2">AI Video Editor</h1>
         <p className="text-sm text-[var(--text-muted)] max-w-2xl leading-relaxed">

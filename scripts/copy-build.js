@@ -67,6 +67,34 @@ if (fs.existsSync(wellKnownSrc)) {
   }
 }
 
+// 3c. Synchronize latest bundle hashes across all prerendered sub-route index.html files
+if (mainJsFile && mainCssFile) {
+  const scriptRegex = /src=["']\/assets\/app-[a-zA-Z0-9_-]+\.js["']/g;
+  const cssRegex = /href=["']\/assets\/style-[a-zA-Z0-9_-]+\.css["']/g;
+
+  function syncSubRoutes(dir) {
+    for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (item.name === 'node_modules' || item.name === '.git' || item.name === 'dist') continue;
+      const fullPath = path.join(dir, item.name);
+      if (item.isDirectory()) {
+        const subIndex = path.join(fullPath, 'index.html');
+        if (fs.existsSync(subIndex) && fullPath !== root) {
+          let content = fs.readFileSync(subIndex, 'utf-8');
+          content = content.replace(scriptRegex, `src="/assets/${mainJsFile}"`);
+          content = content.replace(cssRegex, `href="/assets/${mainCssFile}"`);
+          if (item.name === 'ai-video-editor') {
+            content = content.replace(/<div id="root">[\s\S]*?<\/div>\s*<\/body>/, '<div id="root"></div>\n  </body>');
+          }
+          fs.writeFileSync(subIndex, content, 'utf-8');
+          console.log(`Synced bundle in: ${path.relative(root, subIndex)}`);
+        }
+        syncSubRoutes(fullPath);
+      }
+    }
+  }
+  syncSubRoutes(root);
+}
+
 // 4. Ensure .htaccess in root for Hostinger SPA rewrite and caching
 const htaccess = `<IfModule mod_rewrite.c>
   RewriteEngine On
