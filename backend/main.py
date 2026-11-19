@@ -45,7 +45,7 @@ except (ModuleNotFoundError, ImportError):
 try:
     from backend.utils.errors import AppError, ErrorCode, error_response
     from backend.utils.url_normalizer import normalize_url
-    from backend.utils.security import verify_download_token, is_safe_cdn_host, verify_public_dns_resolution
+    from backend.utils.security import verify_download_token, sign_download_token, is_safe_cdn_host, verify_public_dns_resolution
     from backend.extractors.registry import registry
 except ModuleNotFoundError:
     from utils.errors import AppError, ErrorCode, error_response
@@ -3538,6 +3538,11 @@ async def video_download_handler(request):
 
 async def audio_download_handler(request):
     filename = request.query_params.get("file", "")
+    token = request.query_params.get("token", "")
+    payload = verify_download_token(token)
+    expected_path = f"/api/v1/audio/download?file={filename}"
+    if filename not in ("wpb_audio_master.mp3", "wpb_audio_master.wav") or not payload or payload.get("variant_url") != expected_path:
+        return JSONResponse({"ok": False, "error": "File not found or expired."}, status_code=404)
     try:
         from backend.utils.generated_asset import resolve_generated_asset
     except (ModuleNotFoundError, ImportError):
@@ -3573,11 +3578,17 @@ async def media_audio_handler(request):
     url = body.get("url", "")
     bitrate = body.get("bitrate", "320k")
 
+    audio_path = "/api/v1/audio/download?file=wpb_audio_master.mp3"
+    try:
+        audio_token = sign_download_token(audio_path, "wpb_audio_master.mp3", ttl_seconds=3600)
+    except RuntimeError:
+        return JSONResponse({"ok": False, "error": "Audio download signing is not configured."}, status_code=503)
+    audio_url = f"{audio_path}&token={urllib.parse.quote(audio_token, safe='')}"
     return JSONResponse({
         "ok": True,
         "format": "mp3",
         "bitrate": bitrate,
-        "audio_url": "/api/v1/audio/download?file=wpb_audio_master.mp3",
+        "audio_url": audio_url,
         "ducking": True,
         "status": "extracted",
         "message": "320kbps MP3 audio stream extracted and normalized."
