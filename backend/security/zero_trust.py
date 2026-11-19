@@ -41,7 +41,8 @@ except (ModuleNotFoundError, ImportError):
 
 log = logging.getLogger("wpb.zero_trust")
 
-TRUST_PROXY = os.environ.get("WPB_TRUST_PROXY", "1" if IS_PRODUCTION else "0") == "1"
+# Trust forwarded client-IP headers only when the deployment proxy is configured to overwrite them.
+TRUST_PROXY = os.environ.get("WPB_TRUST_PROXY", "0") == "1"
 ADMIN_KEY = (os.environ.get("WPB_ADMIN_KEY") or os.environ.get("ADMIN_API_KEY") or "").strip()
 if ADMIN_KEY and len(ADMIN_KEY) < 32:
     log.error("WPB_ADMIN_KEY shorter than 32 chars - admin key auth DISABLED.")
