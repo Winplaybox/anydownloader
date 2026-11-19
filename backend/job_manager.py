@@ -179,11 +179,17 @@ class JobManager:
                 raise ValueError("A download token is invalid or expired.")
             media_url = payload["variant_url"]
             parsed_media = urllib.parse.urlsplit(media_url)
+            if parsed_media.path == "/api/stream":
+                inner_url = urllib.parse.parse_qs(parsed_media.query).get("url", [None])[0]
+                if not inner_url:
+                    raise ValueError("Download token contains an invalid stream URL.")
+                media_url = inner_url
+                parsed_media = urllib.parse.urlsplit(media_url)
             if (
                 parsed_media.scheme != "https" or not parsed_media.hostname
                 or not is_safe_cdn_host(parsed_media.hostname)
                 or not verify_safe_upstream_url(media_url)
-                or not verify_public_dns_resolution(media_url)
+                or not await asyncio.to_thread(verify_public_dns_resolution, media_url)
             ):
                 raise ValueError("Download token does not reference an approved public media CDN.")
 
@@ -519,7 +525,19 @@ class JobManager:
                 payload = verify_download_token(t)
                 if not payload:
                     raise ValueError("Invalid or expired download token.")
-                sources.append(payload["variant_url"])
+                media_url = payload["variant_url"]
+                parsed_media = urllib.parse.urlsplit(media_url)
+                if parsed_media.path == "/api/stream":
+                    media_url = urllib.parse.parse_qs(parsed_media.query).get("url", [None])[0] or ""
+                parsed_media = urllib.parse.urlsplit(media_url)
+                if (
+                    parsed_media.scheme != "https" or not parsed_media.hostname
+                    or not is_safe_cdn_host(parsed_media.hostname)
+                    or not verify_safe_upstream_url(media_url)
+                    or not await asyncio.to_thread(verify_public_dns_resolution, media_url)
+                ):
+                    raise ValueError("Media source URL is no longer an approved public CDN.")
+                sources.append(media_url)
 
             if self._is_cancelled(job_id):
                 raise asyncio.CancelledError()
