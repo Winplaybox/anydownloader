@@ -7,6 +7,12 @@ import sqlite3
 import zipfile
 import tempfile
 import time
+import json
+import hashlib
+import secrets
+import socket
+import urllib.parse
+import hmac
 from typing import Dict, Any, Optional, List
 import static_ffmpeg
 import httpx
@@ -28,62 +34,63 @@ class JobManager:
         self.db_path = os.path.join(JOBS_DIR, "jobs.db")
         self._init_db()
         self._cleaner_started = False
+        self._worker_task = None
+        self.worker_id = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
+        self.lease_seconds = max(60, int(os.environ.get("JOB_LEASE_SECONDS", "300")))
+        self.max_attempts = max(1, min(5, int(os.environ.get("JOB_MAX_ATTEMPTS", "3"))))
+
+    def _connect(self):
+        conn = sqlite3.connect(self.db_path, timeout=15)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=15000")
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=FULL")
+        return conn
 
     def _init_db(self):
+        with self._connect() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS jobs (
+                    id TEXT PRIMARY KEY, action TEXT, status TEXT, progress INTEGER,
+                    output_file TEXT, download_url TEXT, filename TEXT, error TEXT,
+                    created_at REAL, updated_at REAL, payload_json TEXT,
+                    owner_token_hash TEXT, attempts INTEGER NOT NULL DEFAULT 0,
+                    max_attempts INTEGER NOT NULL DEFAULT 3, next_run_at REAL NOT NULL DEFAULT 0,
+                    lease_owner TEXT, lease_expires_at REAL,
+                    cancel_requested INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+            existing = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
+            migrations = {
+                "payload_json": "TEXT", "owner_token_hash": "TEXT",
+                "attempts": "INTEGER NOT NULL DEFAULT 0",
+                "max_attempts": "INTEGER NOT NULL DEFAULT 3",
+                "next_run_at": "REAL NOT NULL DEFAULT 0", "lease_owner": "TEXT",
+                "lease_expires_at": "REAL", "cancel_requested": "INTEGER NOT NULL DEFAULT 0",
+            }
+            for name, definition in migrations.items():
+                if name not in existing:
+                    conn.execute(f"ALTER TABLE jobs ADD COLUMN {name} {definition}")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_queue ON jobs(status, next_run_at, lease_expires_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_owner ON jobs(owner_token_hash)")
+            conn.commit()
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS jobs (
-                        id TEXT PRIMARY KEY,
-                        action TEXT,
-                        status TEXT,
-                        progress INTEGER,
-                        output_file TEXT,
-                        download_url TEXT,
-                        filename TEXT,
-                        error TEXT,
-                        created_at REAL,
-                        updated_at REAL
-                    )
-                """)
-                # Mark stranded jobs from before restart as failed so polling doesn't hang
-                conn.execute("""
-                    UPDATE jobs SET status = 'failed', error = 'Server restarted. Please retry.'
-                    WHERE status IN ('processing', 'queued')
-                """)
-                conn.commit()
-        except Exception as e:
-            print(f"[job_manager] DB init error: {e}", flush=True)
+            os.chmod(self.db_path, 0o600)
+            os.chmod(JOBS_DIR, 0o700)
+        except OSError:
+            pass
 
     def _save_job_db(self, job: Dict[str, Any]):
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
-                    INSERT INTO jobs (id, action, status, progress, output_file, download_url, filename, error, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET
-                        status=excluded.status,
-                        progress=excluded.progress,
-                        output_file=excluded.output_file,
-                        download_url=excluded.download_url,
-                        filename=excluded.filename,
-                        error=excluded.error,
-                        updated_at=excluded.updated_at
-                """, (
-                    job.get("id"),
-                    job.get("action"),
-                    job.get("status"),
-                    job.get("progress", 0),
-                    job.get("output_file"),
-                    job.get("download_url"),
-                    job.get("filename"),
-                    job.get("error"),
-                    job.get("created_at", time.time()),
-                    time.time(),
-                ))
-                conn.commit()
-        except Exception as e:
-            print(f"[job_manager] DB save error: {e}", flush=True)
+        with self._connect() as conn:
+            conn.execute("""
+                UPDATE jobs SET status=?, progress=?, output_file=?, download_url=?,
+                    filename=?, error=?, updated_at=? WHERE id=?
+            """, (
+                job.get("status"), job.get("progress", 0), job.get("output_file"),
+                job.get("download_url"), job.get("filename"), job.get("error"),
+                time.time(), job.get("id"),
+            ))
+            conn.commit()
 
     def _ensure_cleaner(self):
         if not self._cleaner_started:
