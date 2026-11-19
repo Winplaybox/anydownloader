@@ -27,3 +27,7 @@ Generate distinct secrets for each variable. Do not put secret values in logs, p
 ## Rollout
 
 This Compose file fails when required secrets are missing. Before deploying, back up the current environment and verify the reverse proxy's upstream port. This change has not been deployed.
+
+## Forwarded client IP headers
+
+The API does not trust forwarded IP headers by default (`WPB_TRUST_PROXY=0`). Set `WPB_TRUST_PROXY=1` only when the public reverse proxy overwrites `X-Forwarded-For`, `X-Real-IP`, and related client-IP headers and direct access to the API is blocked. This affects IP-based rate limits, admin lockout, and IP-bound token checks.
