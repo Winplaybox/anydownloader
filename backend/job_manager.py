@@ -204,24 +204,12 @@ class JobManager:
                     except Exception as lde:
                         print(f"[job_manager] local yt-dlp task failed, trying ffmpeg stream merge: {lde}", flush=True)
 
-            # Verify and resolve tokens safely
-            import json, base64
+            # Verify tokens only through the security module; do not decode unsigned payloads.
             sources = []
             for t in tokens:
                 payload = verify_download_token(t)
                 if not payload:
-                    try:
-                        if "." in t:
-                            b64_part = t.split(".", 1)[0]
-                            padding = '=' * (4 - (len(b64_part) % 4)) if len(b64_part) % 4 != 0 else ''
-                            raw_data = json.loads(base64.urlsafe_b64decode(b64_part + padding).decode('utf-8'))
-                            candidate_u = raw_data.get("u")
-                            if candidate_u:
-                                payload = {"variant_url": candidate_u}
-                    except Exception:
-                        pass
-                if not payload:
-                    raise ValueError(f"Invalid or expired download token: {t}")
+                    raise ValueError("Invalid or expired download token.")
                 sources.append(payload["variant_url"])
 
             job["progress"] = 75
