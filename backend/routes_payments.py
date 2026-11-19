@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any, Dict
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, RedirectResponse
@@ -65,7 +66,10 @@ async def webhook_handler(request: Request) -> Response:
 
 
 async def mock_checkout_handler(request: Request) -> Response:
-    """Mock checkout landing page for sandbox testing."""
+    """Mock checkout page is disabled by default and never enabled in production."""
+    production = os.environ.get("WPB_ENV", "").lower() in ("prod", "production") or bool(os.environ.get("RENDER"))
+    if production or os.environ.get("WPB_ENABLE_MOCK_CHECKOUT", "0") != "1":
+        return JSONResponse({"ok": False, "error": "Mock checkout is disabled."}, status_code=404)
     session_id = request.query_params.get("session_id", "mock_session")
     plan_id = request.query_params.get("plan_id", "plan_1")
     user_id = request.query_params.get("user_id", "")
