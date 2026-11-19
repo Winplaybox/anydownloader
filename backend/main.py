@@ -2213,19 +2213,10 @@ DOWNLOAD_TIMEOUT_S = float(os.environ.get("OVD_DOWNLOAD_TIMEOUT_S", "300"))
 
 
 def _is_public_http_url(u: str) -> bool:
-    """Only public http(s) pages may be handed to yt-dlp (blocks SSRF to localhost / cloud metadata)."""
-    import ipaddress
-    import socket
+    """Require a syntactically safe public URL with only globally routable DNS answers."""
     try:
-        pu = urllib.parse.urlparse(u)
-        if pu.scheme not in ("http", "https") or not pu.hostname:
-            return False
-        infos = socket.getaddrinfo(pu.hostname, pu.port or (443 if pu.scheme == "https" else 80))
-        for info in infos:
-            ip = ipaddress.ip_address(info[4][0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-                return False
-        return True
+        from backend.utils.security import verify_safe_upstream_url, verify_public_dns_resolution
+        return verify_safe_upstream_url(u) and verify_public_dns_resolution(u)
     except Exception:
         return False
 
@@ -2342,8 +2333,28 @@ async def _download_via_worker(url: str, kind: str = "video", height: int = 1080
             resp = await client.post(f"{worker_url}/download", json=payload, headers=headers)
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get("ok") and data.get("url"):
-                    return data["url"]
+                result_url = data.get("url") if data.get("ok") else None
+                if isinstance(result_url, str):
+                    parsed_result = urllib.parse.urlsplit(result_url)
+                    configured_host = urllib.parse.urlsplit(worker_url).hostname
+                    extra_hosts = {
+                        value.strip().lower().rstrip(".")
+                        for value in os.environ.get("WORKER_RESULT_HOSTS", "").split(",")
+                        if value.strip()
+                    }
+                    allowed_hosts = {configured_host.lower()} if configured_host else set()
+                    allowed_hosts.update(extra_hosts)
+                    if (
+                        parsed_result.scheme == "https"
+                        and parsed_result.hostname
+                        and parsed_result.hostname.lower().rstrip(".") in allowed_hosts
+                        and parsed_result.username is None
+                        and parsed_result.password is None
+                        and parsed_result.fragment == ""
+                        and parsed_result.port in (None, 443)
+                        and await asyncio.to_thread(verify_public_dns_resolution, result_url)
+                    ):
+                        return result_url
     except Exception as e:
         print(f"[worker_download] Worker download fallback failed: {e}", flush=True)
     return None
