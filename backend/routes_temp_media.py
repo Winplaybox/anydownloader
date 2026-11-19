@@ -7,7 +7,6 @@ the MP4 here, gets a short-lived public link, publishes, then deletes it.
                                   -> {"ok", "id", "url", "expires_at", "bytes"}
     GET    /api/temp-media/{id}   public, Range-capable (Instagram/Facebook fetch it)
     DELETE /api/temp-media/{id}   X-API-Key required
-
 Files auto-expire after TEMP_MEDIA_TTL_HOURS (default 6). A Render free instance
 also wipes /tmp on every restart, so nothing piles up.
 """
@@ -41,14 +40,15 @@ _ID_RE = re.compile(r"[0-9a-f]{32}\.(?:mp4|mov|webm|mp3|m4a|wav|jpg|jpeg|png|web
 
 
 def _authorized(request) -> bool:
-    auto_key = os.environ.get("AUTOMATION_API_KEY", "wpb_auto_94de1a6c713962d8d9147c12fa32e0aa8bcccd43").strip()
-    worker_key = os.environ.get("WORKER_KEY", "wpb_worker_3047a7d0cb90d81830e004fbc0e61f6428f7e3cb").strip()
+    # No source-code fallback credentials: missing deployment secrets deny access.
+    auto_key = os.environ.get("AUTOMATION_API_KEY", "").strip()
+    worker_key = os.environ.get("WORKER_KEY", "").strip()
     worker_secret = os.environ.get("WORKER_SECRET", "").strip()
     given = request.headers.get("x-api-key", "") or request.headers.get("x-worker-key", "")
     auth = request.headers.get("authorization", "")
     if auth.startswith("Bearer "):
         given = given or auth[7:].strip()
-    
+
     if not given:
         return False
     for expected in (auto_key, worker_key, worker_secret):
