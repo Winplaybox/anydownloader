@@ -43,6 +43,25 @@ async def _auth_rate_limited(request: Request, action: str, limit: int, window: 
     return False
 
 
+
+
+async def _read_json_limited(request: Request, max_bytes: int = 32 * 1024):
+    """Read JSON without trusting Content-Length; also bounds chunked request bodies."""
+    raw = bytearray()
+    async for chunk in request.stream():
+        raw.extend(chunk)
+        if len(raw) > max_bytes:
+            raise ValueError("Request body too large.")
+    try:
+        import json
+        body = json.loads(raw or b"{}")
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise ValueError("Invalid JSON body.") from exc
+    if not isinstance(body, dict):
+        raise ValueError("JSON object expected.")
+    return body
+
+
 def _rate_limited_response() -> JSONResponse:
     return JSONResponse(
         {"ok": False, "error": "Too many authentication attempts. Please try again later."},
@@ -70,15 +89,13 @@ async def session_handler(request: Request) -> Response:
 
 async def google_auth_handler(request: Request) -> Response:
     """Verifies Google One-Tap or OAuth token and logs the user in."""
-    cl = request.headers.get("content-length", "")
-    if cl.isdigit() and int(cl) > 32 * 1024:
-        return JSONResponse({"ok": False, "error": "Request body too large."}, status_code=413)
     if await _auth_rate_limited(request, "google", 20, 900):
         return _rate_limited_response()
     try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse({"ok": False, "error": "Invalid JSON body"}, status_code=400)
+        body = await _read_json_limited(request)
+    except ValueError as exc:
+        status = 413 if "too large" in str(exc).lower() else 400
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=status)
 
     credential = body.get("credential") or body.get("id_token")
     if not credential:
@@ -125,9 +142,10 @@ async def register_handler(request: Request) -> Response:
     if await _auth_rate_limited(request, "register", 6, 3600):
         return _rate_limited_response()
     try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse({"ok": False, "error": "Invalid JSON body"}, status_code=400)
+        body = await _read_json_limited(request)
+    except ValueError as exc:
+        status = 413 if "too large" in str(exc).lower() else 400
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=status)
 
     email = body.get("email")
     password = body.get("password")
@@ -164,9 +182,10 @@ async def login_handler(request: Request) -> Response:
     if await _auth_rate_limited(request, "login", 12, 900):
         return _rate_limited_response()
     try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse({"ok": False, "error": "Invalid JSON body"}, status_code=400)
+        body = await _read_json_limited(request)
+    except ValueError as exc:
+        status = 413 if "too large" in str(exc).lower() else 400
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=status)
 
     email = body.get("email")
     if await _auth_rate_limited(request, "login-account", 12, 900, str(email or "")):
