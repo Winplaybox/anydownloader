@@ -31,6 +31,17 @@ class TestOriginAllowlist(unittest.TestCase):
         self.assertFalse(match("http://localhost:5174"))
         self.assertTrue(match("http://localhost:3000"))
 
+
+    def test_sensitive_diagnostics_handlers_require_admin(self):
+        with open(SOURCE, "r", encoding="utf-8") as handle:
+            tree = ast.parse(handle.read())
+        functions = {node.name: node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)}
+        for name in ("queue_metrics_handler", "diag_handler"):
+            self.assertIn(name, functions)
+            calls = [node for node in ast.walk(functions[name]) if isinstance(node, ast.Call)]
+            self.assertTrue(any(isinstance(call.func, ast.Name) and call.func.id == "authenticate_admin" for call in calls),
+                          f"{name} must enforce admin authentication")
+
     def test_credentials_are_rejected(self):
         match = load_origin_matcher()
         self.assertFalse(match("https://user:pass@winplaybox.in"))
