@@ -129,6 +129,14 @@ class TestDurableJobManager(unittest.IsolatedAsyncioTestCase):
             conn.commit()
         self.assertTrue(self.manager._is_cancelled(job_id))
 
+    async def test_queue_metrics_include_lease_and_age_fields(self):
+        stats = self.manager.get_stats()
+        self.assertEqual(stats["queued"], 0)
+        self.assertEqual(stats["active_leases"], 0)
+        self.assertEqual(stats["expired_leases"], 0)
+        self.assertEqual(stats["total_attempts"], 0)
+        self.assertIn("oldest_queued_age_seconds", stats)
+
     async def test_queue_schema_migrates_legacy_table(self):
         path = os.path.join(self.temp.name, "legacy.db")
         with sqlite3.connect(path) as conn:
