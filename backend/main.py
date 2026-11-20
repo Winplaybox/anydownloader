@@ -2577,6 +2577,9 @@ async def readiness_handler(request):
 
 
 async def queue_metrics_handler(request):
+    if not authenticate_admin(request):
+        return JSONResponse({"ok": False, "error": "Admin authentication required."}, status_code=401,
+                          headers={"Cache-Control": "no-store"})
     try:
         return JSONResponse(
             {"ok": True, "queue": job_manager.get_stats()},
@@ -4085,6 +4088,9 @@ async def blog_generate_handler(request):
         "message": f"Successfully published high-ranking SEO articles across {len(selected)} autonomous domains with Google Indexing Schema!"
     })
 async def diag_handler(request):
+    if not authenticate_admin(request):
+        return JSONResponse({"ok": False, "error": "Admin authentication required."}, status_code=401,
+                          headers={"Cache-Control": "no-store"})
     import shutil, subprocess
     static_paths = []
     try:
