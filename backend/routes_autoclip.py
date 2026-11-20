@@ -33,11 +33,11 @@ from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Route
 
 try:
-    from backend.autoclip import __version__, config, media, speech, store
+    from backend.autoclip import __version__, byo, config, media, models, speech, store
     from backend.autoclip.worker import inline_worker
     from backend.security.zero_trust import authenticate_admin, client_ip, rate_limit
 except (ModuleNotFoundError, ImportError):  # pragma: no cover
-    from autoclip import __version__, config, media, speech, store  # type: ignore
+    from autoclip import __version__, byo, config, media, models, speech, store  # type: ignore
     from autoclip.worker import inline_worker  # type: ignore
     from security.zero_trust import authenticate_admin, client_ip, rate_limit  # type: ignore
 
@@ -102,7 +102,7 @@ async def health(request: Request) -> Response:
     cv = await asyncio.to_thread(reframe.face_tracking_available)
     return JSONResponse({
         "ok": True, "service": "autoclip", "version": __version__, "enabled": config.ENABLED,
-        "worker": inline_worker.status(), "ffmpeg": ff, "speech": speech.available(), "face_tracking": cv,
+        "worker": inline_worker.status(), "ffmpeg": ff, "speech": speech.available(), "face_tracking": cv, "byo_ai": sorted(byo.PROVIDERS),
         "ai": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GROQ_API_KEY")
                    or os.environ.get("OPENROUTER_API_KEY")),
     }, headers=NO_STORE)
@@ -156,6 +156,12 @@ async def create_job(request: Request) -> Response:
         url = str(raw.get("url") or "").strip()
 
     settings = config.clean_settings(raw)
+    try:
+        ai = byo.build(raw.get("ai_provider"), raw.get("ai_key"), raw.get("ai_model"))
+    except byo.KeyError_ as e:
+        return _err(400, "BadKey", str(e))
+    if admin:
+        settings["server_ai"] = True  # admins/automation may use the server's shared key
     has_file = upload is not None and not isinstance(upload, str) and getattr(upload, "filename", "")
     if not has_file and not url:
         return _err(400, "SourceMissing", "Paste a video link or upload a video file.")
@@ -179,6 +185,8 @@ async def create_job(request: Request) -> Response:
                                   source_url=None if has_file else url, source_name=name,
                                   settings=settings, client=_client(request),
                                   status="uploading" if has_file else "queued")
+    if ai is not None:
+        byo.put(job["id"], ai)  # RAM only; dropped when the job ends
     if has_file:
         dest = os.path.join(store.job_dir(job["id"]), "source" + ext)
         limit = config.MAX_UPLOAD_MB * 1024 * 1024
@@ -196,16 +204,69 @@ async def create_job(request: Request) -> Response:
         except ValueError:
             await asyncio.to_thread(store.request_cancel, job["id"])
             store._unlink(dest)
+            byo.drop(job["id"])
             return _err(413, "TooLarge", f"File is larger than {config.MAX_UPLOAD_MB} MB.")
         finally:
             await upload.close()
         if size < 10_000:
+            byo.drop(job["id"])
             await asyncio.to_thread(store.request_cancel, job["id"])
             return _err(400, "BadFile", "That file is empty or broken.")
         await asyncio.to_thread(store.mark_queued, job["id"])
         job = await asyncio.to_thread(store.get, job["id"])
     return JSONResponse({"ok": True, "job": store.public(job), "token": store.job_token(job["id"])},
                         status_code=201, headers=NO_STORE)
+
+
+async def test_key(request: Request) -> Response:
+    """Checks a user's AI key with one tiny request. The key is never stored or echoed."""
+    if (d := _disabled()):
+        return d
+    if not _browser_ok(request):
+        return _err(403, "Forbidden", "Open AutoClip from the official site.")
+    ok, _ = await asyncio.to_thread(rate_limit, "autoclip:keytest", client_ip(request), 20, 600)
+    if not ok:
+        return _err(429, "RateLimited", "Too many key checks. Wait a few minutes.")
+    try:
+        body = await request.json()
+        ai = byo.build(body.get("provider"), body.get("key"), body.get("model"))
+    except byo.KeyError_ as e:
+        return _err(400, "BadKey", str(e))
+    except Exception:
+        return _err(400, "BadRequest", "Send JSON {provider, key}.")
+    if ai is None:
+        return _err(400, "BadKey", "Paste your API key first.")
+    try:
+        res = await byo.test(ai)
+    except Exception as e:  # noqa: BLE001 - message is already provider-safe; never include the key
+        return _err(422, "KeyRejected", str(e)[:200] or "That key did not work.")
+    return JSONResponse(res, headers=NO_STORE)
+
+
+async def stt_models(request: Request) -> Response:
+    if (d := _disabled()):
+        return d
+    return JSONResponse({"ok": True, **await asyncio.to_thread(models.listing)}, headers=NO_STORE)
+
+
+async def stt_install(request: Request) -> Response:
+    if (d := _disabled()):
+        return d
+    if not _browser_ok(request):
+        return _err(403, "Forbidden", "Open AutoClip from the official site.")
+    if not authenticate_admin(request, allow_bearer_jwt=False):
+        ok, _ = await asyncio.to_thread(rate_limit, "autoclip:modelinstall", client_ip(request),
+                                        config.MODEL_INSTALL_PER_DAY, 86400)
+        if not ok:
+            return _err(429, "RateLimited", "Model install limit reached for today.")
+    try:
+        body = await request.json()
+        res = await asyncio.to_thread(models.install, str(body.get("id", "")).strip().lower())
+    except ValueError as e:
+        return _err(400, "BadRequest", str(e))
+    except Exception:
+        return _err(400, "BadRequest", "Send JSON {id}.")
+    return JSONResponse({"ok": True, **res}, status_code=202, headers=NO_STORE)
 
 
 async def get_job(request: Request) -> Response:
@@ -411,6 +472,9 @@ routes_autoclip = [
     Route(f"{_P}/health", health, methods=["GET"]),
     Route(f"{_P}/options", options, methods=["GET"]),
     Route(f"{_P}/jobs", create_job, methods=["POST"]),
+    Route(f"{_P}/keys/test", test_key, methods=["POST"]),
+    Route(f"{_P}/models", stt_models, methods=["GET"]),
+    Route(f"{_P}/models/install", stt_install, methods=["POST"]),
     Route(f"{_P}/jobs/{{id}}", get_job, methods=["GET"]),
     Route(f"{_P}/jobs/{{id}}/cancel", cancel_job, methods=["POST"]),
     Route(f"{_P}/jobs/{{id}}/files/{{name}}", job_file, methods=["GET", "HEAD"]),

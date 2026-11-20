@@ -258,8 +258,10 @@ def fallback(words: List[Dict[str, Any]], z: List[float], duration: float, st: D
 # --------------------------------------------------------------------------- #
 
 async def find_clips(words: List[Dict[str, Any]], z: List[float], duration: float, st: Dict[str, Any], *,
-                     title: str = "", uploader: str = "") -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    """Returns (clips, engine_info)."""
+                     title: str = "", uploader: str = "", ai: Any = None,
+                     allow_server_ai: bool = False) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Returns (clips, engine_info). `ai` = the user's own key (byo.UserAI); the server's shared key is only
+    used when allow_server_ai is set (admins / AUTOCLIP_SERVER_AI=1)."""
     n = st["max_clips"]
     if duration < st["min_len"]:
         st = {**st, "min_len": max(5, int(duration * 0.6)), "max_len": int(duration)}
@@ -268,12 +270,16 @@ async def find_clips(words: List[Dict[str, Any]], z: List[float], duration: floa
         clips = fallback(words, z, duration, st)
         return clips, {"engine": "loudness", "reason": "not enough speech"}
 
+    if ai is None and not allow_server_ai:
+        return fallback(words, z, duration, st), {"engine": "loudness", "reason": "no_ai_key"}
+
     parts = windows(lines, duration)
     per = max(2, math.ceil(n * 1.6 / len(parts)))
     focus = f"Editor's focus from the creator: {st['focus']}\n" if st.get("focus") else ""
     found: List[Dict[str, Any]] = []
     used: Optional[str] = None
     errors = 0
+    last_err = ""
     for idx, (a, b, part_lines) in enumerate(parts):
         if len(part_lines) < 2:
             continue
@@ -281,10 +287,16 @@ async def find_clips(words: List[Dict[str, Any]], z: List[float], duration: floa
                              part=f"{idx + 1} of {len(parts)} ({a:.0f}s-{b:.0f}s of {duration:.0f}s)", focus=focus,
                              n=per, min_len=st["min_len"], max_len=st["max_len"], transcript=_fmt(part_lines)[:60000])
         try:
-            obj, res = await llm_router.complete_json(SYSTEM, user, temperature=0.4, max_tokens=4096,
-                                                      budget_s=config.LLM_BUDGET_S)
-            used = f"{res.provider}:{res.model}"
+            if ai is not None:
+                obj = await ai.complete_json(SYSTEM, user, temperature=0.4, max_tokens=4096,
+                                             budget_s=config.LLM_BUDGET_S)
+                used = f"{ai.provider}:{ai.used_model}"
+            else:
+                obj, res = await llm_router.complete_json(SYSTEM, user, temperature=0.4, max_tokens=4096,
+                                                          budget_s=config.LLM_BUDGET_S)
+                used = f"{res.provider}:{res.model}"
         except LLMError as e:
+            last_err = str(e)
             errors += 1
             log.warning("clip AI failed on part %s: %s", idx + 1, e)
             continue
@@ -298,6 +310,8 @@ async def find_clips(words: List[Dict[str, Any]], z: List[float], duration: floa
     clips = dedupe(found, n)
     if not clips:
         clips = fallback(words, z, duration, st)
-        return clips, {"engine": "loudness", "reason": "AI unavailable" if errors else "AI found nothing",
-                       "ai": used}
-    return clips, {"engine": "ai", "ai": used, "parts": len(parts), "ai_errors": errors}
+        return clips, {"engine": "loudness", "reason": "ai_failed" if errors else "ai_found_nothing",
+                       "ai": used, "ai_error": last_err[:200] if errors else None,
+                       "usage": ai.public() if ai is not None else None}
+    return clips, {"engine": "ai", "ai": used, "parts": len(parts), "ai_errors": errors,
+                   "byo": ai is not None, "usage": ai.public() if ai is not None else None}

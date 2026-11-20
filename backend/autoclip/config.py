@@ -44,6 +44,18 @@ COOKIES_FILE = _e("AUTOCLIP_COOKIES_FILE", "")
 LLM_BUDGET_S = _int("AUTOCLIP_LLM_BUDGET_S", 90, 10, 600)
 WINDOW_SECONDS = _int("AUTOCLIP_WINDOW_SECONDS", 600, 120, 1800)
 
+# Who pays for AI: users bring their own key (BYO). The server's shared key is only used for admins/automation
+# unless the owner explicitly opens it to everyone with AUTOCLIP_SERVER_AI=1.
+SERVER_AI_FOR_ALL = _e("AUTOCLIP_SERVER_AI", "0") == "1"
+# Speech models users can install on the server (faster-whisper is multilingual: one model covers every language).
+STT_MODELS = [
+    {"id": "tiny", "name": "Fast", "size_mb": 75, "desc": "Fastest, fine for clear speech"},
+    {"id": "base", "name": "Balanced", "size_mb": 145, "desc": "Good default for most videos"},
+    {"id": "small", "name": "Accurate", "size_mb": 480, "desc": "Best for Indian languages and noisy audio (slower)"},
+]
+STT_IDS = {m["id"] for m in STT_MODELS}
+MODEL_INSTALL_PER_DAY = _int("AUTOCLIP_MODEL_INSTALLS_PER_DAY", 3, 0, 50)
+
 # Job access tokens: HMAC(secret, job_id). Falls back to the API-wide JOB_OWNER_SECRET.
 SECRET = (_e("AUTOCLIP_SECRET") or _e("JOB_OWNER_SECRET") or "").strip()
 
@@ -79,12 +91,22 @@ LAYOUTS = [
     {"id": "fit", "name": "Fit + blur", "desc": "Whole frame, blurred background (slides, gameplay, screens)"},
 ]
 LANGUAGES = [
-    {"id": "auto", "name": "Auto detect"}, {"id": "hi", "name": "Hindi / Hinglish"}, {"id": "en", "name": "English"},
-    {"id": "mr", "name": "Marathi"}, {"id": "gu", "name": "Gujarati"}, {"id": "bn", "name": "Bengali"},
-    {"id": "ta", "name": "Tamil"}, {"id": "te", "name": "Telugu"}, {"id": "kn", "name": "Kannada"},
-    {"id": "ml", "name": "Malayalam"}, {"id": "pa", "name": "Punjabi"}, {"id": "ur", "name": "Urdu"},
-    {"id": "es", "name": "Spanish"}, {"id": "pt", "name": "Portuguese"}, {"id": "fr", "name": "French"},
-    {"id": "de", "name": "German"}, {"id": "ar", "name": "Arabic"}, {"id": "id", "name": "Indonesian"},
+    {"id": "auto", "name": "Auto detect"},
+    {"id": "hi", "name": "Hindi / Hinglish"}, {"id": "en", "name": "English"}, {"id": "mr", "name": "Marathi"},
+    {"id": "gu", "name": "Gujarati"}, {"id": "bn", "name": "Bengali"}, {"id": "ta", "name": "Tamil"},
+    {"id": "te", "name": "Telugu"}, {"id": "kn", "name": "Kannada"}, {"id": "ml", "name": "Malayalam"},
+    {"id": "pa", "name": "Punjabi"}, {"id": "ur", "name": "Urdu"}, {"id": "ne", "name": "Nepali"},
+    {"id": "si", "name": "Sinhala"}, {"id": "es", "name": "Spanish"}, {"id": "pt", "name": "Portuguese"},
+    {"id": "fr", "name": "French"}, {"id": "de", "name": "German"}, {"id": "it", "name": "Italian"},
+    {"id": "nl", "name": "Dutch"}, {"id": "sv", "name": "Swedish"}, {"id": "da", "name": "Danish"},
+    {"id": "no", "name": "Norwegian"}, {"id": "fi", "name": "Finnish"}, {"id": "pl", "name": "Polish"},
+    {"id": "cs", "name": "Czech"}, {"id": "ro", "name": "Romanian"}, {"id": "hu", "name": "Hungarian"},
+    {"id": "el", "name": "Greek"}, {"id": "ru", "name": "Russian"}, {"id": "uk", "name": "Ukrainian"},
+    {"id": "tr", "name": "Turkish"}, {"id": "ar", "name": "Arabic"}, {"id": "fa", "name": "Persian"},
+    {"id": "he", "name": "Hebrew"}, {"id": "id", "name": "Indonesian"}, {"id": "ms", "name": "Malay"},
+    {"id": "vi", "name": "Vietnamese"}, {"id": "th", "name": "Thai"}, {"id": "tl", "name": "Filipino"},
+    {"id": "ja", "name": "Japanese"}, {"id": "ko", "name": "Korean"}, {"id": "zh", "name": "Chinese"},
+    {"id": "sw", "name": "Swahili"}, {"id": "af", "name": "Afrikaans"},
 ]
 STYLE_IDS = {s["id"] for s in CAPTION_STYLES}
 LAYOUT_IDS = {s["id"] for s in LAYOUTS}
@@ -92,10 +114,14 @@ LANG_IDS = {s["id"] for s in LANGUAGES}
 RESOLUTIONS = [720, 1080]
 
 FONT_BY_LANG = {
-    "hi": "Noto Sans Devanagari Black", "mr": "Noto Sans Devanagari Black", "gu": "Noto Sans Gujarati Black",
-    "bn": "Noto Sans Bengali Black", "ta": "Noto Sans Tamil Black", "te": "Noto Sans Telugu Black",
-    "kn": "Noto Sans Kannada Black", "ml": "Noto Sans Malayalam Black", "pa": "Noto Sans Gurmukhi Black",
-    "ur": "Noto Sans Arabic Black", "ar": "Noto Sans Arabic Black",
+    "hi": "Noto Sans Devanagari Black", "mr": "Noto Sans Devanagari Black", "ne": "Noto Sans Devanagari Black",
+    "gu": "Noto Sans Gujarati Black", "bn": "Noto Sans Bengali Black", "ta": "Noto Sans Tamil Black",
+    "te": "Noto Sans Telugu Black", "kn": "Noto Sans Kannada Black", "ml": "Noto Sans Malayalam Black",
+    "pa": "Noto Sans Gurmukhi Black", "ur": "Noto Sans Arabic Black", "ar": "Noto Sans Arabic Black",
+    "fa": "Noto Sans Arabic Black",
+    # Not bundled: resolved by fontconfig on the server (apt: fonts-noto-core fonts-noto-cjk). Falls back safely.
+    "ja": "Noto Sans CJK JP", "ko": "Noto Sans CJK KR", "zh": "Noto Sans CJK SC", "th": "Noto Sans Thai",
+    "he": "Noto Sans Hebrew", "si": "Noto Sans Sinhala",
 }
 DEFAULT_FONT = "Inter Black"
 
@@ -122,6 +148,7 @@ def clean_settings(raw: Dict[str, Any]) -> Dict[str, Any]:
         res = int(str(raw.get("resolution", 1080)).lower().replace("p", ""))
     except ValueError:
         res = 1080
+    stt = str(raw.get("stt_model", "auto")).strip().lower()
     focus = re.sub(r"\s+", " ", str(raw.get("focus", "") or "")).strip()[:300]
     return {
         "max_clips": int(num("max_clips", 5, 1, 12)),
@@ -134,12 +161,13 @@ def clean_settings(raw: Dict[str, Any]) -> Dict[str, Any]:
         "resolution": res if res in RESOLUTIONS else 1080,
         "hook": str(raw.get("hook", "1")).lower() not in ("0", "false", "no", "off"),
         "focus": focus,
+        "stt_model": stt if stt in STT_IDS else "auto",
     }
 
 
 def public_options() -> Dict[str, Any]:
     return {
-        "caption_styles": CAPTION_STYLES, "layouts": LAYOUTS, "languages": LANGUAGES, "resolutions": RESOLUTIONS,
+        "caption_styles": CAPTION_STYLES, "layouts": LAYOUTS, "languages": LANGUAGES, "resolutions": RESOLUTIONS, "stt_models": STT_MODELS,
         "limits": {"daily": DAILY_LIMIT, "max_upload_mb": MAX_UPLOAD_MB, "max_source_minutes": MAX_SOURCE_MINUTES,
                    "max_clips": 12, "retention_hours": RETENTION_HOURS},
         "source_domains": SOURCE_DOMAINS,

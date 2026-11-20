@@ -11,4 +11,4 @@ Compute runs either inline (inside the API process) or on a remote worker
 (`python -m backend.autoclip.worker`) that talks to `/api/autoclip/workers/*` over HTTPS.
 """
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"

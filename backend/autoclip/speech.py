@@ -23,7 +23,28 @@ def available() -> bool:
     return _ed_tr.available()
 
 
-def _model():
+_sized: Dict[str, Any] = {}
+
+
+def _cache_root() -> Optional[str]:
+    cache = os.environ.get("EDITOR_CACHE_DIR")
+    return os.path.join(cache, "whisper") if cache else None
+
+
+def _model(name: str = "auto"):
+    if name and name != "auto" and name in config.STT_IDS:
+        from . import models  # local import: models imports this module's helpers lazily
+
+        if models.installed(name):
+            with _own_lock:
+                if name not in _sized:
+                    from faster_whisper import WhisperModel
+
+                    _sized.clear()  # keep at most one extra model in RAM (8 GB box)
+                    _sized[name] = (WhisperModel(name, device="cpu", compute_type="int8",
+                                                 download_root=_cache_root(), local_files_only=True),
+                                    threading.Lock())
+            return _sized[name]
     want = config.WHISPER_MODEL.strip()
     if not want or want == os.environ.get("EDITOR_WHISPER_MODEL", "base"):
         return _ed_tr._get_model(), _ed_tr._lock
@@ -40,12 +61,12 @@ def _model():
 
 
 def transcribe(wav16k: str, duration: float, language: Optional[str] = None,
-               progress: Optional[Callable[[float], bool]] = None) -> Dict[str, Any]:
+               progress: Optional[Callable[[float], bool]] = None, model_name: str = "auto") -> Dict[str, Any]:
     """Returns {language, words:[{w,s,e}], text}. progress(frac) returning False aborts (cancel)."""
     if not available():
         log.warning("faster-whisper not installed; clips will be picked by loudness only")
         return {"language": language, "words": [], "text": ""}
-    model, lock = _model()
+    model, lock = _model(model_name)
     lang = None if (not language or language == "auto") else language.split("-")[0]
     words: List[Dict[str, Any]] = []
     texts: List[str] = []

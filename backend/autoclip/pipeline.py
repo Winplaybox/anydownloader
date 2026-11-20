@@ -14,7 +14,7 @@ import shutil
 import time
 from typing import Any, Awaitable, Callable, Dict, Optional
 
-from . import __version__, brain, clipper, media, speech
+from . import __version__, brain, byo, clipper, config, media, speech
 
 log = logging.getLogger("autoclip.pipeline")
 
@@ -101,13 +101,15 @@ async def run(spec: Dict[str, Any], workdir: str, report: Report, *, source_path
             z = media.zscores(await asyncio.to_thread(media.loudness_per_second, wav))
             # 3. transcript -------------------------------------------------------
             await push("transcribing")
-            tr = await asyncio.to_thread(speech.transcribe, wav, dur, lang, prog)
+            tr = await asyncio.to_thread(speech.transcribe, wav, dur, lang, prog, st.get("stt_model", "auto"))
             words, lang = tr["words"], tr.get("language") or lang
             _unlink(wav)
 
         # 4. pick moments -------------------------------------------------------
         await push("finding", 0.2)
-        picks, engine = await brain.find_clips(words, z, dur, st, title=title, uploader=uploader)
+        ai = byo.get(spec["id"]) if spec.get("id") else None
+        picks, engine = await brain.find_clips(words, z, dur, st, title=title, uploader=uploader, ai=ai,
+                                               allow_server_ai=bool(st.get("server_ai")) or config.SERVER_AI_FOR_ALL)
         if not picks:
             raise media.SourceError("No clip-worthy moments found in this video.")
         await push("finding", 1.0)
