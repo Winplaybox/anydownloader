@@ -48,6 +48,33 @@ class TestDurableJobManager(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(claim1["id"], job_id)
         self.assertIsNone(claim2)
 
+    async def test_multi_manager_claim_race_claims_job_once(self):
+        job_id, owner_token = await self._create()
+        second = job_module.JobManager()
+        second.db_path = self.manager.db_path
+
+        # Start both managers together against the same SQLite queue. BEGIN IMMEDIATE
+        # must serialize the claim transaction so one lease is issued only once.
+        import threading
+        barrier = threading.Barrier(2)
+
+        def claim(manager):
+            barrier.wait(timeout=5)
+            return manager._claim_next_job()
+
+        claims = await asyncio.gather(
+            asyncio.to_thread(claim, self.manager),
+            asyncio.to_thread(claim, second),
+        )
+        successful = [claim for claim in claims if claim is not None]
+        self.assertEqual(len(successful), 1)
+        self.assertEqual(successful[0]["id"], job_id)
+
+        persisted = self.manager.get_job(job_id)
+        self.assertEqual(persisted["status"], "processing")
+        self.assertEqual(persisted["attempts"], 1)
+        self.assertIsNotNone(persisted.get("lease_owner"))
+
     async def test_owner_can_cancel_queued_job(self):
         job_id, owner_token = await self._create()
         self.assertTrue(self.manager.cancel_job(job_id, owner_token))
