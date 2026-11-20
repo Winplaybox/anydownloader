@@ -446,19 +446,23 @@ class JobManager:
         await communication
         raise RuntimeError("FFmpeg job exceeded the 15-minute execution limit.")
 
+    async def _heartbeat_once_for_test(self, job_id: str) -> bool:
+        """Renew only a still-live, owned lease; never revive expiry or cancellation."""
+        now = time.time()
+        with self._connect() as conn:
+            updated = conn.execute("""
+                UPDATE jobs SET lease_expires_at=?, updated_at=?
+                WHERE id=? AND status='processing' AND lease_owner=?
+                    AND lease_expires_at >= ? AND cancel_requested=0
+            """, (now + self.lease_seconds, now, job_id, self.worker_id, now))
+            conn.commit()
+            return updated.rowcount == 1
+
     async def _heartbeat(self, job_id: str):
         while True:
             await asyncio.sleep(max(10, self.lease_seconds // 3))
-            with self._connect() as conn:
-                now = time.time()
-                updated = conn.execute("""
-                    UPDATE jobs SET lease_expires_at=?, updated_at=?
-                    WHERE id=? AND status='processing' AND lease_owner=?
-                    AND lease_expires_at >= ? AND cancel_requested=0
-                """, (now + self.lease_seconds, now, job_id, self.worker_id, now))
-                conn.commit()
-                if updated.rowcount != 1:
-                    return
+            if not await self._heartbeat_once_for_test(job_id):
+                return
 
     async def _worker_loop(self):
         while True:
