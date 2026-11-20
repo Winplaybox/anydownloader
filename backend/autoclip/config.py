@@ -28,8 +28,10 @@ MAX_ATTEMPTS = _int("AUTOCLIP_MAX_ATTEMPTS", 2, 1, 5)
 
 # Abuse limits (admins via X-Admin-Key are unlimited)
 DAILY_LIMIT = _int("AUTOCLIP_DAILY_LIMIT", 3, 0, 1000)
-MAX_UPLOAD_MB = _int("AUTOCLIP_MAX_UPLOAD_MB", 500, 10, 4096)
-MAX_SOURCE_MINUTES = _int("AUTOCLIP_MAX_SOURCE_MINUTES", 90, 1, 600)
+MAX_UPLOAD_MB = _int("AUTOCLIP_MAX_UPLOAD_MB", 500, 0, 1_000_000)  # 0 = unlimited
+MAX_SOURCE_MINUTES = _int("AUTOCLIP_MAX_SOURCE_MINUTES", 90, 0, 100_000)  # 0 = unlimited
+MIN_FREE_GB = _int("AUTOCLIP_MIN_FREE_GB", 3, 0, 10_000)  # refuse new work below this much free disk (protects the server)
+MAX_CLIPS = _int("AUTOCLIP_MAX_CLIPS", 12, 1, 50)
 MAX_QUEUED = _int("AUTOCLIP_MAX_QUEUED", 20, 1, 500)
 RETENTION_HOURS = _int("AUTOCLIP_RETENTION_HOURS", 24, 1, 24 * 30)
 
@@ -151,7 +153,7 @@ def clean_settings(raw: Dict[str, Any]) -> Dict[str, Any]:
     stt = str(raw.get("stt_model", "auto")).strip().lower()
     focus = re.sub(r"\s+", " ", str(raw.get("focus", "") or "")).strip()[:300]
     return {
-        "max_clips": int(num("max_clips", 5, 1, 12)),
+        "max_clips": int(num("max_clips", 5, 1, MAX_CLIPS)),
         "min_len": min_len,
         "max_len": max_len,
         "caption_style": style if style in STYLE_IDS else "pop",
@@ -169,7 +171,7 @@ def public_options() -> Dict[str, Any]:
     return {
         "caption_styles": CAPTION_STYLES, "layouts": LAYOUTS, "languages": LANGUAGES, "resolutions": RESOLUTIONS, "stt_models": STT_MODELS,
         "limits": {"daily": DAILY_LIMIT, "max_upload_mb": MAX_UPLOAD_MB, "max_source_minutes": MAX_SOURCE_MINUTES,
-                   "max_clips": 12, "retention_hours": RETENTION_HOURS},
+                   "max_clips": MAX_CLIPS, "retention_hours": RETENTION_HOURS},
         "source_domains": SOURCE_DOMAINS,
     }
 
@@ -181,3 +183,15 @@ def origin_allowed(origin: str) -> bool:
     if o in ALLOWED_ORIGINS or ORIGIN_RE.match(o):
         return True
     return bool(ALLOW_DEV and DEV_ORIGIN_RE.match(o))
+
+
+def disk_ok() -> bool:
+    """False when the data disk is nearly full, so we stop accepting work instead of crashing the box."""
+    import shutil
+    if not MIN_FREE_GB:
+        return True
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        return shutil.disk_usage(DATA_DIR).free >= MIN_FREE_GB * 1e9
+    except OSError:
+        return True

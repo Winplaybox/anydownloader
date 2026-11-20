@@ -264,3 +264,41 @@ def test_upload_job_and_full_remote_worker_flow(client, monkeypatch):
     assert client.get(f"/api/autoclip/jobs/{jid}/files/clip_01.mp4").status_code == 404
     z = client.get(f"/api/autoclip/jobs/{jid}/zip", params={"t": tok})
     assert z.status_code == 200 and z.content[:2] == b"PK"
+
+
+# --------------------------------------------------------------------------- #
+# unlimited mode + disk guard
+# --------------------------------------------------------------------------- #
+
+def _clear_queue():
+    while (j := store.claim("cleanup")):
+        store.fail(j["id"], "cleanup", "x")
+
+
+def test_upload_limit_enforced_then_unlimited(client, monkeypatch):
+    monkeypatch.setattr(config, "DAILY_LIMIT", 0)
+    _clear_queue()
+    big = b"\x00" * (2 * 1024 * 1024)
+    monkeypatch.setattr(config, "MAX_UPLOAD_MB", 1)
+    r = client.post("/api/autoclip/jobs", files={"file": ("a.mp4", big, "video/mp4")}, headers=ORIGIN)
+    assert r.status_code == 413 and r.json()["code"] == "TooLarge"
+    monkeypatch.setattr(config, "MAX_UPLOAD_MB", 0)  # 0 = unlimited
+    r = client.post("/api/autoclip/jobs", files={"file": ("a.mp4", big, "video/mp4")}, headers=ORIGIN)
+    assert r.status_code == 201, r.text
+    _clear_queue()
+
+
+def test_disk_guard_refuses_new_work_when_full(client, monkeypatch):
+    monkeypatch.setattr(config, "DAILY_LIMIT", 0)
+    _clear_queue()
+    monkeypatch.setattr(config, "MIN_FREE_GB", 10**9)
+    r = client.post("/api/autoclip/jobs", json={"url": "https://youtu.be/abc"}, headers=ORIGIN)
+    assert r.status_code == 503 and r.json()["code"] == "Busy"
+    monkeypatch.setattr(config, "MIN_FREE_GB", 0)
+    assert config.disk_ok() is True
+    monkeypatch.setattr(config, "MIN_FREE_GB", 10**9)
+    assert config.disk_ok() is False
+
+
+def test_zero_means_no_duration_cap():
+    assert config.MAX_SOURCE_MINUTES >= 0 and config.MAX_UPLOAD_MB >= 0

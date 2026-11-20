@@ -123,6 +123,8 @@ async def create_job(request: Request) -> Response:
         return _err(403, "Forbidden", "Open AutoClip from the official site.")
     admin = bool(authenticate_admin(request, allow_bearer_jwt=False))
     if not admin:
+        if not await asyncio.to_thread(config.disk_ok):
+            return _err(503, "Busy", "AutoClip is full for now. Try again later.", retry_after=300)
         if await asyncio.to_thread(store.queued_count) >= config.MAX_QUEUED:
             return _err(503, "Busy", "AutoClip is busy right now. Try again in a few minutes.", retry_after=120)
         ok, _ = await asyncio.to_thread(rate_limit, "autoclip:burst", client_ip(request), 6, 600)
@@ -189,7 +191,7 @@ async def create_job(request: Request) -> Response:
         byo.put(job["id"], ai)  # RAM only; dropped when the job ends
     if has_file:
         dest = os.path.join(store.job_dir(job["id"]), "source" + ext)
-        limit = config.MAX_UPLOAD_MB * 1024 * 1024
+        limit = config.MAX_UPLOAD_MB * 1024 * 1024 if config.MAX_UPLOAD_MB else 0  # 0 = unlimited
         size = 0
         try:
             with open(dest, "wb") as f:
@@ -198,13 +200,17 @@ async def create_job(request: Request) -> Response:
                     if not chunk:
                         break
                     size += len(chunk)
-                    if size > limit:
+                    if limit and size > limit:
                         raise ValueError("too big")
                     f.write(chunk)
+                    if size % (256 << 20) < (1 << 20) and not await asyncio.to_thread(config.disk_ok):
+                        raise ValueError("disk full")
         except ValueError:
             await asyncio.to_thread(store.request_cancel, job["id"])
             store._unlink(dest)
             byo.drop(job["id"])
+            if not await asyncio.to_thread(config.disk_ok):
+                return _err(507, "Full", "The server ran out of space for this file. Try again later or use AutoClip Desktop.")
             return _err(413, "TooLarge", f"File is larger than {config.MAX_UPLOAD_MB} MB.")
         finally:
             await upload.close()

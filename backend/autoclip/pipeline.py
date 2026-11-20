@@ -89,7 +89,7 @@ async def run(spec: Dict[str, Any], workdir: str, report: Report, *, source_path
         dur = float(info["duration"] or 0)
         if dur <= 3:
             raise media.SourceError("Video is too short to clip.")
-        if dur > media.config.MAX_SOURCE_MINUTES * 60 + 30:
+        if media.config.MAX_SOURCE_MINUTES and dur > media.config.MAX_SOURCE_MINUTES * 60 + 30:
             raise media.SourceError(f"Video is {dur / 60:.0f} min. The limit is {media.config.MAX_SOURCE_MINUTES} min.")
         await push("analyzing", 0.4, duration=dur)
 
