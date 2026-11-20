@@ -98,11 +98,12 @@ class JobManager:
         with self._connect() as conn:
             conn.execute("""
                 UPDATE jobs SET status=?, progress=?, output_file=?, download_url=?,
-                    filename=?, error=?, updated_at=? WHERE id=?
+                    filename=?, error=?, updated_at=? WHERE id=? AND lease_owner=?
+                    AND lease_expires_at >= ?
             """, (
                 job.get("status"), job.get("progress", 0), job.get("output_file"),
                 job.get("download_url"), job.get("filename"), job.get("error"),
-                time.time(), job.get("id"),
+                time.time(), job.get("id"), job.get("lease_owner"), time.time(),
             ))
             conn.commit()
 
@@ -462,7 +463,7 @@ class JobManager:
                 job_id = claimed["id"]
                 job = {k: claimed.get(k) for k in (
                     "id", "action", "status", "progress", "output_file",
-                    "download_url", "filename", "error", "created_at",
+                    "download_url", "filename", "error", "created_at", "lease_owner",
                 )}
                 self.jobs[job_id] = job
                 heartbeat = asyncio.create_task(self._heartbeat(job_id))
@@ -530,22 +531,52 @@ class JobManager:
         return job
 
     def get_stats(self):
+        now = time.time()
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT status, COUNT(*) AS total FROM jobs GROUP BY status"
             ).fetchall()
             totals = {row["status"]: int(row["total"]) for row in rows}
+            queued = conn.execute(
+                "SELECT COUNT(*) AS count, MIN(created_at) AS oldest FROM jobs WHERE status='queued'"
+            ).fetchone()
+            processing = conn.execute(
+                "SELECT COUNT(*) AS count FROM jobs WHERE status='processing' AND lease_expires_at >= ?",
+                (now,),
+            ).fetchone()
+            expired = conn.execute(
+                "SELECT COUNT(*) AS count FROM jobs WHERE status='processing' AND lease_expires_at < ?",
+                (now,),
+            ).fetchone()
+            attempts = conn.execute("SELECT COALESCE(SUM(attempts), 0) AS total FROM jobs").fetchone()
         return {
             "counts": totals,
+            "queued": int(queued["count"] or 0),
+            "oldest_queued_age_seconds": max(0, int(now - queued["oldest"])) if queued["oldest"] else 0,
+            "active_leases": int(processing["count"] or 0),
+            "expired_leases": int(expired["count"] or 0),
+            "total_attempts": int(attempts["total"] or 0),
             "worker_running": bool(self._worker_task and not self._worker_task.done()),
             "lease_seconds": self.lease_seconds,
             "max_attempts": self.max_attempts,
         }
 
     def _is_cancelled(self, job_id: str) -> bool:
+        """Abort processing when cancellation is requested or this worker lost its lease."""
+        now = time.time()
         with self._connect() as conn:
-            row = conn.execute("SELECT cancel_requested FROM jobs WHERE id=?", (job_id,)).fetchone()
-        return bool(row and row["cancel_requested"])
+            row = conn.execute(
+                "SELECT cancel_requested, status, lease_owner, lease_expires_at FROM jobs WHERE id=?",
+                (job_id,),
+            ).fetchone()
+        return bool(
+            not row
+            or row["cancel_requested"]
+            or row["status"] != "processing"
+            or row["lease_owner"] != self.worker_id
+            or row["lease_expires_at"] is None
+            or row["lease_expires_at"] < now
+        )
 
     async def _process_job(self, job_id: str, tokens: List[str], action: str, source_url: Optional[str] = None, height: int = 1080):
         source_files = []
