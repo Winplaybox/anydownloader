@@ -41,3 +41,16 @@ This is the tracking checklist for the remaining work. Items are not marked comp
 - Deployment configuration review
 - Rollback rehearsal record
 
+
+
+## Consolidated hardening batch status (PR)
+- [x] Heartbeat renewal is fenced by an unexpired lease and stops when cancellation is requested.
+- [ ] DNS-to-socket pinning and outbound transport enforcement.
+- [ ] Route authorization/ownership audit and fixes across all route groups.
+- [ ] Worker request signing, replay protection, and network isolation.
+- [ ] Artifact canonicalization/symlink and ownership cleanup audit.
+- [ ] Production secrets/startup fail-closed audit.
+- [ ] OAuth lifecycle/state/nonce coverage.
+- [ ] Crash/restart, cancellation, retry and stale-worker integration suite.
+- [ ] Observability/readiness/error schema/OpenAPI/operational thresholds.
+- [ ] Load/soak/rollback evidence. These require deployment infrastructure and CI execution; not asserted complete in this PR.
