@@ -14,7 +14,11 @@ from starlette.routing import Route
 STORE_DIR = os.environ.get("TEMP_MEDIA_DIR") or os.path.join(tempfile.gettempdir(), "ovd_temp_media")
 TTL_SECONDS = int(float(os.environ.get("TEMP_MEDIA_TTL_HOURS", "6")) * 3600)
 MAX_BYTES = int(os.environ.get("TEMP_MEDIA_MAX_MB", "300")) * 1024 * 1024
-IS_PRODUCTION = os.environ.get("WPB_ENV", "").lower() in ("prod", "production") or bool(os.environ.get("RENDER"))
+def _is_production() -> bool:
+    return os.environ.get("WPB_ENV", "").lower() in ("prod", "production") or bool(os.environ.get("RENDER"))
+
+
+IS_PRODUCTION = _is_production()
 ALLOWED_EXT = {
     "mp4": "video/mp4", "mov": "video/quicktime", "webm": "video/webm",
     "mp3": "audio/mpeg", "m4a": "audio/mp4", "wav": "audio/wav",
@@ -24,6 +28,12 @@ _ID_RE = re.compile(r"[0-9a-f]{32}\.(?:mp4|mov|webm|mp3|m4a|wav|jpg|jpeg|png|web
 
 
 def _authorized(request) -> bool:
+    try:
+        from backend.security.zero_trust import authenticate_service
+    except (ModuleNotFoundError, ImportError):  # pragma: no cover
+        from security.zero_trust import authenticate_service  # type: ignore
+    if authenticate_service(request, "media:upload"):
+        return True
     auto_key = os.environ.get("AUTOMATION_API_KEY", "").strip()
     worker_key = os.environ.get("WORKER_KEY", "").strip()
     worker_secret = os.environ.get("WORKER_SECRET", "").strip()
@@ -82,8 +92,8 @@ def _validated_base_url(value: str, require_https: bool = False) -> str:
 def _public_base(request) -> str:
     configured = os.environ.get("PUBLIC_BASE_URL", "").strip()
     if configured:
-        return _validated_base_url(configured, require_https=IS_PRODUCTION)
-    if IS_PRODUCTION:
+        return _validated_base_url(configured, require_https=_is_production())
+    if _is_production():
         raise RuntimeError("PUBLIC_BASE_URL must be configured in production.")
 
     # Development fallback: never trust forwarded headers or accept a malformed Host.

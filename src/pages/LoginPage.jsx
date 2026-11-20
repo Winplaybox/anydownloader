@@ -157,8 +157,8 @@ export default function LoginPage() {
     setError('');
     setSuccessMsg('');
 
-    if (!email || !email.includes('@')) {
-      setError('Please enter a valid email address.');
+    if (!email || email.trim().length < 3) {
+      setError('Please enter your email or username.');
       return;
     }
     if (!password) {
@@ -172,7 +172,7 @@ export default function LoginPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ identifier: email.trim(), password })
       });
       const data = await res.json();
 
@@ -183,7 +183,7 @@ export default function LoginPage() {
         setSuccessMsg('Logged in successfully!');
         setTimeout(() => navigate(returnTo), 500);
       } else {
-        setError(data.error || 'Invalid email or password.');
+        setError(data.error || 'Incorrect email/username or password.');
       }
     } catch (err) {
       setError(err.message || 'Unable to connect to authentication server.');
@@ -253,15 +253,17 @@ export default function LoginPage() {
         {/* System 2: Valid Email & Password Form */}
         <form onSubmit={handleEmailLogin} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">Email Address</label>
+            <label className="block text-xs font-semibold text-[var(--text)] mb-1.5">Email or Username</label>
             <div className="relative">
               <Mail className="w-4 h-4 text-[var(--text-muted)] absolute left-3.5 top-3" />
               <input
-                type="email"
+                type="text"
                 required
+                autoComplete="username"
+                autoCapitalize="none"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
+                placeholder="name@example.com or your_username"
                 className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-10 pr-3.5 py-2.5 text-xs text-[var(--text)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--primary)] transition-colors"
               />
             </div>

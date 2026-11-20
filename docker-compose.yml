@@ -1,60 +1,162 @@
+# OVD production stack for one VPS (Hostinger KVM 2).
+#
+#   Internet --443--> caddy --> api:8000            (api.winplaybox.in)
+#                                  |  Redis queue
+#                               editor-worker x1    (no public port)
+#   redis: private network only, password protected, no host port.
+#
+# Secrets come from .env (see deploy/env.production.example). Never commit .env.
+x-app-env: &app-env
+  WPB_ENV: production
+  WPB_TRUST_PROXY: "1"
+  PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL}"
+  ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-https://ovd.winplaybox.in,https://winplaybox.in,https://www.winplaybox.in}"
+  ALLOW_GENERIC_URLS: "${ALLOW_GENERIC_URLS:-true}"
+  REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379/0"
+  EDITOR_QUEUE: redis
+  ADMIN_API_KEY: "${ADMIN_API_KEY:?Set ADMIN_API_KEY}"
+  WPB_ADMIN_EMAILS: "${WPB_ADMIN_EMAILS:-}"
+  WPB_JWT_SECRET: "${WPB_JWT_SECRET:?Set WPB_JWT_SECRET}"
+  TOKEN_HMAC_SECRET: "${TOKEN_HMAC_SECRET:?Set TOKEN_HMAC_SECRET}"
+  EXTENSION_SECRET_KEY: "${EXTENSION_SECRET_KEY:?Set EXTENSION_SECRET_KEY}"
+  WPB_VAULT_SECRET: "${WPB_VAULT_SECRET:?Set WPB_VAULT_SECRET}"
+  JOB_OWNER_SECRET: "${JOB_OWNER_SECRET:?Set JOB_OWNER_SECRET}"
+  SERVICE_TOKEN_PEPPER: "${SERVICE_TOKEN_PEPPER:?Set SERVICE_TOKEN_PEPPER}"
+  GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID}"
+  DODO_PAYMENTS_API_KEY: "${DODO_PAYMENTS_API_KEY:-}"
+  DODO_PAYMENTS_WEBHOOK_SECRET: "${DODO_PAYMENTS_WEBHOOK_SECRET:-}"
+  DODO_PAYMENTS_ENV: "${DODO_PAYMENTS_ENV:-live}"
+  DODO_RETURN_URL: "${DODO_RETURN_URL:-https://ovd.winplaybox.in/payment/success}"
+  DODO_PRODUCT_PLAN1: "${DODO_PRODUCT_PLAN1:-}"
+  DODO_PRODUCT_PLAN2: "${DODO_PRODUCT_PLAN2:-}"
+  DODO_PRODUCT_PLAN3: "${DODO_PRODUCT_PLAN3:-}"
+  DODO_PRODUCT_PLAN4: "${DODO_PRODUCT_PLAN4:-}"
+  DODO_PRODUCT_PLAN5: "${DODO_PRODUCT_PLAN5:-}"
+  DODO_PRODUCT_PLAN6: "${DODO_PRODUCT_PLAN6:-}"
+  DODO_PRODUCT_PLAN1_YEARLY: "${DODO_PRODUCT_PLAN1_YEARLY:-}"
+  DODO_PRODUCT_PLAN2_YEARLY: "${DODO_PRODUCT_PLAN2_YEARLY:-}"
+  DODO_PRODUCT_PLAN3_YEARLY: "${DODO_PRODUCT_PLAN3_YEARLY:-}"
+  DODO_PRODUCT_PLAN4_YEARLY: "${DODO_PRODUCT_PLAN4_YEARLY:-}"
+  DODO_PRODUCT_PLAN5_YEARLY: "${DODO_PRODUCT_PLAN5_YEARLY:-}"
+  DODO_PRODUCT_PLAN6_YEARLY: "${DODO_PRODUCT_PLAN6_YEARLY:-}"
+  DODO_PRODUCT_DAY_PASS: "${DODO_PRODUCT_DAY_PASS:-}"
+  DODO_PRODUCT_PACK_100: "${DODO_PRODUCT_PACK_100:-}"
+  DODO_PRODUCT_PACK_300: "${DODO_PRODUCT_PACK_300:-}"
+  DODO_PRODUCT_PACK_500: "${DODO_PRODUCT_PACK_500:-}"
+  DODO_PRODUCT_PACK_1500: "${DODO_PRODUCT_PACK_1500:-}"
+  AUTOMATION_API_KEY: "${AUTOMATION_API_KEY:-}"
+  WORKER_URL: "${WORKER_URL:-}"
+  WORKER_SECRET: "${WORKER_SECRET:-}"
+  WORKER_KEY: "${WORKER_KEY:-}"
+  WORKER_RESULT_HOSTS: "${WORKER_RESULT_HOSTS:-}"
+  WPB_ENABLE_MOCK_CHECKOUT: "0"
+  JOB_MAX_SOURCE_MB: "${JOB_MAX_SOURCE_MB:-1024}"
+  EDITOR_MAX_UPLOAD_MB: "${EDITOR_MAX_UPLOAD_MB:-100}"
+  EDITOR_MAX_SECONDS: "${EDITOR_MAX_SECONDS:-300}"
+  EDITOR_MAX_PENDING: "${EDITOR_MAX_PENDING:-25}"
+  EDITOR_WHISPER_MODEL: "${EDITOR_WHISPER_MODEL:-base}"
+  GROQ_API_KEY: "${GROQ_API_KEY:-}"
+  GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+  OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+
 services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: ovd-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      ACME_EMAIL: "${ACME_EMAIL:?Set ACME_EMAIL}"
+      API_DOMAIN: "${API_DOMAIN:-api.winplaybox.in}"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/sites:/etc/caddy/sites:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [default, edge]
+    depends_on:
+      api:
+        condition: service_healthy
+    mem_limit: 256m
+
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
+    image: ovd-app:latest
     container_name: ovd-api
     restart: unless-stopped
-    cpus: "${API_CPUS:-2.0}"
-    mem_limit: "${API_MEMORY_LIMIT:-4g}"
-    pids_limit: 256
-    # Default to localhost behind a reverse proxy. Direct exposure is opt-in.
-    ports:
-      - "${API_BIND_ADDRESS:-127.0.0.1}:${PORT:-8000}:8000"
     environment:
-      PORT: "8000"
-      WPB_ENV: production
-      JOBS_DIR: /tmp/ovd_jobs
-      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL}"
-      ALLOW_GENERIC_URLS: "${ALLOW_GENERIC_URLS:-true}"
-      ADMIN_API_KEY: "${ADMIN_API_KEY:?Set ADMIN_API_KEY}"
-      WPB_ADMIN_KEY: "${WPB_ADMIN_KEY:-}"
-      TOKEN_HMAC_SECRET: "${TOKEN_HMAC_SECRET:?Set TOKEN_HMAC_SECRET}"
-      EXTENSION_SECRET_KEY: "${EXTENSION_SECRET_KEY:?Set EXTENSION_SECRET_KEY}"
-      WPB_VAULT_SECRET: "${WPB_VAULT_SECRET:?Set WPB_VAULT_SECRET}"
-      JOB_OWNER_SECRET: "${JOB_OWNER_SECRET:?Set JOB_OWNER_SECRET}"
-      COOKIE_POOL_PATH: /app/cookies
-      WORKER_URL: "${WORKER_URL:-}"
-      WORKER_SECRET: "${WORKER_SECRET:-}"
-      WORKER_KEY: "${WORKER_KEY:-}"
-      WORKER_RESULT_HOSTS: "${WORKER_RESULT_HOSTS:-}"
-      WPB_ENABLE_MOCK_CHECKOUT: "0"
-      JOB_MAX_SOURCE_MB: "${JOB_MAX_SOURCE_MB:-1024}"
-      AUTOMATION_API_KEY: "${AUTOMATION_API_KEY:-}"
-      REDIS_URL: redis://redis:6379/0
+      <<: *app-env
+      API_WORKERS: "${API_WORKERS:-2}"
     volumes:
       - ./cookies:/app/cookies:ro
-      - ovd_temp:/tmp/ovd_jobs
+      - ovd_data:/data
+    expose:
+      - "8000"
     depends_on:
       redis:
         condition: service_healthy
+    cpus: "${API_CPUS:-1.0}"
+    mem_limit: "${API_MEMORY_LIMIT:-2g}"
+    pids_limit: 512
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+
+  editor-worker:
+    image: ovd-app:latest
+    container_name: ovd-editor-worker
+    restart: unless-stopped
+    command: ["python", "-m", "backend.editor_worker"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os,redis;redis.Redis.from_url(os.environ['REDIS_URL']).ping()\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    environment:
+      <<: *app-env
+      EDITOR_CONCURRENCY: "${EDITOR_CONCURRENCY:-1}"
+      EDITOR_JOB_TIMEOUT_SECONDS: "${EDITOR_JOB_TIMEOUT_SECONDS:-1800}"
+    volumes:
+      - ovd_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    cpus: "${WORKER_CPUS:-1.5}"
+    mem_limit: "${WORKER_MEMORY_LIMIT:-4g}"
+    pids_limit: 512
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
 
   redis:
     image: redis:7-alpine
     container_name: ovd-redis
     restart: unless-stopped
-    cpus: "0.50"
-    mem_limit: 512m
-    # Redis is private to the Compose network; no host port is published.
-    command: ["redis-server", "--appendonly", "yes", "--protected-mode", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    command: ["sh", "-c", "exec redis-server --appendonly yes --protected-mode yes --requirepass \"$$REDIS_PASSWORD\" --maxmemory 256mb --maxmemory-policy noeviction"]
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD}"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
       interval: 10s
       timeout: 3s
       retries: 5
     volumes:
       - redis_data:/data
+    cpus: "0.50"
+    mem_limit: 384m
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  # Shared edge network: other stacks on this VPS (Creator Intelligence) attach their web/api
+  # containers here so this single Caddy can serve them too. Created by this stack.
+  edge:
+    name: winplaybox_edge
 
 volumes:
-  ovd_temp:
+  ovd_data:
   redis_data:
+  caddy_data:
+  caddy_config:

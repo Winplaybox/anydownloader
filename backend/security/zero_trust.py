@@ -183,7 +183,48 @@ def authenticate_admin(request: Request, allow_bearer_jwt: bool = True) -> Optio
             email = _verify_supabase_jwt(tok)
             if email:
                 return f"admin:{email}"
+        ovd_admin = _ovd_session_admin(request)
+        if ovd_admin:
+            return ovd_admin
     return None
+
+
+def _ovd_session_admin(request: Request) -> Optional[str]:
+    """An OVD account signed in with a verified email listed in WPB_ADMIN_EMAILS is an admin."""
+    if not ADMIN_EMAILS:
+        return None
+    try:
+        from backend.services import auth_service
+    except (ModuleNotFoundError, ImportError):  # pragma: no cover
+        from services import auth_service  # type: ignore
+    tok = bearer(request) or request.cookies.get("wpb_session", "")
+    if not tok or tok.startswith(("wpb", "ovd_st_")):
+        return None
+    user = auth_service.get_user_from_jwt(tok)
+    if user and user.get("email_verified") and (user.get("email") or "").lower() in ADMIN_EMAILS:
+        return f"admin:{user['email']}"
+    return None
+
+
+def service_token(request: Request) -> str:
+    """Integration token from X-API-Key or `Authorization: Bearer ovd_st_...`."""
+    tok = request.headers.get("x-api-key", "").strip()
+    if not tok:
+        b = bearer(request)
+        tok = b if b.startswith("ovd_st_") else ""
+    return tok
+
+
+def authenticate_service(request: Request, scope: str) -> Optional[Dict[str, Any]]:
+    """Scoped, revocable service token (Make.com, n8n, Colab, cron). Never grants admin."""
+    tok = service_token(request)
+    if not tok:
+        return None
+    try:
+        from backend.services import auth_service
+    except (ModuleNotFoundError, ImportError):  # pragma: no cover
+        from services import auth_service  # type: ignore
+    return auth_service.verify_service_token(tok, scope)
 
 
 def admin_auth_attempted(request: Request) -> bool:

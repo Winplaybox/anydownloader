@@ -26,6 +26,9 @@ class VideoProducerService:
         self._ensure_ffmpeg_path()
 
     def _ensure_ffmpeg_path(self):
+        import shutil
+        if shutil.which("ffmpeg"):
+            return
         try:
             import static_ffmpeg
             static_ffmpeg.add_paths()
