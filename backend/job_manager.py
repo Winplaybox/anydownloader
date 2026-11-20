@@ -531,13 +531,31 @@ class JobManager:
         return job
 
     def get_stats(self):
+        now = time.time()
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT status, COUNT(*) AS total FROM jobs GROUP BY status"
             ).fetchall()
             totals = {row["status"]: int(row["total"]) for row in rows}
+            queued = conn.execute(
+                "SELECT COUNT(*) AS count, MIN(created_at) AS oldest FROM jobs WHERE status='queued'"
+            ).fetchone()
+            processing = conn.execute(
+                "SELECT COUNT(*) AS count FROM jobs WHERE status='processing' AND lease_expires_at >= ?",
+                (now,),
+            ).fetchone()
+            expired = conn.execute(
+                "SELECT COUNT(*) AS count FROM jobs WHERE status='processing' AND lease_expires_at < ?",
+                (now,),
+            ).fetchone()
+            attempts = conn.execute("SELECT COALESCE(SUM(attempts), 0) AS total FROM jobs").fetchone()
         return {
             "counts": totals,
+            "queued": int(queued["count"] or 0),
+            "oldest_queued_age_seconds": max(0, int(now - queued["oldest"])) if queued["oldest"] else 0,
+            "active_leases": int(processing["count"] or 0),
+            "expired_leases": int(expired["count"] or 0),
+            "total_attempts": int(attempts["total"] or 0),
             "worker_running": bool(self._worker_task and not self._worker_task.done()),
             "lease_seconds": self.lease_seconds,
             "max_attempts": self.max_attempts,
