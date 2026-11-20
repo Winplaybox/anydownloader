@@ -98,11 +98,12 @@ class JobManager:
         with self._connect() as conn:
             conn.execute("""
                 UPDATE jobs SET status=?, progress=?, output_file=?, download_url=?,
-                    filename=?, error=?, updated_at=? WHERE id=?
+                    filename=?, error=?, updated_at=? WHERE id=? AND lease_owner=?
+                    AND lease_expires_at >= ?
             """, (
                 job.get("status"), job.get("progress", 0), job.get("output_file"),
                 job.get("download_url"), job.get("filename"), job.get("error"),
-                time.time(), job.get("id"),
+                time.time(), job.get("id"), job.get("lease_owner"), time.time(),
             ))
             conn.commit()
 
@@ -462,7 +463,7 @@ class JobManager:
                 job_id = claimed["id"]
                 job = {k: claimed.get(k) for k in (
                     "id", "action", "status", "progress", "output_file",
-                    "download_url", "filename", "error", "created_at",
+                    "download_url", "filename", "error", "created_at", "lease_owner",
                 )}
                 self.jobs[job_id] = job
                 heartbeat = asyncio.create_task(self._heartbeat(job_id))
