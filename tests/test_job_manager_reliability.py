@@ -129,6 +129,16 @@ class TestDurableJobManager(unittest.IsolatedAsyncioTestCase):
             conn.commit()
         self.assertTrue(self.manager._is_cancelled(job_id))
 
+    async def test_artifact_paths_are_fenced_by_attempt_and_worker(self):
+        job_id = "job-unique-id"
+        path_a = self.manager._artifact_path(job_id, 1, "worker-a", "output.mp4")
+        path_b = self.manager._artifact_path(job_id, 2, "worker-b", "output.mp4")
+        path_c = self.manager._artifact_path(job_id, 1, "worker-c", "output.mp4")
+        self.assertNotEqual(path_a, path_b)
+        self.assertNotEqual(path_a, path_c)
+        self.assertNotEqual(path_b, path_c)
+        self.assertTrue(os.path.basename(path_a).startswith(f".{job_id}.1."))
+
     async def test_queue_metrics_include_lease_and_age_fields(self):
         stats = self.manager.get_stats()
         self.assertEqual(stats["queued"], 0)
