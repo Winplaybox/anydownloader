@@ -4389,8 +4389,25 @@ def _validate_production_configuration():
     missing = []
     if len(EXTENSION_SECRET_KEY) < 32:
         missing.append("EXTENSION_SECRET_KEY (at least 32 characters)")
-    if len(os.environ.get("JOB_OWNER_SECRET", "").strip()) < 32:
+    token_hmac_secret = os.environ.get("TOKEN_HMAC_SECRET", "").strip()
+    vault_secret = os.environ.get("WPB_VAULT_SECRET", "").strip()
+    job_owner_secret = os.environ.get("JOB_OWNER_SECRET", "").strip()
+    if len(token_hmac_secret) < 32:
+        missing.append("TOKEN_HMAC_SECRET (at least 32 characters)")
+    if len(vault_secret.split(",")[0].strip()) < 32:
+        missing.append("WPB_VAULT_SECRET (at least 32 characters)")
+    if len(job_owner_secret) < 32:
         missing.append("JOB_OWNER_SECRET (at least 32 characters; keep stable to preserve job access tokens)")
+    # Avoid accidental cross-purpose secret reuse. It weakens isolation if one secret leaks.
+    configured_secrets = {
+        "EXTENSION_SECRET_KEY": EXTENSION_SECRET_KEY,
+        "TOKEN_HMAC_SECRET": token_hmac_secret,
+        "WPB_VAULT_SECRET": vault_secret.split(",")[0].strip(),
+        "JOB_OWNER_SECRET": job_owner_secret,
+    }
+    nonempty = {name: value for name, value in configured_secrets.items() if value}
+    if len(set(nonempty.values())) != len(nonempty):
+        missing.append("security secrets must be distinct (EXTENSION_SECRET_KEY, TOKEN_HMAC_SECRET, WPB_VAULT_SECRET, JOB_OWNER_SECRET)")
     if not os.environ.get("PUBLIC_BASE_URL", "").strip():
         missing.append("PUBLIC_BASE_URL (canonical HTTPS host)")
     if not os.environ.get("JOBS_DIR", "").strip():
