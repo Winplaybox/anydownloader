@@ -45,3 +45,6 @@
 		format json
 	}
 }
+
+# Extra sites on this VPS (e.g. deploy/sites/creator.caddy). Copy an *.example to *.caddy to enable.
+import /etc/caddy/sites/*.caddy

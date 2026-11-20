@@ -1,0 +1,31 @@
+# Creator Intelligence Studio (separate compose stack on the same VPS, attached to winplaybox_edge).
+# Enable: cp deploy/sites/creator.caddy.example deploy/sites/creator.caddy && docker compose restart caddy
+creator.winplaybox.in {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy ci-web:3000
+}
+
+creator-api.winplaybox.in {
+	encode zstd gzip
+	request_body {
+		max_size 2GB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+	reverse_proxy ci-api:8000 {
+		transport http {
+			read_timeout 10m
+			write_timeout 10m
+		}
+	}
+}

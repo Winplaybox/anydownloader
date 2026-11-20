@@ -73,8 +73,10 @@ services:
       API_DOMAIN: "${API_DOMAIN:-api.winplaybox.in}"
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/sites:/etc/caddy/sites:ro
       - caddy_data:/data
       - caddy_config:/config
+    networks: [default, edge]
     depends_on:
       api:
         condition: service_healthy
@@ -146,6 +148,12 @@ services:
     cpus: "0.50"
     mem_limit: 384m
     security_opt: ["no-new-privileges:true"]
+
+networks:
+  # Shared edge network: other stacks on this VPS (Creator Intelligence) attach their web/api
+  # containers here so this single Caddy can serve them too. Created by this stack.
+  edge:
+    name: winplaybox_edge
 
 volumes:
   ovd_data:

@@ -97,7 +97,17 @@ Two vCPUs: one render at a time (`EDITOR_CONCURRENCY=1`), up to `EDITOR_MAX_PEND
 uploads get a clear "busy, try again" (503) instead of piling up. Watch `docker stats`; raise concurrency only
 after measuring a render's real CPU/RAM.
 
-## 9. After go-live
+## 9. Other apps on this VPS
+
+This Caddy is the only thing on ports 80/443. Other stacks (Creator Intelligence) join the `winplaybox_edge`
+network that this stack creates, and get a site file in `deploy/sites/`:
+
+```sh
+cp deploy/sites/creator.caddy.example deploy/sites/creator.caddy   # after the Creator stack is up
+docker compose restart caddy
+```
+
+## 10. After go-live
 
 - Render.com service: suspend it once `api.winplaybox.in` is healthy (the keep-alive workflow is retired).
 - The hourly health monitor now checks `https://api.winplaybox.in`.
