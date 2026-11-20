@@ -90,6 +90,15 @@ services:
     environment:
       <<: *app-env
       API_WORKERS: "${API_WORKERS:-2}"
+      # AutoClip AI (isolated module, /api/autoclip/*). inline = render inside the API container;
+      # remote = start autoclip-worker (docker compose --profile autoclip up -d) and keep the API light.
+      AUTOCLIP_ENABLED: "${AUTOCLIP_ENABLED:-1}"
+      AUTOCLIP_WORKER_MODE: "${AUTOCLIP_WORKER_MODE:-inline}"
+      AUTOCLIP_WORKER_KEY: "${AUTOCLIP_WORKER_KEY:-}"
+      AUTOCLIP_DAILY_LIMIT: "${AUTOCLIP_DAILY_LIMIT:-3}"
+      AUTOCLIP_MAX_UPLOAD_MB: "${AUTOCLIP_MAX_UPLOAD_MB:-500}"
+      AUTOCLIP_MAX_SOURCE_MINUTES: "${AUTOCLIP_MAX_SOURCE_MINUTES:-90}"
+      AUTOCLIP_COOKIES_FILE: "${AUTOCLIP_COOKIES_FILE:-}"
     volumes:
       - ./cookies:/app/cookies:ro
       - ovd_data:/data
@@ -131,6 +140,36 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
 
+  # AutoClip render worker. Start with:  docker compose --profile autoclip up -d autoclip-worker
+  # and set AUTOCLIP_WORKER_MODE=remote on the api service. Same image, talks to the API over the
+  # private compose network. The same command runs on workers.winplaybox.in with a public AUTOCLIP_API_BASE.
+  autoclip-worker:
+    image: ovd-app:latest
+    container_name: ovd-autoclip-worker
+    profiles: ["autoclip"]
+    restart: unless-stopped
+    command: ["python", "-m", "backend.autoclip.worker"]
+    environment:
+      # Only what rendering needs: no API secrets in this container.
+      AUTOCLIP_API_BASE: "${AUTOCLIP_API_BASE:-http://api:8000}"
+      AUTOCLIP_WORKER_KEY: "${AUTOCLIP_WORKER_KEY:-}"  # worker refuses to start without a 32+ char key
+      AUTOCLIP_COOKIES_FILE: "${AUTOCLIP_COOKIES_FILE:-}"
+      EDITOR_WHISPER_MODEL: "${EDITOR_WHISPER_MODEL:-base}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+    volumes:
+      - ./cookies:/app/cookies:ro
+      - autoclip_cache:/data/cache
+    depends_on:
+      api:
+        condition: service_started
+    cpus: "${AUTOCLIP_WORKER_CPUS:-1.5}"
+    mem_limit: "${AUTOCLIP_WORKER_MEMORY:-3g}"
+    pids_limit: 512
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+
   redis:
     image: redis:7-alpine
     container_name: ovd-redis
@@ -160,3 +199,4 @@ volumes:
   redis_data:
   caddy_data:
   caddy_config:
+  autoclip_cache:

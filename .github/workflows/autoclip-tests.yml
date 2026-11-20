@@ -1,0 +1,42 @@
+name: AutoClip module tests
+
+on:
+  pull_request:
+    paths:
+      - "backend/autoclip/**"
+      - "backend/routes_autoclip.py"
+      - "backend/main.py"
+      - "backend/security/zero_trust.py"
+      - ".github/workflows/autoclip-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/autoclip/**"
+      - "backend/routes_autoclip.py"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+          pip install -r backend/requirements.txt pytest
+      - name: Compile
+        run: python -m compileall -q backend
+      - name: App boots (routes mounted)
+        env:
+          JOBS_DIR: /tmp/ovd_jobs
+        run: python -c "import backend.main as m; assert any(r.path.startswith('/api/autoclip') for r in m.routes)"
+      - name: Tests
+        run: python -m pytest backend/autoclip/tests -q

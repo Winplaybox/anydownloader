@@ -14,7 +14,13 @@
 
 	# Editor uploads are capped at EDITOR_MAX_UPLOAD_MB (100 MB) by the API; refuse anything larger here first,
 	# including chunked uploads that carry no Content-Length.
-	request_body {
+	# AutoClip uploads are capped by AUTOCLIP_MAX_UPLOAD_MB (500 MB) in the API; give only that path more room.
+	@autoclip_upload path /api/autoclip/jobs
+	request_body @autoclip_upload {
+		max_size 520MB
+	}
+	@default_body not path /api/autoclip/jobs
+	request_body @default_body {
 		max_size 110MB
 	}
 

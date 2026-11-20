@@ -100,6 +100,7 @@ try:
     from backend.routes_temp_media import routes_temp_media
     from backend.routes_auth import routes_auth
     from backend.routes_payments import payments_routes
+    from backend.routes_autoclip import routes_autoclip, startup as _autoclip_startup
 except (ModuleNotFoundError, ImportError):
     from security.zero_trust import ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify
     from security.zero_trust import (authenticate_admin as _zt_authenticate_admin, admin_locked as _zt_admin_locked,
@@ -113,6 +114,7 @@ except (ModuleNotFoundError, ImportError):
     from routes_temp_media import routes_temp_media
     from routes_auth import routes_auth
     from routes_payments import payments_routes
+    from routes_autoclip import routes_autoclip, startup as _autoclip_startup
 
 # Security & Origin Configuration
 ALLOWED_ORIGINS = [
@@ -2635,7 +2637,7 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
-        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs", "/api/ai/captions", "/api/ai/voice") or request.url.path.startswith(("/.well-known", "/api/auth", "/api/payments", "/api/v1", "/api/v2")) or request.url.path.startswith("/admin/"):
+        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs", "/api/ai/captions", "/api/ai/voice") or request.url.path.startswith(("/.well-known", "/api/auth", "/api/payments", "/api/v1", "/api/v2", "/api/autoclip")) or request.url.path.startswith("/admin/"):
             return await call_next(request)
         # OAuth sign-in redirects come from the platform (no allowed origin); the route checks its own signed state.
         if request.method == "GET" and request.url.path.startswith("/oauth/autopilot/"):
@@ -4425,7 +4427,7 @@ routes = [
 ]
 
 
-routes = routes_admin_ops + routes_v2 + routes_analytics + routes_studio + routes_autopilot + routes_editor + routes_temp_media + routes_auth + payments_routes + routes
+routes = routes_autoclip + routes_admin_ops + routes_v2 + routes_analytics + routes_studio + routes_autopilot + routes_editor + routes_temp_media + routes_auth + payments_routes + routes
 
 # Order = outermost first: CORS -> Zero-Trust guard -> origin/extension gate
 middleware = [
@@ -4498,6 +4500,7 @@ def _validate_production_configuration():
 async def _startup_job_queue():
     _validate_production_configuration()
     job_manager.start()
+    await _autoclip_startup()  # isolated AutoClip module: inline worker + housekeeping
 
 
 from contextlib import asynccontextmanager
