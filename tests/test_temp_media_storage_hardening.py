@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+import asyncio
 from unittest.mock import patch
 
 from backend import routes_temp_media as temp_media
@@ -15,6 +16,27 @@ class TestTemporaryMediaStorageHardening(unittest.TestCase):
                 self.assertTrue(os.path.isdir(store))
                 if os.name == "posix":
                     self.assertEqual(os.stat(store).st_mode & 0o777, 0o700)
+
+    def test_serve_handler_rejects_symlinked_media(self):
+        if not hasattr(os, "symlink"):
+            self.skipTest("Symlinks are unavailable on this platform")
+        with tempfile.TemporaryDirectory() as parent:
+            store = os.path.join(parent, "media")
+            os.mkdir(store)
+            outside = os.path.join(parent, "outside.mp4")
+            with open(outside, "wb") as f:
+                f.write(b"not media")
+            media_id = "a" * 32 + ".mp4"
+            link = os.path.join(store, media_id)
+            try:
+                os.symlink(outside, link)
+            except (OSError, NotImplementedError):
+                self.skipTest("Symlink creation is not permitted")
+            class Request:
+                path_params = {"media_id": media_id}
+            with patch.object(temp_media, "STORE_DIR", store):
+                response = asyncio.run(temp_media.serve_handler(Request()))
+                self.assertEqual(response.status_code, 404)
 
     def test_storage_root_symlink_is_rejected(self):
         if not hasattr(os, "symlink"):
