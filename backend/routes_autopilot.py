@@ -419,9 +419,9 @@ async def accounts_connect(request: Request) -> Response:
         names = " and ".join(social.PLATFORMS[platform]["env"])
         return error(request, 503, "NotConfigured", f"{social.PLATFORMS[platform]['label']} is not set up yet: add {names} on the backend")
     nonce, challenge = secrets.token_urlsafe(12), None
-    if social.PLATFORMS[platform]["pkce"]:
-        verifier, challenge = social.pkce_pair()
-        await db.insert("ap_oauth_states", {"nonce": nonce, "platform": platform, "verifier": verifier})
+    verifier, challenge = (social.pkce_pair() if social.PLATFORMS[platform]["pkce"] else (None, None))
+    # Persist every OAuth state, not only PKCE states, so callback state is single-use.
+    await db.insert("ap_oauth_states", {"nonce": nonce, "platform": platform, "verifier": verifier or ""})
     return _ok({"url": social.authorize_url(platform, _redirect_uri(platform), _make_state(platform, nonce), challenge)})
 
 
@@ -458,13 +458,20 @@ async def oauth_callback(request: Request) -> Response:
         return _back(platform, False, q.get("error_description") or q.get("error_reason") or q["error"])
     if not db.configured:
         return _back(platform, False, "Backend is missing Supabase settings.")
-    verifier = None
-    if social.PLATFORMS[platform]["pkce"]:
-        rows = await db.select("ap_oauth_states", {"nonce": f"eq.{state['n']}", "select": "verifier"})
-        if not rows:
-            return _back(platform, False, "Sign-in link already used. Try Connect again.")
-        verifier = rows[0]["verifier"]
-        await db.client().delete(f"{db.url}/rest/v1/ap_oauth_states", params={"nonce": f"eq.{state['n']}"})
+    # Consume the nonce with one atomic DELETE. SELECT-then-DELETE permits concurrent
+    # callbacks to both observe the same state and exchange the authorization code.
+    consumed = await db.client().delete(
+        f"{db.url}/rest/v1/ap_oauth_states",
+        params={"nonce": f"eq.{state['n']}", "platform": f"eq.{platform}"},
+        headers={"Prefer": "return=representation"},
+    )
+    consumed.raise_for_status()
+    rows = consumed.json() if consumed.content else []
+    if not rows:
+        return _back(platform, False, "Sign-in link already used or invalid. Try Connect again.")
+    verifier = rows[0].get("verifier") or None
+    if social.PLATFORMS[platform]["pkce"] and not verifier:
+        return _back(platform, False, "PKCE state is missing. Try Connect again.")
     try:
         accounts = await social.complete(platform, q.get("code", ""), _redirect_uri(platform), verifier)
         for a in accounts:
