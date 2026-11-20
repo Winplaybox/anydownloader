@@ -58,9 +58,11 @@ def _ydl_opts(dest_tmpl: str, hook: Optional[Callable[[Dict[str, Any]], None]] =
         "outtmpl": dest_tmpl, "quiet": True, "no_warnings": True, "noplaylist": True,
         "format": "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]/b",
         "merge_output_format": "mp4", "retries": 3, "fragment_retries": 3, "socket_timeout": 30,
-        "concurrent_fragment_downloads": 4, "max_filesize": config.MAX_UPLOAD_MB * 1024 * 1024 * 3,
+        "concurrent_fragment_downloads": 4,
         "restrictfilenames": True, "overwrites": True, "live_from_start": False,
     }
+    if config.MAX_UPLOAD_MB:
+        o["max_filesize"] = config.MAX_UPLOAD_MB * 1024 * 1024 * 3
     if config.COOKIES_FILE and os.path.isfile(config.COOKIES_FILE):
         o["cookiefile"] = config.COOKIES_FILE
     if hook:
@@ -90,7 +92,7 @@ def fetch_url(url: str, workdir: str, progress: Optional[Callable[[float], None]
     if info.get("is_live"):
         raise SourceError("Live streams aren't supported yet. Try again after the stream ends.")
     dur = float(info.get("duration") or 0)
-    if dur and dur > config.MAX_SOURCE_MINUTES * 60:
+    if dur and config.MAX_SOURCE_MINUTES and dur > config.MAX_SOURCE_MINUTES * 60:
         raise SourceError(f"Video is {dur / 60:.0f} min. The limit is {config.MAX_SOURCE_MINUTES} min.")
 
     def hook(d: Dict[str, Any]) -> None:
