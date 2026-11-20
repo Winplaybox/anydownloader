@@ -454,8 +454,6 @@ async def oauth_callback(request: Request) -> Response:
     state = _read_state(q.get("state", ""), platform)
     if not state:
         return _back(platform, False, "Sign-in link expired or invalid. Try Connect again.")
-    if q.get("error"):
-        return _back(platform, False, q.get("error_description") or q.get("error_reason") or q["error"])
     if not db.configured:
         return _back(platform, False, "Backend is missing Supabase settings.")
     # Consume the nonce with one atomic DELETE. SELECT-then-DELETE permits concurrent
@@ -472,6 +470,9 @@ async def oauth_callback(request: Request) -> Response:
     verifier = rows[0].get("verifier") or None
     if social.PLATFORMS[platform]["pkce"] and not verifier:
         return _back(platform, False, "PKCE state is missing. Try Connect again.")
+    # Provider error callbacks must also consume the nonce to keep the state single-use.
+    if q.get("error"):
+        return _back(platform, False, q.get("error_description") or q.get("error_reason") or q["error"])
     try:
         accounts = await social.complete(platform, q.get("code", ""), _redirect_uri(platform), verifier)
         for a in accounts:
