@@ -98,5 +98,26 @@ class TestProductionSecurityPolicies(unittest.TestCase):
                 self.assertFalse(security.verify_safe_upstream_url(url))
 
 
+    def test_dns_empty_resolution_is_rejected(self):
+        with patch.object(security.socket, "getaddrinfo", return_value=[]):
+            self.assertFalse(security.verify_public_dns_resolution("https://example.com/media.mp4"))
+
+    def test_dns_resolution_error_is_rejected(self):
+        with patch.object(security.socket, "getaddrinfo", side_effect=OSError("dns failure")):
+            self.assertFalse(security.verify_public_dns_resolution("https://example.com/media.mp4"))
+
+    def test_dns_private_ipv6_answer_is_rejected(self):
+        records = [(10, 1, 6, "", ("fd00::1", 443, 0, 0))]
+        with patch.object(security.socket, "getaddrinfo", return_value=records):
+            self.assertFalse(security.verify_public_dns_resolution("https://example.com/media.mp4"))
+
+    def test_dns_mixed_public_ipv6_and_private_ipv4_is_rejected(self):
+        records = [
+            (2, 1, 6, "", ("93.184.216.34", 443)),
+            (10, 1, 6, "", ("fe80::1", 443, 0, 0)),
+        ]
+        with patch.object(security.socket, "getaddrinfo", return_value=records):
+            self.assertFalse(security.verify_public_dns_resolution("https://example.com/media.mp4"))
+
 if __name__ == "__main__":
     unittest.main()
