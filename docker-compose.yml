@@ -64,7 +64,7 @@ services:
     command: ["python", "-m", "backend.autoclip.worker"]
     environment:
       AUTOCLIP_API_BASE: "${AUTOCLIP_API_BASE:-http://api:8000}"
-      AUTOCLIP_WORKER_KEY: "${AUTOCLIP_WORKER_KEY:?Set AUTOCLIP_WORKER_KEY}"
+      AUTOCLIP_WORKER_KEY: "${AUTOCLIP_WORKER_KEY:-}"  # worker refuses to start without a 32+ char key
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       AUTOCLIP_COOKIES_FILE: "${AUTOCLIP_COOKIES_FILE:-}"
       EDITOR_CACHE_DIR: /cache
