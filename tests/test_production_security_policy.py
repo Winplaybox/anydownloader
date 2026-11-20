@@ -70,6 +70,33 @@ class TestProductionSecurityPolicies(unittest.TestCase):
         with patch.object(security.socket, "getaddrinfo", return_value=records):
             self.assertTrue(security.verify_public_dns_resolution("https://example.com/media.mp4"))
 
+    def test_upstream_url_rejects_local_and_ambiguous_hosts(self):
+        for url in (
+            "http://127.0.0.1/media",
+            "http://10.0.0.1/media",
+            "http://[::1]/media",
+            "http://localhost/media",
+            "http://127.1/media",
+            "http://0x7f000001/media",
+            "http://user:pass@example.com/media",
+            "ftp://example.com/media",
+            "https://example.com\\\\media",
+            "https://example.com\\nmedia",
+        ):
+            with self.subTest(url=url):
+                self.assertFalse(security.verify_safe_upstream_url(url))
+
+    def test_upstream_url_accepts_public_hostname_shape(self):
+        for url in ("https://cdn.example.com/video.mp4", "http://media.example.org:8080/path"):
+            with self.subTest(url=url):
+                self.assertTrue(security.verify_safe_upstream_url(url))
+
+    def test_relative_upstream_url_only_allows_api_paths(self):
+        self.assertTrue(security.verify_safe_upstream_url("/api/media/123"))
+        for url in ("//evil.example/path", "/media/123", "/api/../secret", "/api\\\\secret"):
+            with self.subTest(url=url):
+                self.assertFalse(security.verify_safe_upstream_url(url))
+
 
 if __name__ == "__main__":
     unittest.main()
