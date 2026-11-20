@@ -377,6 +377,10 @@ class ZeroTrustMiddleware(BaseHTTPMiddleware):
                 max_body = (int(os.environ.get("TEMP_MEDIA_MAX_MB", "300")) + 1) * 1024 * 1024
             if path == "/api/editor/jobs":  # video uploads; the route enforces its own exact limit
                 max_body = (int(os.environ.get("EDITOR_MAX_UPLOAD_MB", "100")) + 1) * 1024 * 1024
+            if path == "/api/autoclip/jobs":  # AutoClip uploads; the route enforces AUTOCLIP_MAX_UPLOAD_MB
+                max_body = (int(os.environ.get("AUTOCLIP_MAX_UPLOAD_MB", "500")) + 1) * 1024 * 1024
+            if path.startswith("/api/autoclip/workers/jobs/") and path.endswith("/artifact"):  # worker-key auth in route
+                max_body = 2 * 1024 * 1024 * 1024
             if cl and cl.isdigit() and int(cl) > max_body:
                 return error(request, 413, "PayloadTooLarge", "Request too large.")
             if path.startswith(ADMIN_ONLY_PATH_PREFIXES):
@@ -405,7 +409,7 @@ class ZeroTrustMiddleware(BaseHTTPMiddleware):
 
 def cors_kwargs() -> Dict[str, Any]:
     extra = [o.strip() for o in os.environ.get("WPB_CORS_EXTRA_ORIGINS", "").split(",") if o.strip()]
-    pattern = r"https://([a-z0-9-]+\.)*winplaybox\.in|https://(www\.)?latestnewsnx\.com|https://(www\.)?buzzstormnow\.com|chrome-extension://[a-z0-9]{32}|moz-extension://.*"
+    pattern = r"https://([a-z0-9-]+\.)*winplaybox\.in|https://winplaybox\.github\.io|https://(www\.)?latestnewsnx\.com|https://(www\.)?buzzstormnow\.com|chrome-extension://[a-z0-9]{32}|moz-extension://.*"
     if not IS_PRODUCTION or os.environ.get("WPB_ALLOW_DEV_ORIGINS") == "1":
         pattern += r"|http://(localhost|127\.0\.0\.1)(:\d+)?"
     return {
@@ -413,7 +417,7 @@ def cors_kwargs() -> Dict[str, Any]:
         "allow_origin_regex": pattern,
         "allow_methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Authorization", "Content-Type", "X-Admin-Key", "X-Request-ID",
-                          "X-Extension-Key", "X-Auth-Token", "X-Job-Token", "Idempotency-Key", "cf-turnstile-response", "x-guest-id", "X-Guest-ID",
+                          "X-Extension-Key", "X-Auth-Token", "X-Job-Token", "X-API-Key", "Idempotency-Key", "cf-turnstile-response", "x-guest-id", "X-Guest-ID",
                           "x-ovd-source", "x-ovd-medium", "x-ovd-channel", "x-ovd-referrer",
                           "X-OVD-Source", "X-OVD-Medium", "X-OVD-Channel", "X-OVD-Referrer"],
         "expose_headers": ["X-Request-ID"],

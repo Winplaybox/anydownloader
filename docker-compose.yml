@@ -32,12 +32,47 @@ services:
       JOB_MAX_SOURCE_MB: "${JOB_MAX_SOURCE_MB:-1024}"
       AUTOMATION_API_KEY: "${AUTOMATION_API_KEY:-}"
       REDIS_URL: redis://redis:6379/0
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      # AutoClip AI (isolated module, /api/autoclip/*). inline = render inside this container;
+      # remote = start the autoclip-worker service below (profile "autoclip") and keep the API light.
+      AUTOCLIP_ENABLED: "${AUTOCLIP_ENABLED:-1}"
+      AUTOCLIP_WORKER_MODE: "${AUTOCLIP_WORKER_MODE:-inline}"
+      AUTOCLIP_WORKER_KEY: "${AUTOCLIP_WORKER_KEY:-}"
+      AUTOCLIP_DAILY_LIMIT: "${AUTOCLIP_DAILY_LIMIT:-3}"
+      AUTOCLIP_MAX_UPLOAD_MB: "${AUTOCLIP_MAX_UPLOAD_MB:-500}"
+      AUTOCLIP_MAX_SOURCE_MINUTES: "${AUTOCLIP_MAX_SOURCE_MINUTES:-90}"
+      AUTOCLIP_COOKIES_FILE: "${AUTOCLIP_COOKIES_FILE:-}"
     volumes:
       - ./cookies:/app/cookies:ro
       - ovd_temp:/tmp/ovd_jobs
     depends_on:
       redis:
         condition: service_healthy
+
+  # AutoClip render worker. Start with:  docker compose --profile autoclip up -d autoclip-worker
+  # and set AUTOCLIP_WORKER_MODE=remote on the api service. Same image, talks to the API over the
+  # private compose network. The same command runs on workers.winplaybox.in with a public AUTOCLIP_API_BASE.
+  autoclip-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles: ["autoclip"]
+    restart: unless-stopped
+    cpus: "${AUTOCLIP_WORKER_CPUS:-2.0}"
+    mem_limit: "${AUTOCLIP_WORKER_MEMORY:-3g}"
+    pids_limit: 256
+    command: ["python", "-m", "backend.autoclip.worker"]
+    environment:
+      AUTOCLIP_API_BASE: "${AUTOCLIP_API_BASE:-http://api:8000}"
+      AUTOCLIP_WORKER_KEY: "${AUTOCLIP_WORKER_KEY:?Set AUTOCLIP_WORKER_KEY}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      AUTOCLIP_COOKIES_FILE: "${AUTOCLIP_COOKIES_FILE:-}"
+      EDITOR_CACHE_DIR: /cache
+    volumes:
+      - ./cookies:/app/cookies:ro
+      - autoclip_cache:/cache
+    depends_on:
+      - api
 
   redis:
     image: redis:7-alpine
@@ -58,3 +93,4 @@ services:
 volumes:
   ovd_temp:
   redis_data:
+  autoclip_cache:
