@@ -189,7 +189,7 @@ async def serve_handler(request):
     if not _ID_RE.fullmatch(media_id):
         return JSONResponse({"ok": False, "error": "Not found."}, status_code=404)
     path = os.path.join(STORE_DIR, media_id)
-    if not os.path.isfile(path) or os.path.getmtime(path) < time.time() - TTL_SECONDS:
+    if os.path.islink(path) or not os.path.isfile(path) or os.path.getmtime(path) < time.time() - TTL_SECONDS:
         return JSONResponse({"ok": False, "error": "Not found or expired."}, status_code=404)
     ext = media_id.rsplit(".", 1)[1]
     return FileResponse(path, media_type=ALLOWED_EXT[ext], headers={"Cache-Control": "no-store"})
@@ -202,7 +202,9 @@ async def delete_handler(request):
     if not _ID_RE.fullmatch(media_id):
         return JSONResponse({"ok": False, "error": "Not found."}, status_code=404)
     path = os.path.join(STORE_DIR, media_id)
-    existed = os.path.isfile(path)
+    existed = os.path.isfile(path) and not os.path.islink(path)
+    if os.path.islink(path):
+        return JSONResponse({"ok": False, "error": "Not found."}, status_code=404)
     if existed:
         os.remove(path)
     return JSONResponse({"ok": True, "deleted": existed})
