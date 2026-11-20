@@ -35,9 +35,6 @@ class TestHeartbeatLeaseFencing(unittest.IsolatedAsyncioTestCase):
 
     async def test_heartbeat_does_not_revive_expired_lease(self):
         job_id = self._insert_processing_job(lease_expiry=time.time() - 1)
-        await self.manager._heartbeat_once_for_test(job_id) if hasattr(self.manager, "_heartbeat_once_for_test") else None
-        # Run one renewal iteration via the extracted helper; if absent, this test
-        # fails explicitly so production logic and tests remain coupled.
         self.assertTrue(hasattr(self.manager, "_heartbeat_once_for_test"))
         renewed = await self.manager._heartbeat_once_for_test(job_id)
         self.assertFalse(renewed)
