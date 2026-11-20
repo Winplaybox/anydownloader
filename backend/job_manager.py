@@ -544,9 +544,21 @@ class JobManager:
         }
 
     def _is_cancelled(self, job_id: str) -> bool:
+        """Abort processing when cancellation is requested or this worker lost its lease."""
+        now = time.time()
         with self._connect() as conn:
-            row = conn.execute("SELECT cancel_requested FROM jobs WHERE id=?", (job_id,)).fetchone()
-        return bool(row and row["cancel_requested"])
+            row = conn.execute(
+                "SELECT cancel_requested, status, lease_owner, lease_expires_at FROM jobs WHERE id=?",
+                (job_id,),
+            ).fetchone()
+        return bool(
+            not row
+            or row["cancel_requested"]
+            or row["status"] != "processing"
+            or row["lease_owner"] != self.worker_id
+            or row["lease_expires_at"] is None
+            or row["lease_expires_at"] < now
+        )
 
     async def _process_job(self, job_id: str, tokens: List[str], action: str, source_url: Optional[str] = None, height: int = 1080):
         source_files = []
