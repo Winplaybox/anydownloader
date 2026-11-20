@@ -119,6 +119,16 @@ class TestDurableJobManager(unittest.IsolatedAsyncioTestCase):
         persisted = self.manager.get_job(job_id)
         self.assertNotEqual(persisted["progress"], 88)
 
+    async def test_worker_detects_lost_lease_and_stops_processing(self):
+        job_id, _ = await self._create()
+        claimed = self.manager._claim_next_job()
+        self.assertEqual(claimed["id"], job_id)
+        self.assertFalse(self.manager._is_cancelled(job_id))
+        with self.manager._connect() as conn:
+            conn.execute("UPDATE jobs SET lease_expires_at=? WHERE id=?", (0, job_id))
+            conn.commit()
+        self.assertTrue(self.manager._is_cancelled(job_id))
+
     async def test_queue_schema_migrates_legacy_table(self):
         path = os.path.join(self.temp.name, "legacy.db")
         with sqlite3.connect(path) as conn:
