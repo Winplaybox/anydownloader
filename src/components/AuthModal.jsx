@@ -141,19 +141,23 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
     setError('');
     setSuccessMsg('');
 
-    if (!email || !email.includes('@')) {
+    if (mode === 'signup' && (!email || !email.includes('@'))) {
       setError('Please enter a valid email address.');
       return;
     }
-    if (!password || password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+    if (mode !== 'signup' && (!email || email.trim().length < 3)) {
+      setError('Please enter your email or username.');
+      return;
+    }
+    if (!password || (mode === 'signup' && password.length < 8)) {
+      setError(mode === 'signup' ? 'Password must be at least 8 characters long.' : 'Please enter your password.');
       return;
     }
 
     setLoading(true);
     const guestId = localStorage.getItem('wpb_guest_id');
     const endpoint = mode === 'signup' ? `${BACKEND_BASE}/api/auth/register` : `${BACKEND_BASE}/api/auth/login`;
-    const payload = mode === 'signup' ? { email, password, name, guest_id: guestId } : { email, password };
+    const payload = mode === 'signup' ? { email, password, name, guest_id: guestId } : { identifier: email.trim(), password };
 
     try {
       const res = await fetch(endpoint, {
@@ -270,7 +274,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
         <div className="relative flex items-center justify-center mb-5">
           <div className="border-t border-[var(--border,#262934)] w-full" />
           <span className="bg-[var(--surface,#12141a)] px-3 text-[10px] uppercase font-bold text-zinc-500 shrink-0">
-            or with email & password
+            or with email / username & password
           </span>
           <div className="border-t border-[var(--border,#262934)] w-full" />
         </div>
@@ -294,15 +298,17 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-300 mb-1">Email Address</label>
+            <label className="block text-xs font-semibold text-zinc-300 mb-1">{mode === 'signup' ? 'Email Address' : 'Email or Username'}</label>
             <div className="relative">
               <Mail className="w-4 h-4 text-zinc-400 absolute left-3 top-3" />
               <input
-                type="email"
+                type={mode === 'signup' ? 'email' : 'text'}
                 required
+                autoComplete={mode === 'signup' ? 'email' : 'username'}
+                autoCapitalize="none"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
+                placeholder={mode === 'signup' ? 'name@example.com' : 'name@example.com or your_username'}
                 className="w-full rounded-xl border border-[var(--border,#262934)] bg-[var(--bg,#0a0b0e)] pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-500 outline-none focus:border-blue-500 transition-colors"
               />
             </div>
@@ -317,7 +323,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="•••••••• (min 6 characters)"
+                placeholder={mode === 'signup' ? '•••••••• (min 8 characters)' : '••••••••'}
                 className="w-full rounded-xl border border-[var(--border,#262934)] bg-[var(--bg,#0a0b0e)] pl-9 pr-10 py-2 text-xs text-white placeholder-zinc-500 outline-none focus:border-blue-500 transition-colors"
               />
               <button

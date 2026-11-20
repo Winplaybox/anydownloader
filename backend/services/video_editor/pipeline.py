@@ -56,6 +56,57 @@ class JobError(Exception):
 # --------------------------------------------------------------------------- #
 # Job state on disk
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# Queueing: "inline" runs renders inside the API process (dev/tests); "redis" hands them to
+# separate worker containers (production) so FFmpeg/Whisper/TTS never block the API.
+QUEUE_KEY = "ovd:editor:queue"
+PROCESSING_KEY = "ovd:editor:processing"
+LEASE_PREFIX = "ovd:editor:lease:"
+MAX_PENDING = max(1, int(os.environ.get("EDITOR_MAX_PENDING", "25")))
+
+
+def queue_mode() -> str:
+    return "redis" if os.environ.get("EDITOR_QUEUE", "inline").strip().lower() == "redis" else "inline"
+
+
+def redis_client():
+    import redis  # dependency already used by the job store
+
+    url = os.environ.get("REDIS_URL", "").strip()
+    if not url:
+        raise RuntimeError("EDITOR_QUEUE=redis requires REDIS_URL")
+    return redis.Redis.from_url(url, decode_responses=True, socket_timeout=15, socket_connect_timeout=5,
+                                health_check_interval=30)
+
+
+def enqueue(job: Dict[str, Any], src_path: str) -> None:
+    """Persists the job (with its source path) and hands it to the worker queue."""
+    job["source_path"] = src_path
+    job.setdefault("attempts", 0)
+    save_job(job)
+    redis_client().lpush(QUEUE_KEY, job["id"])
+
+
+def pending_count() -> int:
+    """Jobs waiting or rendering right now (used for back-pressure before accepting an upload)."""
+    if queue_mode() == "redis":
+        try:
+            r = redis_client()
+            return int(r.llen(QUEUE_KEY)) + int(r.llen(PROCESSING_KEY))
+        except Exception:
+            log.exception("queue length unavailable")
+            return MAX_PENDING  # fail closed: do not accept work we cannot track
+    n = 0
+    try:
+        for name in os.listdir(WORK_DIR):
+            j = load_job(name)
+            if j and j.get("status") in ("queued", "running"):
+                n += 1
+    except OSError:
+        pass
+    return n
+
+
 def job_dir(job_id: str) -> str:
     return os.path.join(WORK_DIR, job_id)
 
@@ -300,8 +351,10 @@ async def _process(job: Dict[str, Any], src_path: str) -> None:
     info = await asyncio.to_thread(render.probe, src_path)
     if info["duration"] <= 0.5:
         raise JobError("The video is too short or unreadable.")
-    if info["duration"] > MAX_DURATION + 0.5:
-        raise JobError(f"Video is {info['duration']:.0f}s long; the limit is {MAX_DURATION:.0f}s.")
+    limit = min(float(s.get("max_seconds") or MAX_DURATION), MAX_DURATION)
+    if info["duration"] > limit + 0.5:
+        raise JobError(f"Video is {info['duration']:.0f}s long; your plan allows up to {limit:.0f}s. "
+                       "Your credits were refunded.")
     duration = info["duration"]
     frames = await asyncio.to_thread(render.extract_frames, src_path, os.path.join(d, "frames"), duration, 8)
     _update(job, source=info)

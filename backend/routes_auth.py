@@ -13,7 +13,9 @@ try:
 except (ModuleNotFoundError, ImportError):
     from security.zero_trust import client_ip, rate_limit
 
+from backend.services import auth_service
 from backend.services.auth_service import (
+    change_username,
     create_guest_session,
     get_all_plans,
     get_credit_history,
@@ -21,6 +23,7 @@ from backend.services.auth_service import (
     login_user_with_email,
     register_user_with_email,
     resolve_request_identity,
+    revoke_all_sessions,
     upsert_user_from_google,
     verify_google_credential,
 )
@@ -106,32 +109,11 @@ async def google_auth_handler(request: Request) -> Response:
         return JSONResponse({"ok": False, "error": "Invalid or expired Google token"}, status_code=401)
 
     guest_id = body.get("guest_id") or request.cookies.get("wpb_guest")
-    user = upsert_user_from_google(google_data, guest_id=guest_id)
-    session_token = issue_session_jwt(user)
-
-    resp = JSONResponse({
-        "ok": True,
-        "token": session_token,
-        "user": {
-            "id": user["id"],
-            "email": user["email"],
-            "name": user["name"],
-            "avatar": user.get("avatar"),
-            "plan": user.get("plan", "free"),
-            "credits": user.get("credits", 2),
-            "authenticated": True,
-            "is_guest": False
-        }
-    })
-    resp.set_cookie(
-        "wpb_session",
-        session_token,
-        max_age=30 * 86400,
-        httponly=True,
-        samesite="lax",
-        secure=True
-    )
-    return resp
+    try:
+        user = upsert_user_from_google(google_data, guest_id=guest_id)
+    except PermissionError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=403)
+    return _session_response(user)
 
 
 async def register_handler(request: Request) -> Response:
@@ -147,31 +129,18 @@ async def register_handler(request: Request) -> Response:
         status = 413 if "too large" in str(exc).lower() else 400
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=status)
 
-    email = body.get("email")
-    password = body.get("password")
-    name = body.get("name", "")
+    email = str(body.get("email") or "")
+    password = str(body.get("password") or "")
+    name = str(body.get("name") or "")
+    username = str(body.get("username") or "")
     guest_id = body.get("guest_id") or request.cookies.get("wpb_guest")
 
-    user, err = register_user_with_email(email, password, name=name, guest_id=guest_id)
+    user, err = register_user_with_email(email, password, name=name, guest_id=guest_id, username=username)
     if err or not user:
         return JSONResponse({"ok": False, "error": err or "Registration failed"}, status_code=400)
-
-    session_token = issue_session_jwt(user)
-    resp = JSONResponse({
-        "ok": True,
-        "token": session_token,
-        "user": user,
-        "message": "Welcome! You received 5 bonus credits."
-    })
-    resp.set_cookie(
-        "wpb_session",
-        session_token,
-        max_age=30 * 86400,
-        httponly=True,
-        samesite="lax",
-        secure=True
-    )
-    return resp
+    bonus = auth_service.SIGNUP_BONUS_CREDITS
+    return _session_response(user, message=f"Welcome! Your username is @{user['username']}." +
+                             (f" You received {bonus} bonus credits." if bonus else ""))
 
 
 async def login_handler(request: Request) -> Response:
@@ -187,36 +156,67 @@ async def login_handler(request: Request) -> Response:
         status = 413 if "too large" in str(exc).lower() else 400
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=status)
 
-    email = body.get("email")
-    if await _auth_rate_limited(request, "login-account", 12, 900, str(email or "")):
+    identifier = str(body.get("identifier") or body.get("email") or body.get("username") or "")
+    if await _auth_rate_limited(request, "login-account", 12, 900, identifier):
         return _rate_limited_response()
-    password = body.get("password")
+    password = str(body.get("password") or "")
 
-    user, err = login_user_with_email(email, password)
+    user, err = login_user_with_email(identifier, password)
     if err or not user:
         return JSONResponse({"ok": False, "error": err or "Invalid credentials"}, status_code=401)
-
-    session_token = issue_session_jwt(user)
-    resp = JSONResponse({
-        "ok": True,
-        "token": session_token,
-        "user": user
-    })
-    resp.set_cookie(
-        "wpb_session",
-        session_token,
-        max_age=30 * 86400,
-        httponly=True,
-        samesite="lax",
-        secure=True
-    )
-    return resp
+    return _session_response(user)
 
 
 async def logout_handler(request: Request) -> Response:
-    """Clears authentication session."""
-    resp = JSONResponse({"ok": True, "message": "Logged out successfully"})
-    resp.delete_cookie("wpb_session")
+    """Clears this browser's session. Pass {"all": true} to sign out every device."""
+    try:
+        body = await _read_json_limited(request)
+    except ValueError:
+        body = {}
+    if body.get("all"):
+        identity = resolve_request_identity(request, create_guest=False)
+        if identity.get("authenticated"):
+            revoke_all_sessions(identity["user_id"])
+    resp = JSONResponse({"ok": True, "message": "Logged out successfully"}, headers={"Cache-Control": "no-store"})
+    resp.delete_cookie("wpb_session", httponly=True, samesite="lax", secure=True)
+    return resp
+
+
+async def username_handler(request: Request) -> Response:
+    """Changes the signed-in user's username."""
+    if await _auth_rate_limited(request, "username", 10, 3600):
+        return _rate_limited_response()
+    identity = resolve_request_identity(request, create_guest=False)
+    if not identity.get("authenticated"):
+        return JSONResponse({"ok": False, "error": "Sign in required."}, status_code=401)
+    try:
+        body = await _read_json_limited(request)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    ok, err = change_username(identity["user_id"], str(body.get("username") or ""))
+    if not ok:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+    return JSONResponse({"ok": True, "username": str(body.get("username")).strip().lower()})
+
+
+async def config_handler(request: Request) -> Response:
+    """Public auth configuration for the frontend (no secrets)."""
+    ids = auth_service.google_client_ids()
+    return JSONResponse({"ok": True, "google_client_id": ids[0] if ids else None,
+                         "password_min_length": auth_service.MIN_PASSWORD_LENGTH},
+                        headers={"Cache-Control": "public, max-age=300"})
+
+
+def _session_response(user, message: str = "") -> JSONResponse:
+    session_token = issue_session_jwt(user)
+    public_user = {k: user.get(k) for k in ("id", "email", "username", "name", "avatar", "plan", "plan_name",
+                                           "credits", "max_resolution", "max_duration", "email_verified", "has_password")}
+    public_user.update({"authenticated": True, "is_guest": False})
+    body = {"ok": True, "token": session_token, "user": public_user}
+    if message:
+        body["message"] = message
+    resp = JSONResponse(body, headers={"Cache-Control": "no-store"})
+    resp.set_cookie("wpb_session", session_token, max_age=30 * 86400, httponly=True, samesite="lax", secure=True)
     return resp
 
 
@@ -244,6 +244,8 @@ routes_auth = [
     Route("/api/auth/register", register_handler, methods=["POST"]),
     Route("/api/auth/login", login_handler, methods=["POST"]),
     Route("/api/auth/logout", logout_handler, methods=["POST"]),
+    Route("/api/auth/username", username_handler, methods=["POST"]),
+    Route("/api/auth/config", config_handler, methods=["GET"]),
     Route("/api/auth/plans", plans_handler, methods=["GET"]),
     Route("/api/auth/ledger", ledger_handler, methods=["GET"]),
 ]

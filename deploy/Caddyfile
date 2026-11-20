@@ -1,0 +1,47 @@
+{
+	email {$ACME_EMAIL}
+	servers {
+		timeouts {
+			read_body 10m
+			read_header 15s
+			idle 2m
+		}
+	}
+}
+
+{$API_DOMAIN:api.winplaybox.in} {
+	encode zstd gzip
+
+	# Editor uploads are capped at EDITOR_MAX_UPLOAD_MB (100 MB) by the API; refuse anything larger here first,
+	# including chunked uploads that carry no Content-Length.
+	request_body {
+		max_size 110MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+		-X-Powered-By
+	}
+
+	# Caddy replaces X-Forwarded-For with the real client IP (no trusted upstream proxies),
+	# so the API's per-IP limits cannot be spoofed.
+	reverse_proxy api:8000 {
+		transport http {
+			read_timeout 10m
+			write_timeout 10m
+			dial_timeout 5s
+		}
+		health_uri /health
+		health_interval 30s
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

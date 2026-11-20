@@ -145,35 +145,35 @@ class TestEditorRoutes(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
 
     @patch.object(routes_editor.pipeline, "start")
-    def test_daily_limit_per_ip_and_refund(self, start):
-        with patch.dict(os.environ, {"WPB_TRUST_PROXY": "1"}), patch("backend.security.zero_trust.TRUST_PROXY", True):
-            ip = "203.0.113.77"
-            r1 = self._post(ip=ip)
+    def test_credits_debit_once_and_refund_on_failure(self, start):
+        cheap = _form(mode="original", caption_style="pop", brief="", overlays="0")
+        gid = self.client.get("/api/auth/session").json()["identity"]["guest_id"]
+        self.client.headers["x-guest-id"] = gid
+        if True:
+            r1 = self._post(cheap)
             self.assertEqual(r1.status_code, 202, r1.text)
             job1 = r1.json()["job"]
             # one active job at a time per client
-            self.assertEqual(self._post(ip=ip).status_code, 409)
-            j = pipeline.load_job(job1["id"])
-            pipeline._update(j, status="done")
-            r2 = self._post(ip=ip)
-            self.assertEqual(r2.status_code, 202)
-            self.assertEqual(r2.json()["quota"]["remaining"], 0)
-            pipeline._update(pipeline.load_job(r2.json()["job"]["id"]), status="done")
-            r3 = self._post(ip=ip)
-            self.assertEqual(r3.status_code, 429)
-            self.assertEqual(r3.json()["error"]["code"], "DailyLimitReached")
-            # another IP is unaffected
-            self.assertEqual(self._post(ip="203.0.113.78").status_code, 202)
-            # a failed job gives the credit back
-            on_finish = start.call_args_list[1].args[2]
+            self.assertEqual(self._post(cheap).status_code, 409)
+            before = self.client.get("/api/auth/session").json()["identity"]["credits"]
+            # a failed job gives the credit back exactly once
+            on_finish = start.call_args_list[0].args[2]
             import asyncio
-            asyncio.run(on_finish({"status": "failed"}))
-            self.assertEqual(self._post(ip=ip).status_code, 202)
+            asyncio.run(on_finish({"id": job1["id"], "status": "failed"}))
+            asyncio.run(on_finish({"id": job1["id"], "status": "failed"}))
+            after = self.client.get("/api/auth/session").json()["identity"]["credits"]
+            self.assertEqual(after - before, r1.json()["quote"]["total_cost"])
+
+    def test_insufficient_credits_is_402(self):
+        expensive = _form(resolution="2160")
+        r = self._post(expensive)
+        self.assertIn(r.status_code, (402, 403))
 
     def test_health(self):
         r = self.client.get("/api/editor/health")
         self.assertEqual(r.status_code, 200)
         self.assertIn("ffmpeg", r.json())
+        self.assertTrue(r.json()["ok"])
         self.assertIn("Inter-Black.otf", r.json()["fonts"])
 
     def test_warmup_needs_admin(self):

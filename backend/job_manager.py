@@ -16,7 +16,7 @@ import hmac
 import base64
 from contextlib import contextmanager
 from typing import Dict, Any, Optional, List
-import static_ffmpeg
+import shutil
 import httpx
 
 try:
@@ -24,7 +24,14 @@ try:
 except (ModuleNotFoundError, ImportError):
     from utils.security import verify_download_token, is_safe_cdn_host, verify_safe_upstream_url, verify_public_dns_resolution
 
-static_ffmpeg.add_paths()
+if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
+    # Only fall back to the downloadable static build when the system has no ffmpeg
+    # (Docker installs it via apt, so production never downloads at import time).
+    try:
+        import static_ffmpeg
+        static_ffmpeg.add_paths()
+    except Exception as _ffmpeg_exc:  # pragma: no cover - environment specific
+        logging.getLogger("wpb.job_manager").warning("ffmpeg unavailable: %s", _ffmpeg_exc)
 
 JOBS_DIR = os.environ.get("JOBS_DIR") or os.path.join(tempfile.gettempdir(), "ovd_jobs")
 os.makedirs(JOBS_DIR, exist_ok=True)
@@ -38,6 +45,8 @@ class JobManager:
         self._cleaner_started = False
         self._worker_task = None
         self.worker_id = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
+        # Each claim gets its own fencing token so a stale attempt can never finalize a newer one.
+        self._leases: Dict[str, str] = {}
         self.lease_seconds = max(60, int(os.environ.get("JOB_LEASE_SECONDS", "300")))
         self.max_attempts = max(1, min(5, int(os.environ.get("JOB_MAX_ATTEMPTS", "3"))))
         owner_secret = (os.environ.get("JOB_OWNER_SECRET") or os.environ.get("WPB_VAULT_SECRET", "").split(",")[0]).strip()
@@ -336,6 +345,7 @@ class JobManager:
                 conn.commit()
                 return None
             job_id = row["id"]
+            lease_token = f"{self.worker_id}#{uuid.uuid4().hex[:8]}"
             updated = conn.execute("""
                 UPDATE jobs SET status='processing', lease_owner=?, lease_expires_at=?,
                     attempts=attempts+1, progress=MAX(progress, 5), updated_at=?
@@ -343,12 +353,13 @@ class JobManager:
                     (status='queued' AND next_run_at <= ?)
                     OR (status='processing' AND lease_expires_at < ?)
                 )
-            """, (self.worker_id, now + self.lease_seconds, now, job_id, now, now))
+            """, (lease_token, now + self.lease_seconds, now, job_id, now, now))
             if updated.rowcount != 1:
                 conn.rollback()
                 return None
             claimed = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
             conn.commit()
+        self._leases[job_id] = lease_token
         data = dict(claimed)
         data["payload"] = json.loads(data.get("payload_json") or "{}")
         return data
@@ -446,6 +457,9 @@ class JobManager:
         await communication
         raise RuntimeError("FFmpeg job exceeded the 15-minute execution limit.")
 
+    def _lease_for(self, job_id: str) -> str:
+        return self._leases.get(job_id) or self.worker_id
+
     async def _heartbeat_once_for_test(self, job_id: str) -> bool:
         """Renew only a still-live, owned lease; never revive expiry or cancellation."""
         now = time.time()
@@ -454,7 +468,7 @@ class JobManager:
                 UPDATE jobs SET lease_expires_at=?, updated_at=?
                 WHERE id=? AND status='processing' AND lease_owner=?
                     AND lease_expires_at >= ? AND cancel_requested=0
-            """, (now + self.lease_seconds, now, job_id, self.worker_id, now))
+            """, (now + self.lease_seconds, now, job_id, self._lease_for(job_id), now))
             conn.commit()
             return updated.rowcount == 1
 
@@ -472,6 +486,7 @@ class JobManager:
                     await asyncio.sleep(1.0)
                     continue
                 job_id = claimed["id"]
+                lease = claimed["lease_owner"]
                 job = {k: claimed.get(k) for k in (
                     "id", "action", "status", "progress", "output_file",
                     "download_url", "filename", "error", "created_at", "lease_owner", "attempts",
@@ -492,7 +507,7 @@ class JobManager:
                             conn.execute("""
                                 UPDATE jobs SET status='done', progress=100, lease_owner=NULL,
                                     lease_expires_at=NULL, updated_at=? WHERE id=? AND lease_owner=?
-                            """, (time.time(), job_id, self.worker_id))
+                            """, (time.time(), job_id, lease))
                             conn.commit()
                 except asyncio.CancelledError:
                     with self._connect() as conn:
@@ -500,7 +515,7 @@ class JobManager:
                             UPDATE jobs SET status='cancelled', error='Cancelled by owner.',
                                 lease_owner=NULL, lease_expires_at=NULL, updated_at=?
                             WHERE id=? AND lease_owner=?
-                        """, (time.time(), job_id, self.worker_id))
+                        """, (time.time(), job_id, lease))
                         conn.commit()
                 except Exception as exc:
                     with self._connect() as conn:
@@ -517,10 +532,12 @@ class JobManager:
                             WHERE id=? AND lease_owner=?
                         """, (
                             "queued" if retry else "failed", str(exc)[:500],
-                            time.time() + delay if retry else 0, time.time(), job_id, self.worker_id,
+                            time.time() + delay if retry else 0, time.time(), job_id, lease,
                         ))
                         conn.commit()
                 finally:
+                    if self._leases.get(job_id) == lease:
+                        self._leases.pop(job_id, None)
                     heartbeat.cancel()
                     try:
                         await heartbeat
@@ -584,7 +601,7 @@ class JobManager:
             not row
             or row["cancel_requested"]
             or row["status"] != "processing"
-            or row["lease_owner"] != self.worker_id
+            or row["lease_owner"] != self._lease_for(job_id)
             or row["lease_expires_at"] is None
             or row["lease_expires_at"] < now
         )

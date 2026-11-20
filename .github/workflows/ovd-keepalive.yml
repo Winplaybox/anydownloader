@@ -3,9 +3,8 @@ name: OVD keep-alive
 # Render free web services sleep after 15 min idle (~50 s cold start => browser timeouts).
 # Ping only during Indian waking hours (07:00-01:00 IST) so this service uses ~540 h/month and
 # leaves room in the workspace's 750 free instance-hours for the other free services.
+# Retired: the backend now runs on an always-on VPS (api.winplaybox.in). Manual run only.
 on:
-  schedule:
-    - cron: "*/10 1-19 * * *"   # UTC 01:00-19:59 = IST 06:30-01:30
   workflow_dispatch:
 
 permissions:
@@ -19,7 +18,7 @@ jobs:
       - name: Ping /health
         run: |
           for i in 1 2 3; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" -m 70 https://anydownloader-backend-vvbj.onrender.com/health || true)
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 70 https://api.winplaybox.in/health || true)
             echo "attempt $i -> $code"
             [ "$code" = "200" ] && exit 0
             sleep 10
