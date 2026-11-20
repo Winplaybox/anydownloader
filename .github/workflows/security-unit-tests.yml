@@ -32,22 +32,22 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install focused test dependencies
-        run: python -m pip install --disable-pip-version-check starlette httpx static-ffmpeg
+        run: python -m pip install --disable-pip-version-check -r backend/requirements.txt pytest fakeredis
       - name: Compile backend and tests
         run: python -m compileall -q backend tests
       - name: Run temp media auth and URL tests
-        run: python tests/test_temp_media_auth.py
+        run: python -m pytest -q tests/test_temp_media_auth.py
       - name: Run core security and token tests
-        run: python tests/test_core.py
+        run: python -m pytest -q tests/test_core.py
       - name: Run rate limiter failure policy tests
-        run: python tests/test_rate_limit_failure_policy.py
+        run: python -m pytest -q tests/test_rate_limit_failure_policy.py
       - name: Run worker configuration tests
-        run: python tests/test_worker_config.py
+        run: python -m pytest -q tests/test_worker_config.py
       - name: Run generated asset path tests
-        run: python tests/test_generated_asset.py
+        run: python -m pytest -q tests/test_generated_asset.py
       - name: Run durable job queue tests
-        run: python tests/test_job_manager_reliability.py
+        run: python -m pytest -q tests/test_job_manager_reliability.py
       - name: Run production security policy tests
-        run: python tests/test_production_security_policy.py
+        run: python -m pytest -q tests/test_production_security_policy.py
       - name: Run editor job ownership tests
-        run: python tests/test_editor_job_ownership.py
+        run: python -m pytest -q tests/test_editor_job_ownership.py
