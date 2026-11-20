@@ -463,7 +463,7 @@ class JobManager:
                 job_id = claimed["id"]
                 job = {k: claimed.get(k) for k in (
                     "id", "action", "status", "progress", "output_file",
-                    "download_url", "filename", "error", "created_at", "lease_owner",
+                    "download_url", "filename", "error", "created_at", "lease_owner", "attempts",
                 )}
                 self.jobs[job_id] = job
                 heartbeat = asyncio.create_task(self._heartbeat(job_id))
@@ -661,7 +661,11 @@ class JobManager:
                 raise asyncio.CancelledError()
             job["progress"] = 82
             self._save_job_db(job)
-            output_path = os.path.join(JOBS_DIR, job["filename"])
+            # Each lease attempt writes to a unique artifact path. A stale worker
+            # can finish its own file but cannot overwrite a newer worker's output.
+            attempt = int(job.get("attempts") or 0)
+            worker_tag = hashlib.sha256(str(job.get("lease_owner") or self.worker_id).encode()).hexdigest()[:12]
+            output_path = os.path.join(JOBS_DIR, f".{job_id}.{attempt}.{worker_tag}.{job['filename']}")
             # FFmpeg processes only local bounded files; no remote protocol is enabled.
             ua_args = ["-protocol_whitelist", "file,pipe"]
             if action == "merge":
@@ -701,7 +705,8 @@ class JobManager:
 
             elif action == "zip":
                 job["filename"] = f"ovd_gallery_{job_id[:16]}.zip"
-                output_path = os.path.join(JOBS_DIR, job["filename"])
+                # ZIP output is lease-attempt-specific, too.
+                output_path = os.path.join(JOBS_DIR, f".{job_id}.{attempt}.{worker_tag}.{job['filename']}")
                 with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
                     async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
                         total_bytes = 0
