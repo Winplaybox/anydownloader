@@ -1,9 +1,21 @@
 """Production startup configuration validation regression tests."""
+import ast
 import os
+import pathlib
 import unittest
+import urllib.parse
 from unittest.mock import patch
 
-from backend.main import _validate_production_configuration
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+SOURCE = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
+TREE = ast.parse(SOURCE)
+FUNCTION = next(node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name == "_validate_production_configuration")
+MODULE = ast.Module(body=[FUNCTION], type_ignores=[])
+exec(compile(ast.fix_missing_locations(MODULE), "<startup-validator-test>", "exec"), {
+    "os": os, "urllib": urllib, "EXTENSION_SECRET_KEY": "",
+    "token_vault": type("Vault", (), {"store": type("Store", (), {"name": "memory"})()})(),
+})
+validate = locals().get("_validate_production_configuration")
 
 
 class TestProductionStartupValidation(unittest.TestCase):
@@ -18,7 +30,7 @@ class TestProductionStartupValidation(unittest.TestCase):
         env.pop("RENDER", None)
         with patch.dict(os.environ, env, clear=True):
             with self.assertRaises(RuntimeError) as ctx:
-                _validate_production_configuration()
+                validate()
         message = str(ctx.exception)
         self.assertIn("TOKEN_HMAC_SECRET", message)
         self.assertIn("WPB_VAULT_SECRET", message)
