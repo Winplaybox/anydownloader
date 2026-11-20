@@ -11,11 +11,12 @@ SOURCE = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
 FUNCTION = next(node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name == "_validate_production_configuration")
 MODULE = ast.Module(body=[FUNCTION], type_ignores=[])
-exec(compile(ast.fix_missing_locations(MODULE), "<startup-validator-test>", "exec"), {
+NS = {
     "os": os, "urllib": urllib, "EXTENSION_SECRET_KEY": "",
     "token_vault": type("Vault", (), {"store": type("Store", (), {"name": "memory"})()})(),
-})
-validate = locals().get("_validate_production_configuration")
+}
+exec(compile(ast.fix_missing_locations(MODULE), "<startup-validator-test>", "exec"), NS)
+validate = NS["_validate_production_configuration"]
 
 
 class TestProductionStartupValidation(unittest.TestCase):
