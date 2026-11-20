@@ -117,6 +117,28 @@ ALLOWED_ORIGINS = [
         "https://ovd.winplaybox.in,https://winplaybox.in,http://localhost:5173,http://localhost:3000,http://testserver"
     ).split(",") if o.strip()
 ]
+
+
+def _matches_allowed_origin(value: str) -> bool:
+    """Compare browser Origin/Referer by normalized origin, never string prefix."""
+    try:
+        candidate = urllib.parse.urlsplit(value.strip())
+        if candidate.scheme not in ("http", "https") or not candidate.hostname:
+            return False
+        if candidate.username or candidate.password:
+            return False
+        candidate_port = candidate.port or (443 if candidate.scheme == "https" else 80)
+        for allowed in ALLOWED_ORIGINS:
+            parsed = urllib.parse.urlsplit(allowed.strip())
+            if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+                continue
+            allowed_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            if (candidate.scheme.lower(), candidate.hostname.lower(), candidate_port) == (parsed.scheme.lower(), parsed.hostname.lower(), allowed_port):
+                return True
+        return False
+    except (ValueError, TypeError):
+        return False
+
 EXTENSION_SECRET_KEY = os.environ.get("EXTENSION_SECRET_KEY", "").strip()
 # Server-to-server key for automations (Make.com, n8n, cron). Send as `X-API-Key`.
 # Unset = disabled. Keep it out of the repo: set it only in the Render dashboard.
@@ -2630,8 +2652,8 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # C. Website Origin or Referer check
-        origin_match = any(origin.startswith(ao) for ao in ALLOWED_ORIGINS)
-        referer_match = any(referer.startswith(ao) for ao in ALLOWED_ORIGINS)
+        origin_match = _matches_allowed_origin(origin)
+        referer_match = _matches_allowed_origin(referer)
 
         if origin_match or referer_match:
             return await call_next(request)
