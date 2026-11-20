@@ -450,10 +450,12 @@ class JobManager:
         while True:
             await asyncio.sleep(max(10, self.lease_seconds // 3))
             with self._connect() as conn:
+                now = time.time()
                 updated = conn.execute("""
                     UPDATE jobs SET lease_expires_at=?, updated_at=?
                     WHERE id=? AND status='processing' AND lease_owner=?
-                """, (time.time() + self.lease_seconds, time.time(), job_id, self.worker_id))
+                    AND lease_expires_at >= ? AND cancel_requested=0
+                """, (now + self.lease_seconds, now, job_id, self.worker_id, now))
                 conn.commit()
                 if updated.rowcount != 1:
                     return
