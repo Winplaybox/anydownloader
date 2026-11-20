@@ -121,7 +121,7 @@ async def upload_handler(request):
     try:
         _ensure_store()
         _purge_expired()
-    except OSError:
+    except (OSError, RuntimeError):
         return JSONResponse({"ok": False, "error": "Temporary media storage is unavailable."}, status_code=503)
     tmp_path = os.path.join(STORE_DIR, f".upload_{uuid.uuid4().hex}")
     written = 0
