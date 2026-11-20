@@ -134,7 +134,8 @@ def test_find_clips_uses_ai_and_validates(monkeypatch):
 
     monkeypatch.setattr(brain.llm_router, "complete_json", fake)
     clips, info = asyncio.run(brain.find_clips(words, [], 120.0,
-                                               config.clean_settings({"min_len": 15, "max_len": 45})))
+                                               config.clean_settings({"min_len": 15, "max_len": 45}),
+                                               allow_server_ai=True))
     assert info["engine"] == "ai" and len(clips) == 1
     c = clips[0]
     assert c["score"] == 100 and len(c["hook"].split()) <= 7 and c["hashtags"] == ["one", "two"]

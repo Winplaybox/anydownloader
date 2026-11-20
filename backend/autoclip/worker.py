@@ -23,7 +23,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from . import config, pipeline, store
+from . import byo, config, pipeline, store
 
 log = logging.getLogger("autoclip.worker")
 
@@ -96,6 +96,10 @@ class InlineWorker:
         except Exception as e:  # noqa: BLE001
             log.exception("autoclip job %s failed", job_id)
             await asyncio.to_thread(store.fail, job_id, wid, pipeline.friendly(e), retry=pipeline.retryable(e))
+        finally:
+            j = await asyncio.to_thread(store.get, job_id)
+            if not j or j.get("status") in ("done", "failed", "cancelled"):
+                byo.drop(job_id)  # the user's key never outlives its job
 
     def status(self) -> Dict[str, Any]:
         return {"mode": config.WORKER_MODE, "inline_workers": len(self.ids) if config.WORKER_MODE == "inline" else 0,
