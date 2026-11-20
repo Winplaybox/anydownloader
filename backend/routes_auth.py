@@ -142,9 +142,10 @@ async def register_handler(request: Request) -> Response:
     if await _auth_rate_limited(request, "register", 6, 3600):
         return _rate_limited_response()
     try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse({"ok": False, "error": "Invalid JSON body"}, status_code=400)
+        body = await _read_json_limited(request)
+    except ValueError as exc:
+        status = 413 if "too large" in str(exc).lower() else 400
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=status)
 
     email = body.get("email")
     password = body.get("password")
@@ -181,9 +182,10 @@ async def login_handler(request: Request) -> Response:
     if await _auth_rate_limited(request, "login", 12, 900):
         return _rate_limited_response()
     try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse({"ok": False, "error": "Invalid JSON body"}, status_code=400)
+        body = await _read_json_limited(request)
+    except ValueError as exc:
+        status = 413 if "too large" in str(exc).lower() else 400
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=status)
 
     email = body.get("email")
     if await _auth_rate_limited(request, "login-account", 12, 900, str(email or "")):
