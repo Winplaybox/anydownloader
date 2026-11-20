@@ -65,8 +65,8 @@ The remote worker downloads links from its own IP (useful when YouTube blocks th
 | `AUTOCLIP_COOKIES_FILE` | – | Netscape cookies for yt-dlp |
 | `GEMINI_API_KEY` | – | shared with the rest of the API (never commit it) |
 
-Reverse proxy: allow request bodies of `AUTOCLIP_MAX_UPLOAD_MB` on `/api/autoclip/jobs`
-(nginx `client_max_body_size 512m;`, Caddy `request_body { max_size 512MB }`).
+Reverse proxy: `deploy/Caddyfile` already allows 520 MB on `/api/autoclip/jobs` only (110 MB everywhere else).
+Raise both if you raise `AUTOCLIP_MAX_UPLOAD_MB`.
 
 ## API
 

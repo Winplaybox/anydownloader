@@ -64,6 +64,9 @@ export default function PricingModal({ isOpen, onClose, userPlan = 'free', onPla
       const data = await res.json();
       if (res.ok && data.ok && data.checkout_url) {
         window.location.href = data.checkout_url;
+      } else if (res.status === 401 && data.auth_required) {
+        // Paid credits belong to an account, so sign in first and come back here.
+        window.location.href = `/login?return=${encodeURIComponent(window.location.pathname + window.location.search)}`;
       } else {
         setError(data.error || 'Failed to start payment. Please try again.');
         setLoadingPlan('');

@@ -90,7 +90,9 @@ try:
         ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify,
         authenticate_admin as _zt_authenticate_admin, admin_locked as _zt_admin_locked,
         record_admin_failure as _zt_admin_failure, client_ip as _zt_client_ip, bearer as _zt_bearer,
+        authenticate_service, service_token,
     )
+    from backend.routes_admin_ops import routes_admin_ops
     from backend.routes_v2 import routes_v2
     from backend.routes_autopilot import routes_autopilot
     from backend.routes_studio import routes_studio
@@ -102,7 +104,9 @@ try:
 except (ModuleNotFoundError, ImportError):
     from security.zero_trust import ZeroTrustMiddleware, cors_kwargs, issue_token_endpoint, legacy_verify
     from security.zero_trust import (authenticate_admin as _zt_authenticate_admin, admin_locked as _zt_admin_locked,
-                                     record_admin_failure as _zt_admin_failure, client_ip as _zt_client_ip, bearer as _zt_bearer)
+                                     record_admin_failure as _zt_admin_failure, client_ip as _zt_client_ip, bearer as _zt_bearer,
+                                     authenticate_service, service_token)
+    from routes_admin_ops import routes_admin_ops  # type: ignore
     from routes_v2 import routes_v2
     from routes_autopilot import routes_autopilot
     from routes_studio import routes_studio
@@ -2610,6 +2614,17 @@ async def health_handler(request):
         }
     })
 
+def _service_scope_for(request) -> str:
+    path = request.url.path
+    if path.startswith("/api/editor"):
+        return "editor:read" if request.method == "GET" else "editor:render"
+    if path.startswith("/api/temp-media"):
+        return "media:upload"
+    if path.startswith(("/api/jobs", "/api/download", "/api/stream")):
+        return "media:download"
+    return "media:resolve"
+
+
 class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
     """
     Ensures ONLY your authorized website (via Origin/Referer) 
@@ -2622,7 +2637,7 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 2. Allow public health checks and media stream downloads (secured via is_safe_cdn_url)
-        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs", "/api/ai/captions", "/api/ai/voice") or request.url.path.startswith(("/.well-known", "/api/jobs", "/api/auth", "/api/editor", "/api/payments", "/api/v1", "/api/v2", "/api/autoclip")) or request.url.path.startswith("/admin/"):
+        if request.url.path in ("/", "/health", "/api/health", "/api/platforms", "/api/stream", "/api/download", "/api/download_video", "/api/download_audio", "/api/proxy-image", "/api/contact", "/api/blogs", "/api/ai/captions", "/api/ai/voice") or request.url.path.startswith(("/.well-known", "/api/auth", "/api/payments", "/api/v1", "/api/v2", "/api/autoclip")) or request.url.path.startswith("/admin/"):
             return await call_next(request)
         # OAuth sign-in redirects come from the platform (no allowed origin); the route checks its own signed state.
         if request.method == "GET" and request.url.path.startswith("/oauth/autopilot/"):
@@ -2632,7 +2647,8 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         # AI Video Editor: media GETs are opened by <video>/<audio>/download links (job ids are random UUIDs).
         if request.method == "GET" and (request.url.path == "/api/editor/voice-preview"
-                                        or re.fullmatch(r"/api/editor/jobs/[0-9a-f-]{36}/file/[a-z]+", request.url.path)):
+                                        or re.fullmatch(r"/api/editor/jobs/[0-9a-f-]{36}/file/[a-z]+", request.url.path)
+                                        or re.fullmatch(r"/api/jobs/[A-Za-z0-9_-]{8,64}/(download|file)", request.url.path)):
             return await call_next(request)
 
         # 3. Verify origin, referer, or extension secret key
@@ -2644,10 +2660,18 @@ class ClientAccessAuthMiddleware(BaseHTTPMiddleware):
         if ext_key and hmac.compare_digest(ext_key.encode(), EXTENSION_SECRET_KEY.encode()):
             return await call_next(request)
 
-        # A2. Automation key (Make.com and other server-side callers)
+        # A2. Server-side callers: a scoped service token (preferred) or the legacy automation key.
         api_key = request.headers.get("x-api-key", "")
         if AUTOMATION_API_KEY and api_key and hmac.compare_digest(api_key.encode(), AUTOMATION_API_KEY.encode()):
             return await call_next(request)
+        if service_token(request).startswith("ovd_st_"):
+            scope = _service_scope_for(request)
+            principal = await asyncio.to_thread(authenticate_service, request, scope)
+            if principal:
+                request.state.service_principal = principal
+                return await call_next(request)
+            return JSONResponse({"success": False, "error": f"Service token is invalid, revoked or lacks scope '{scope}'."},
+                                status_code=403)
 
         # B. Browser Extension Origin check
         if ALLOWED_EXTENSION_IDS:
@@ -4403,7 +4427,7 @@ routes = [
 ]
 
 
-routes = routes_autoclip + routes_v2 + routes_analytics + routes_studio + routes_autopilot + routes_editor + routes_temp_media + routes_auth + payments_routes + routes
+routes = routes_autoclip + routes_admin_ops + routes_v2 + routes_analytics + routes_studio + routes_autopilot + routes_editor + routes_temp_media + routes_auth + payments_routes + routes
 
 # Order = outermost first: CORS -> Zero-Trust guard -> origin/extension gate
 middleware = [
@@ -4444,6 +4468,13 @@ def _validate_production_configuration():
         missing.append("PUBLIC_BASE_URL (canonical HTTPS host)")
     if not os.environ.get("JOBS_DIR", "").strip():
         missing.append("JOBS_DIR (persistent writable disk path)")
+    if len(os.environ.get("WPB_JWT_SECRET", "").strip()) < 32:
+        missing.append("WPB_JWT_SECRET (at least 32 characters)")
+    if not (os.environ.get("GOOGLE_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_IDS") or "").strip():
+        missing.append("GOOGLE_CLIENT_ID (Google Sign-In web client id)")
+    if (os.environ.get("DODO_PAYMENTS_API_KEY") or os.environ.get("DODO_API_KEY") or "").strip() and not (
+            os.environ.get("DODO_PAYMENTS_WEBHOOK_SECRET") or os.environ.get("DODO_WEBHOOK_SECRET") or "").strip():
+        missing.append("DODO_PAYMENTS_WEBHOOK_SECRET (required whenever a Dodo API key is configured)")
     admin_key = (os.environ.get("WPB_ADMIN_KEY") or os.environ.get("ADMIN_API_KEY") or "").strip()
     admin_jwt_configured = bool(
         os.environ.get("SUPABASE_JWT_SECRET", "").strip()
@@ -4477,7 +4508,6 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def _lifespan(_app):
-    # lifespan works on Starlette 0.36 .. 1.x (on_startup= was removed in Starlette 1.0)
     await _startup_job_queue()
     yield
 

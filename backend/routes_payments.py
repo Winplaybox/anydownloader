@@ -40,6 +40,10 @@ async def checkout_handler(request: Request) -> Response:
         return JSONResponse({"ok": False, "error": "plan_id is required"}, status_code=400)
 
     identity = auth_service.resolve_request_identity(request)
+    if os.environ.get("PAYMENTS_REQUIRE_ACCOUNT", "1") == "1" and not identity.get("authenticated"):
+        # Paid credits must belong to a recoverable account (a guest cookie can be lost).
+        return JSONResponse({"ok": False, "error": "Please sign in to purchase.", "auth_required": True},
+                            status_code=401, headers={"Cache-Control": "no-store"})
     customer_email = body.get("email") or request.query_params.get("email")
     customer_name = body.get("name") or request.query_params.get("name")
     return_url = body.get("return_url") or request.query_params.get("return_url")
@@ -54,32 +58,55 @@ async def checkout_handler(request: Request) -> Response:
             return_url=return_url,
             currency=currency
         )
-        return JSONResponse(session)
+        return JSONResponse(session, headers={"Cache-Control": "no-store"})
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
     except Exception as e:
         log.exception("checkout_handler error: %s", e)
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "error": "Checkout is temporarily unavailable. Please try again."}, status_code=503)
 
 
 async def webhook_handler(request: Request) -> Response:
-    """Receives and verifies Dodo Payments webhooks."""
-    cl = request.headers.get("content-length", "")
-    if cl.isdigit() and int(cl) > 1024 * 1024:
-        return JSONResponse({"ok": False, "error": "Webhook payload too large."}, status_code=413)
-    payload_bytes = await request.body()
+    """Receives Dodo webhooks: verified signature + 5-minute window, each webhook-id processed exactly once.
+
+    Returns 5xx for retryable failures so Dodo retries; a processed id returns 200 on every retry.
+    """
+    raw = bytearray()
+    async for chunk in request.stream():
+        raw.extend(chunk)
+        if len(raw) > 1024 * 1024:
+            return JSONResponse({"ok": False, "error": "Webhook payload too large."}, status_code=413)
+    payload_bytes = bytes(raw)
     headers = {k.lower(): v for k, v in request.headers.items()}
 
-    # Signature verification
     if not dodo_service.verify_webhook_signature(payload_bytes, headers):
-        log.warning("Invalid Dodo webhook signature received")
+        log.warning("Rejected Dodo webhook: bad signature or stale timestamp")
         return JSONResponse({"ok": False, "error": "Invalid signature"}, status_code=401)
 
     try:
         event = json.loads(payload_bytes.decode("utf-8"))
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": f"Invalid JSON: {e}"}, status_code=400)
+        if not isinstance(event, dict):
+            raise ValueError("not an object")
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid JSON"}, status_code=400)
 
-    result = await dodo_service.process_webhook_event(event)
-    return JSONResponse(result)
+    webhook_id = headers["webhook-id"]
+    event_type = str(event.get("type") or "")
+    if not auth_service.claim_webhook_event(webhook_id, event_type):
+        return JSONResponse({"ok": True, "duplicate": True})
+    try:
+        result = await dodo_service.process_webhook_event(event)
+    except Exception:
+        log.exception("Dodo webhook %s (%s) failed", webhook_id, event_type)
+        auth_service.release_webhook_event(webhook_id)
+        return JSONResponse({"ok": False, "error": "processing_failed"}, status_code=500)
+    if not result.get("ok") and result.get("retry"):
+        # e.g. payment arrived before we can resolve its owner: let Dodo retry later.
+        auth_service.release_webhook_event(webhook_id)
+        return JSONResponse({"ok": False, "error": result.get("error")}, status_code=503)
+    auth_service.finish_webhook_event(webhook_id, json.dumps(result)[:500])
+    log.info("Dodo webhook %s %s -> %s", webhook_id, event_type, result.get("action") or result.get("error"))
+    return JSONResponse({"ok": True})
 
 
 async def mock_checkout_handler(request: Request) -> Response:

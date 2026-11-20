@@ -1,0 +1,59 @@
+name: CI (full backend tests + image build)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-full-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: System packages
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+      - name: Python dependencies
+        run: python -m pip install -r backend/requirements.txt pytest fakeredis
+      - name: Compile everything (catches syntax errors before merge)
+        run: python -m compileall -q backend tests
+      - name: Full test suite
+        run: python -m pytest -q tests backend/tests_v2
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image
+        run: docker build -t ovd-app:ci .
+      - name: Validate compose file
+        run: |
+          cp deploy/env.production.example .env
+          for k in WPB_JWT_SECRET ADMIN_API_KEY TOKEN_HMAC_SECRET EXTENSION_SECRET_KEY WPB_VAULT_SECRET JOB_OWNER_SECRET SERVICE_TOKEN_PEPPER REDIS_PASSWORD; do
+            sed -i "s|^$k=$|$k=ci-$(openssl rand -hex 24)|" .env
+          done
+          sed -i "s|^GOOGLE_CLIENT_ID=$|GOOGLE_CLIENT_ID=ci.apps.googleusercontent.com|" .env
+          docker compose config --quiet
+      - name: Smoke test (API boots in production mode)
+        run: |
+          docker compose up -d redis api
+          for i in $(seq 1 30); do
+            if docker compose exec -T api curl -fsS http://127.0.0.1:8000/health; then exit 0; fi
+            sleep 3
+          done
+          docker compose logs api
+          exit 1

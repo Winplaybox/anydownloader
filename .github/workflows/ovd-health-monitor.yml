@@ -13,7 +13,7 @@ permissions:
   issues: write
 
 env:
-  API: https://anydownloader-backend-vvbj.onrender.com
+  API: https://api.winplaybox.in
   ORIGIN: https://ovd.winplaybox.in
 
 jobs:

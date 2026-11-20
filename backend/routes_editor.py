@@ -12,13 +12,15 @@ Endpoints:
 """
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import hashlib
 import os
+import time
 import re
 import shutil
-import time
 import uuid
+import logging
 from typing import Any, Dict, Tuple
 
 from starlette.requests import Request
@@ -50,6 +52,7 @@ except (ModuleNotFoundError, ImportError):  # pragma: no cover
     )
     from utils.job_access import job_owner_matches
 
+log = logging.getLogger("wpb.routes_editor")
 DAILY_LIMIT = int(os.environ.get("EDITOR_DAILY_LIMIT", "2"))
 MAX_UPLOAD_MB = int(os.environ.get("EDITOR_MAX_UPLOAD_MB", "100"))
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
@@ -294,6 +297,9 @@ def _field(form: Any, name: str, default: str = "", max_len: int = 200) -> str:
     return str(v).strip()[:max_len]
 
 
+_RESOLUTIONS = ("480", "720", "1080", "1440", "1800", "2160", "4320")
+
+
 def _settings_from_form(form: Any) -> Tuple[Dict[str, Any], str]:
     lang = _field(form, "language", "hi", 10)
     if lang not in opts.LANG_BY_ID:
@@ -318,7 +324,9 @@ def _settings_from_form(form: Any) -> Tuple[Dict[str, Any], str]:
     fmt = _field(form, "format", "vertical", 10)
     if fmt not in ("vertical", "original"):
         fmt = "vertical"
-    res = _field(form, "resolution", "480", 10)
+    res = _field(form, "resolution", "480", 10).lower().rstrip("p")
+    if res not in _RESOLUTIONS:
+        return {}, "Unsupported output resolution."
     return {
         "language": lang, "mode": mode, "caption_style": style, "voice": voice if mode != "original" else None,
         "caption_script": script_kind, "accent": accent.upper(), "format": fmt, "resolution": res,
@@ -348,6 +356,10 @@ async def create_job_handler(request: Request) -> Response:
 
     if _has_active_job(ck):
         return error(request, 409, "JobInProgress", "You already have a video being edited. Please wait for it to finish.")
+    if await asyncio.to_thread(pipeline.pending_count) >= pipeline.MAX_PENDING:
+        resp = error(request, 503, "QueueFull", "The editor is busy right now. Please try again in a few minutes.")
+        resp.headers["Retry-After"] = "120"
+        return resp
 
     try:
         form = await request.form(max_files=1, max_fields=30)
@@ -373,6 +385,9 @@ async def create_job_handler(request: Request) -> Response:
             "quote": quote,
             "upgrade_required": True
         }, status_code=402)
+
+    # Plan limits are enforced by the server, not the browser.
+    settings["max_seconds"] = float(min(float(identity.get("max_duration") or 30), pipeline.MAX_DURATION))
 
     # Initialize job
     job = pipeline.new_job(settings, ck)
@@ -405,11 +420,26 @@ async def create_job_handler(request: Request) -> Response:
             "upgrade_required": True
         }, status_code=402)
 
+    # Billing travels with the job so a separate worker (or a restart) can refund a failure exactly once.
+    ent = ("user", identity["user_id"]) if identity.get("authenticated") and identity.get("user_id") \
+        else ("guest", identity.get("guest_id"))
+    job["billing"] = {"entity_type": ent[0], "entity_id": ent[1], "cost": cost}
+    pipeline.save_job(job)
+
     async def on_finish(j: Dict[str, Any]) -> None:
         if j.get("status") == "failed":
             refund_credit_for_job(identity, amount=cost, job_id=j["id"], reason="Pipeline render failed")
 
-    pipeline.start(job, src_path, on_finish)
+    if pipeline.queue_mode() == "redis":
+        try:
+            await asyncio.to_thread(pipeline.enqueue, job, src_path)
+        except Exception:
+            log.exception("could not enqueue editor job %s", job["id"])
+            refund_credit_for_job(identity, amount=cost, job_id=job["id"], reason="Queue unavailable")
+            shutil.rmtree(pipeline.job_dir(job["id"]), ignore_errors=True)
+            return error(request, 503, "QueueUnavailable", "The editor is temporarily unavailable. Your credits were not used.")
+    else:
+        pipeline.start(job, src_path, on_finish)
     return JSONResponse({
         "ok": True,
         "job": pipeline.public_job(job),
@@ -462,9 +492,17 @@ async def job_file_handler(request: Request) -> Response:
 
 
 async def health_handler(request: Request) -> Response:
+    ffmpeg_ok = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+    try:
+        fonts = sorted(f for f in os.listdir(render.FONTS_DIR) if f.lower().endswith((".ttf", ".otf")))
+    except OSError:
+        fonts = []
     return JSONResponse({
-        "ok": True,
+        "ok": ffmpeg_ok and bool(fonts),
         "service": "ai_video_editor",
+        "ffmpeg": ffmpeg_ok,
+        "fonts": fonts,
+        "queue_mode": pipeline.queue_mode(),
         "concurrency": pipeline.CONCURRENCY,
         "timestamp": time.time()
     }, headers=NO_STORE)

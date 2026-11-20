@@ -32,8 +32,24 @@ const STAGE_LABEL = {
 function fmtMB(bytes) { return `${(bytes / 1024 / 1024).toFixed(1)} MB`; }
 function fmtSec(s) { const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }
 
-async function apiJson(path, opts) {
-  const r = await fetch(`${API}${path}`, opts);
+// Every editor call carries the signed-in session (or guest id) so credits are charged to the right account.
+function authHeaders() {
+  const h = {};
+  try {
+    const token = localStorage.getItem('wpb_token');
+    const guestId = localStorage.getItem('wpb_guest_id');
+    if (token) h.Authorization = `Bearer ${token}`;
+    if (guestId) h['x-guest-id'] = guestId;
+  } catch { /* storage unavailable */ }
+  return h;
+}
+
+async function apiJson(path, opts = {}) {
+  const r = await fetch(`${API}${path}`, {
+    ...opts,
+    credentials: 'include',
+    headers: { ...authHeaders(), ...(opts.headers || {}) },
+  });
   const data = await r.json().catch(() => ({}));
   if (!r.ok || data.ok === false) {
     const err = new Error(data?.error?.message || `Request failed (${r.status})`);
@@ -221,6 +237,8 @@ export default function VideoEditorPage() {
     }).forEach(([k, v]) => fd.append(k, v));
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${API}/jobs`);
+    xhr.withCredentials = true;
+    Object.entries(authHeaders()).forEach(([k, v]) => xhr.setRequestHeader(k, v));
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
       setSubmitting(false);

@@ -160,8 +160,8 @@ export default function SignUpPage() {
       setError('Please enter a valid email address.');
       return;
     }
-    if (!password || password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+    if (!password || password.length < 8) {
+      setError('Password must be at least 8 characters long.');
       return;
     }
 
