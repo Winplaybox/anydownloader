@@ -1,7 +1,7 @@
 # AnyDownloader / OVD Hardening Program
 
-Status: Initial code inspection. This document is a working plan, not a security certification.
-Branch: hardening/p0-security-reliability
+Status: Consolidated implementation in review. This is not a security certification.
+Branch: hardening/full-production-readiness
 Scope: API, workers, jobs, authentication/authorization, Swagger/OpenAPI, observability and regression safety.
 
 ## Guardrails
@@ -10,14 +10,16 @@ Scope: API, workers, jobs, authentication/authorization, Swagger/OpenAPI, observ
 - Add tests and evidence for every security/reliability fix.
 - Treat code inspection findings as confirmed only where source evidence is available. Runtime/deployment findings require environment verification.
 
-## Initial confirmed source observations
-1. backend/security/zero_trust.py: rate_limit() returns allowed on storage exceptions (fail-open).
-2. backend/main.py: EXTENSION_SECRET_KEY has a hard-coded fallback.
-3. docker-compose.yml: ADMIN_API_KEY and TOKEN_HMAC_SECRET have insecure fallback values.
-4. docker-compose.yml: Redis maps 6379 to the host; exposure depends on host/firewall configuration.
-5. backend/job_manager.py: jobs are launched with asyncio.create_task() in the API process.
-6. backend/job_manager.py: startup marks queued/processing jobs failed after restart rather than recovering them.
-7. docker-compose.yml: worker service block is commented out; actual deployment topology must be verified.
+## Initial confirmed source observations and current disposition
+1. Insecure temp-media credentials, compose secret defaults, Redis host exposure, unsigned download payload fallback, extension secret fallback, and default forwarded-IP trust have been addressed by the merged PRs #16–#24.
+2. Remote worker clients no longer contain a hard-coded shared secret; remote delegation is disabled when a secret is absent.
+3. Temporary-media public URL generation uses configured production HTTPS host only.
+4. CDN proxying validates approved media hosts, public DNS answers, and every redirect target. Socket-level DNS pinning remains an open gate.
+5. Process-local token replay storage is rejected in production; shared Redis/Upstash is mandatory.
+6. Job execution is persisted in SQLite with atomic claims, leases, heartbeats, bounded retries, owner capabilities, cancellation, and cleanup. A persistent shared filesystem on a single host is required.
+7. Job result APIs enforce per-job ownership; generated-media download paths are constrained to known names and a retention window.
+8. Production startup validates admin/extension/public URL/job disk configuration; readiness reports dependency checks.
+9. Imported route modules, external worker deployment, full OpenAPI, end-to-end platform regressions, load/soak, and production rollback remain to be certified.
 
 ## Priority sequence
 

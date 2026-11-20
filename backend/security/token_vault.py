@@ -211,16 +211,20 @@ def _build_store():
         try:
             return _RedisStore(url)
         except Exception as e:  # pragma: no cover - network
-            log.error("Redis unavailable (%s); falling back.", type(e).__name__)
+            log.error("Redis unavailable (%s).", type(e).__name__)
     up_url = os.environ.get("UPSTASH_REDIS_REST_URL", "").strip()
     up_tok = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "").strip()
     if up_url and up_tok:
         try:
             return _UpstashStore(up_url, up_tok)
         except Exception as e:  # pragma: no cover - network
-            log.error("Upstash unavailable (%s); falling back.", type(e).__name__)
+            log.error("Upstash unavailable (%s).", type(e).__name__)
     if IS_PRODUCTION:
-        log.warning("Burn store = memory. Run a SINGLE worker or configure REDIS_URL / UPSTASH_REDIS_REST_*.")
+        raise RuntimeError(
+            "A shared Redis/Upstash store is required in production for single-use token replay protection. "
+            "Configure REDIS_URL or UPSTASH_REDIS_REST_URL plus UPSTASH_REDIS_REST_TOKEN."
+        )
+    log.warning("Token burn store = process-local memory (development only).")
     return _MemoryStore()
 
 

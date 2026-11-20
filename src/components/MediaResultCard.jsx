@@ -256,7 +256,7 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
     let failCount = 0;
     const t = setInterval(async () => {
       try {
-        const r = await fetch(`${BACKEND_BASE}/api/jobs/${job.id}`);
+        const r = await fetch(`${BACKEND_BASE}/api/jobs/${job.id}`, { headers: { 'X-Job-Token': job.accessToken } });
         if (!r.ok) {
           failCount++;
           if (failCount >= 4) {
@@ -280,7 +280,10 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
         if (j.job.status === 'done') {
           clearInterval(t);
           setJob((p) => (p ? { ...p, status: 'done', progress: 100 } : null));
-          const dlTarget = j.job.download_url || `${BACKEND_BASE}/api/jobs/${job.id}/file`;
+          const internalFile = `${BACKEND_BASE}/api/jobs/${job.id}/file?access_token=${encodeURIComponent(job.accessToken)}`;
+          const dlTarget = (j.job.download_url || '').startsWith('/api/jobs/')
+            ? `${BACKEND_BASE}${j.job.download_url}?access_token=${encodeURIComponent(job.accessToken)}`
+            : (j.job.download_url || internalFile);
           const a = document.createElement('a');
           a.href = absolute(dlTarget);
           a.download = j.job.filename || 'video.mp4';
@@ -318,7 +321,7 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
       setJob({ id: 'pending', status: 'queued', progress: 15, targetKey });
       const r = await fetch(`${BACKEND_BASE}/api/jobs`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
         body: JSON.stringify({
           action: 'merge',
           tokens,
@@ -329,7 +332,7 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
       });
       const j = await r.json();
       if (r.ok && j.ok && j.job_id) {
-        setJob({ id: j.job_id, status: 'processing', progress: 30, targetKey });
+        setJob({ id: j.job_id, accessToken: j.access_token, status: 'queued', progress: 5, targetKey });
       } else {
         setJob(null);
         startDownload(video, targetKey);
@@ -347,14 +350,20 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
     setDlError(null);
     try {
       const r = await fetch(`${BACKEND_BASE}/api/zip`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens }),
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ tokens }),
       });
-      if (!r.ok) throw new Error('zip');
-      const href = URL.createObjectURL(await r.blob());
-      const a = Object.assign(document.createElement('a'), { href, download: `${safeName(platform)}_photos.zip` });
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(href), 60000);
-      showToast('ZIP saved.');
+      const j = await r.json();
+      if (!r.ok || !j.ok || !j.job_id || !j.access_token) {
+        throw new Error(j.error || 'Could not queue ZIP creation.');
+      }
+      setJob({
+        id: j.job_id,
+        accessToken: j.access_token,
+        status: 'queued',
+        progress: 5,
+        targetKey: 'zip',
+      });
+      showToast('ZIP is being prepared.');
     } catch {
       setDlError({ message: 'Could not create the ZIP. Download the photos one by one instead.' });
     } finally { setZipping(false); }

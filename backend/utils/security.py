@@ -98,6 +98,33 @@ def is_ip_allowed(ip_str: str) -> bool:
     except Exception:
         return False
 
+def verify_public_dns_resolution(target_url: str) -> bool:
+    """Resolve a URL hostname and reject it if any answer is non-public.
+
+    Call immediately before an outbound request and re-check every redirect.
+    This is DNS preflight protection; a transport that pins the resolved address
+    is still required for a strict DNS-rebinding guarantee.
+    """
+    try:
+        parsed = urllib.parse.urlsplit(target_url)
+        if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+            return False
+        host = parsed.hostname
+        try:
+            address = ipaddress.ip_address(host)
+            return is_ip_allowed(str(address)) and address.is_global
+        except ValueError:
+            port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+            answers = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+            resolved = {entry[4][0] for entry in answers if entry and entry[4]}
+            return bool(resolved) and all(
+                is_ip_allowed(address) and ipaddress.ip_address(address).is_global
+                for address in resolved
+            )
+    except (OSError, ValueError, UnicodeError):
+        return False
+
+
 def verify_safe_upstream_url(target_url: str) -> bool:
     """Reject malformed URLs and obvious local/private destinations before fetching.
 

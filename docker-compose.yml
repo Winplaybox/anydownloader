@@ -5,21 +5,31 @@ services:
       dockerfile: Dockerfile
     container_name: ovd-api
     restart: unless-stopped
+    cpus: "${API_CPUS:-2.0}"
+    mem_limit: "${API_MEMORY_LIMIT:-4g}"
+    pids_limit: 256
     # Default to localhost behind a reverse proxy. Direct exposure is opt-in.
     ports:
       - "${API_BIND_ADDRESS:-127.0.0.1}:${PORT:-8000}:8000"
     environment:
       PORT: "8000"
+      WPB_ENV: production
+      JOBS_DIR: /tmp/ovd_jobs
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL}"
       ALLOW_GENERIC_URLS: "${ALLOW_GENERIC_URLS:-true}"
       ADMIN_API_KEY: "${ADMIN_API_KEY:?Set ADMIN_API_KEY}"
       WPB_ADMIN_KEY: "${WPB_ADMIN_KEY:-}"
       TOKEN_HMAC_SECRET: "${TOKEN_HMAC_SECRET:?Set TOKEN_HMAC_SECRET}"
       EXTENSION_SECRET_KEY: "${EXTENSION_SECRET_KEY:?Set EXTENSION_SECRET_KEY}"
       WPB_VAULT_SECRET: "${WPB_VAULT_SECRET:?Set WPB_VAULT_SECRET}"
+      JOB_OWNER_SECRET: "${JOB_OWNER_SECRET:?Set JOB_OWNER_SECRET}"
       COOKIE_POOL_PATH: /app/cookies
       WORKER_URL: "${WORKER_URL:-}"
       WORKER_SECRET: "${WORKER_SECRET:-}"
       WORKER_KEY: "${WORKER_KEY:-}"
+      WORKER_RESULT_HOSTS: "${WORKER_RESULT_HOSTS:-}"
+      WPB_ENABLE_MOCK_CHECKOUT: "0"
+      JOB_MAX_SOURCE_MB: "${JOB_MAX_SOURCE_MB:-1024}"
       AUTOMATION_API_KEY: "${AUTOMATION_API_KEY:-}"
       REDIS_URL: redis://redis:6379/0
     volumes:
@@ -33,8 +43,10 @@ services:
     image: redis:7-alpine
     container_name: ovd-redis
     restart: unless-stopped
+    cpus: "0.50"
+    mem_limit: 512m
     # Redis is private to the Compose network; no host port is published.
-    command: ["redis-server", "--appendonly", "yes", "--protected-mode", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--protected-mode", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

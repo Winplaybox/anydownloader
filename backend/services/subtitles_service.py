@@ -15,7 +15,57 @@ import json
 import urllib.request
 import urllib.parse
 import httpx
+
+try:
+    from backend.utils.security import is_safe_cdn_host, verify_safe_upstream_url, verify_public_dns_resolution
+except (ModuleNotFoundError, ImportError):
+    from utils.security import is_safe_cdn_host, verify_safe_upstream_url, verify_public_dns_resolution
+
+try:
+    from backend.utils.worker_config import get_worker_config, worker_headers
+except (ModuleNotFoundError, ImportError):
+    from utils.worker_config import get_worker_config, worker_headers
 from typing import Dict, Any, List, Optional
+
+def _safe_subtitle_get(client: httpx.Client, url: str, max_bytes: int = 5 * 1024 * 1024):
+    """Fetch a subtitle only from approved public hosts and validate every redirect."""
+    current = url
+    for _ in range(6):
+        try:
+            parsed = urllib.parse.urlsplit(current)
+            if (
+                parsed.scheme != "https" or not parsed.hostname
+                or not is_safe_cdn_host(parsed.hostname)
+                or not verify_safe_upstream_url(current)
+                or not verify_public_dns_resolution(current)
+            ):
+                return None
+            with client.stream("GET", current, follow_redirects=False) as response:
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get("location")
+                    if not location:
+                        return None
+                    current = urllib.parse.urljoin(current, location)
+                    continue
+                if response.status_code != 200:
+                    return None
+                chunks = []
+                total = 0
+                for chunk in response.iter_bytes():
+                    total += len(chunk)
+                    if total > max_bytes:
+                        return None
+                    chunks.append(chunk)
+                return httpx.Response(
+                    status_code=response.status_code,
+                    headers=response.headers,
+                    content=b"".join(chunks),
+                    request=response.request,
+                )
+        except (httpx.HTTPError, OSError, ValueError):
+            return None
+    return None
+
 
 class SubtitlesService:
     def format_seconds_to_srt_time(self, seconds: float) -> str:
@@ -154,7 +204,7 @@ class SubtitlesService:
                     'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8'
                 }
 
-                client = httpx.Client(timeout=12.0, follow_redirects=True, headers=headers)
+                client = httpx.Client(timeout=12.0, follow_redirects=False, headers=headers)
 
                 for label, track_list in candidate_tracks:
                     # Try json3 first, then vtt
@@ -163,7 +213,7 @@ class SubtitlesService:
 
                     if json3_track and json3_track.get('url'):
                         try:
-                            resp = client.get(json3_track['url'])
+                            resp = _safe_subtitle_get(client, json3_track['url'])
                             if resp.status_code == 200 and len(resp.text) > 80:
                                 j_data = resp.json()
                                 segments: List[Dict[str, Any]] = []
@@ -195,7 +245,7 @@ class SubtitlesService:
 
                     if vtt_track and vtt_track.get('url'):
                         try:
-                            resp = client.get(vtt_track['url'])
+                            resp = _safe_subtitle_get(client, vtt_track['url'])
                             if resp.status_code == 200 and len(resp.text) > 80:
                                 raw_vtt = resp.text
                                 vtt_blocks = re.findall(r'(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)\s*-->\s*(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)[^\n]*\n((?:(?!\n\n).)*)', raw_vtt, re.DOTALL)
@@ -230,15 +280,14 @@ class SubtitlesService:
         except Exception:
             # Fallback to PC Worker if local yt-dlp was blocked
             try:
-                worker_url = os.environ.get("WORKER_URL", "https://worker.winplaybox.in").strip().rstrip("/")
-                worker_key = (
-                    os.environ.get("WORKER_SECRET", "").strip()
-                    or os.environ.get("WORKER_KEY", "").strip()
-                    or "wpb_worker_3047a7d0cb90d81830e004fbc0e61f6428f7e3cb"
-                )
-                if worker_url:
-                    headers = {"Content-Type": "application/json", "X-Worker-Key": worker_key, "Authorization": f"Bearer {worker_key}"}
-                    w_resp = httpx.post(f"{worker_url}/extract", json={"url": media_url}, headers=headers, timeout=20.0)
+                worker_config = get_worker_config()
+                if worker_config:
+                    worker_url, worker_key = worker_config
+                    headers = worker_headers(worker_key)
+                    w_resp = httpx.post(
+                        f"{worker_url}/extract", json={"url": media_url},
+                        headers=headers, timeout=20.0, follow_redirects=False,
+                    )
                     if w_resp.status_code == 200:
                         w_data = w_resp.json()
                         w_items = w_data.get("items", []) or []
@@ -253,7 +302,7 @@ class SubtitlesService:
                                 for tr in track_list:
                                     t_url = tr.get("url")
                                     if t_url:
-                                        t_resp = client.get(t_url)
+                                        t_resp = _safe_subtitle_get(client, t_url)
                                         if t_resp.status_code == 200 and len(t_resp.text) > 80:
                                             raw_text = t_resp.text
                                             vtt_blocks = re.findall(r'(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)\s*-->\s*(\d+:\d+:\d+\.\d+|\d+:\d+\.\d+)[^\n]*\n((?:(?!\n\n).)*)', raw_text, re.DOTALL)

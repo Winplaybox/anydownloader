@@ -3,10 +3,16 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any, Dict
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, RedirectResponse
 from starlette.routing import Route
+
+try:
+    from backend.security.zero_trust import client_ip, rate_limit
+except (ModuleNotFoundError, ImportError):
+    from security.zero_trust import client_ip, rate_limit
 
 from backend.services import auth_service, dodo_service
 
@@ -15,6 +21,15 @@ log = logging.getLogger("routes_payments")
 
 async def checkout_handler(request: Request) -> Response:
     """Creates a Dodo Payments checkout session for subscription plans."""
+    cl = request.headers.get("content-length", "")
+    if cl.isdigit() and int(cl) > 32 * 1024:
+        return JSONResponse({"ok": False, "error": "Request body too large."}, status_code=413)
+    allowed, _ = rate_limit("payments:checkout", client_ip(request), 10, 900)
+    if not allowed:
+        return JSONResponse(
+            {"ok": False, "error": "Too many checkout attempts. Try again later."},
+            status_code=429, headers={"Cache-Control": "no-store", "Retry-After": "60"},
+        )
     try:
         body: Dict[str, Any] = await request.json() if request.method == "POST" else {}
     except Exception:
@@ -47,6 +62,9 @@ async def checkout_handler(request: Request) -> Response:
 
 async def webhook_handler(request: Request) -> Response:
     """Receives and verifies Dodo Payments webhooks."""
+    cl = request.headers.get("content-length", "")
+    if cl.isdigit() and int(cl) > 1024 * 1024:
+        return JSONResponse({"ok": False, "error": "Webhook payload too large."}, status_code=413)
     payload_bytes = await request.body()
     headers = {k.lower(): v for k, v in request.headers.items()}
 
@@ -65,7 +83,10 @@ async def webhook_handler(request: Request) -> Response:
 
 
 async def mock_checkout_handler(request: Request) -> Response:
-    """Mock checkout landing page for sandbox testing."""
+    """Mock checkout page is disabled by default and never enabled in production."""
+    production = os.environ.get("WPB_ENV", "").lower() in ("prod", "production") or bool(os.environ.get("RENDER"))
+    if production or os.environ.get("WPB_ENABLE_MOCK_CHECKOUT", "0") != "1":
+        return JSONResponse({"ok": False, "error": "Mock checkout is disabled."}, status_code=404)
     session_id = request.query_params.get("session_id", "mock_session")
     plan_id = request.query_params.get("plan_id", "plan_1")
     user_id = request.query_params.get("user_id", "")

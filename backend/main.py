@@ -45,12 +45,12 @@ except (ModuleNotFoundError, ImportError):
 try:
     from backend.utils.errors import AppError, ErrorCode, error_response
     from backend.utils.url_normalizer import normalize_url
-    from backend.utils.security import verify_download_token
+    from backend.utils.security import verify_download_token, sign_download_token, is_safe_cdn_host, verify_public_dns_resolution
     from backend.extractors.registry import registry
 except ModuleNotFoundError:
     from utils.errors import AppError, ErrorCode, error_response
     from utils.url_normalizer import normalize_url
-    from utils.security import verify_download_token
+    from utils.security import verify_download_token, is_safe_cdn_host, verify_public_dns_resolution
     from extractors.registry import registry
 import html
 import hashlib
@@ -70,6 +70,11 @@ except Exception as _ffmpeg_err:
     pass
 
 from typing import Optional
+
+try:
+    from backend.utils.worker_config import get_worker_config, worker_headers
+except (ModuleNotFoundError, ImportError):
+    from utils.worker_config import get_worker_config, worker_headers
 
 import yt_dlp
 import httpx
@@ -185,27 +190,34 @@ def _yo_extract_opts() -> Dict[str, Any]:
     return robust_opts("extract")
 
 def is_safe_cdn_url(target_url: str) -> bool:
-    """Validates target URL is a public web resource (http/https) and prevents SSRF."""
+    """Accept only configured media CDN domains with public DNS answers."""
     try:
+        parsed = urllib.parse.urlsplit(target_url)
+        hostname = parsed.hostname or ""
+        if not is_safe_cdn_host(hostname):
+            return False
         from backend.utils.security import verify_safe_upstream_url
-        return verify_safe_upstream_url(target_url)
-    except Exception:
-        pass
-    try:
-        from utils.security import verify_safe_upstream_url
-        return verify_safe_upstream_url(target_url)
-    except Exception:
-        pass
-    try:
-        parsed = urllib.parse.urlparse(target_url)
-        if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            return False
-        hostname = parsed.netloc.split(":")[0].strip().lower()
-        if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254"):
-            return False
-        return True
+        return verify_safe_upstream_url(target_url) and verify_public_dns_resolution(target_url)
     except Exception:
         return False
+
+async def _safe_cdn_stream(client, target_url: str, headers=None, max_redirects: int = 5):
+    """Open a CDN stream while re-validating every redirect target."""
+    current = target_url
+    for _ in range(max_redirects + 1):
+        if not await asyncio.to_thread(is_safe_cdn_url, current):
+            raise ValueError("Upstream URL or redirect target is not an approved public CDN.")
+        request = client.build_request("GET", current, headers=headers)
+        response = await client.send(request, stream=True, follow_redirects=False)
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location")
+            await response.aclose()
+            if not location:
+                raise ValueError("Upstream returned a redirect without a location.")
+            current = urllib.parse.urljoin(current, location)
+            continue
+        return response
+    raise ValueError("Upstream exceeded the redirect limit.")
 
 def format_duration(seconds: Optional[int]) -> str:
     if not seconds:
@@ -2201,19 +2213,10 @@ DOWNLOAD_TIMEOUT_S = float(os.environ.get("OVD_DOWNLOAD_TIMEOUT_S", "300"))
 
 
 def _is_public_http_url(u: str) -> bool:
-    """Only public http(s) pages may be handed to yt-dlp (blocks SSRF to localhost / cloud metadata)."""
-    import ipaddress
-    import socket
+    """Require a syntactically safe public URL with only globally routable DNS answers."""
     try:
-        pu = urllib.parse.urlparse(u)
-        if pu.scheme not in ("http", "https") or not pu.hostname:
-            return False
-        infos = socket.getaddrinfo(pu.hostname, pu.port or (443 if pu.scheme == "https" else 80))
-        for info in infos:
-            ip = ipaddress.ip_address(info[4][0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-                return False
-        return True
+        from backend.utils.security import verify_safe_upstream_url, verify_public_dns_resolution
+        return verify_safe_upstream_url(u) and verify_public_dns_resolution(u)
     except Exception:
         return False
 
@@ -2319,27 +2322,39 @@ def run_download_audio_task(source_url: str, quality: str, output_template: str)
 async def _download_via_worker(url: str, kind: str = "video", height: int = 1080, quality: str = "192") -> Optional[str]:
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return None
-    worker_url = os.environ.get("WORKER_URL", "https://worker.winplaybox.in").strip().rstrip("/")
-    worker_key = (
-        os.environ.get("WORKER_SECRET", "").strip()
-        or os.environ.get("WORKER_KEY", "").strip()
-        or "wpb_worker_3047a7d0cb90d81830e004fbc0e61f6428f7e3cb"
-    )
-    if not worker_url:
+    worker_config = get_worker_config()
+    if not worker_config:
         return None
-    headers = {
-        "Content-Type": "application/json",
-        "X-Worker-Key": worker_key,
-        "Authorization": f"Bearer {worker_key}"
-    }
+    worker_url, worker_key = worker_config
+    headers = worker_headers(worker_key)
     payload = {"url": url, "kind": kind, "height": height, "quality": quality}
     try:
-        async with httpx.AsyncClient(timeout=180.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=180.0, follow_redirects=False) as client:
             resp = await client.post(f"{worker_url}/download", json=payload, headers=headers)
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get("ok") and data.get("url"):
-                    return data["url"]
+                result_url = data.get("url") if data.get("ok") else None
+                if isinstance(result_url, str):
+                    parsed_result = urllib.parse.urlsplit(result_url)
+                    configured_host = urllib.parse.urlsplit(worker_url).hostname
+                    extra_hosts = {
+                        value.strip().lower().rstrip(".")
+                        for value in os.environ.get("WORKER_RESULT_HOSTS", "").split(",")
+                        if value.strip()
+                    }
+                    allowed_hosts = {configured_host.lower()} if configured_host else set()
+                    allowed_hosts.update(extra_hosts)
+                    if (
+                        parsed_result.scheme == "https"
+                        and parsed_result.hostname
+                        and parsed_result.hostname.lower().rstrip(".") in allowed_hosts
+                        and parsed_result.username is None
+                        and parsed_result.password is None
+                        and parsed_result.fragment == ""
+                        and parsed_result.port in (None, 443)
+                        and await asyncio.to_thread(verify_public_dns_resolution, result_url)
+                    ):
+                        return result_url
     except Exception as e:
         print(f"[worker_download] Worker download fallback failed: {e}", flush=True)
     return None
@@ -2465,7 +2480,7 @@ async def stream_download_handler(request):
     if not target_url:
         return Response("Missing target stream url", status_code=400)
 
-    if not is_safe_cdn_url(target_url):
+    if not await asyncio.to_thread(is_safe_cdn_url, target_url):
         return Response("Target host not permitted for streaming proxy", status_code=400)
 
     # Set upstream referer matched to platform CDN
@@ -2488,22 +2503,66 @@ async def stream_download_handler(request):
         "Referer": upstream_referer
     }
 
-    client = httpx.AsyncClient(headers=client_headers, follow_redirects=True, timeout=90.0)
+    client = httpx.AsyncClient(headers=client_headers, follow_redirects=False, timeout=90.0)
+    try:
+        upstream_resp = await _safe_cdn_stream(client, target_url, headers=client_headers)
+    except Exception:
+        await client.aclose()
+        return Response("Upstream URL or redirect was rejected.", status_code=502)
 
     async def stream_chunks():
         try:
-            async with client.stream("GET", target_url) as resp:
-                async for chunk in resp.aiter_bytes(chunk_size=1024 * 64):
-                    yield chunk
+            async for chunk in upstream_resp.aiter_bytes(chunk_size=1024 * 64):
+                yield chunk
         finally:
+            await upstream_resp.aclose()
             await client.aclose()
 
     headers = {
         "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8''{safe_filename}',
-        "Content-Type": "application/octet-stream"
+        "Content-Type": upstream_resp.headers.get("content-type", "application/octet-stream"),
     }
+    for key in ("content-length", "content-range", "accept-ranges"):
+        if key in upstream_resp.headers:
+            headers[{"content-length": "Content-Length", "content-range": "Content-Range", "accept-ranges": "Accept-Ranges"}[key]] = upstream_resp.headers[key]
 
-    return StreamingResponse(stream_chunks(), headers=headers)
+    return StreamingResponse(stream_chunks(), status_code=upstream_resp.status_code, headers=headers)
+
+async def readiness_handler(request):
+    production = os.environ.get("WPB_ENV", "").lower() in ("prod", "production") or bool(os.environ.get("RENDER"))
+    checks = {
+        "job_database": False, "token_store": False, "ffmpeg": False,
+        "job_worker": bool(job_manager._worker_task and not job_manager._worker_task.done()),
+        "persistent_jobs_dir_configured": (not production) or bool(os.environ.get("JOBS_DIR")),
+    }
+    try:
+        with job_manager._connect() as conn:
+            conn.execute("SELECT 1").fetchone()
+        checks["job_database"] = True
+    except Exception:
+        pass
+    store_name = getattr(getattr(token_vault, "store", None), "name", "unknown")
+    checks["token_store"] = store_name in ("redis", "upstash") if production else store_name != "unknown"
+    checks["ffmpeg"] = bool(shutil.which("ffmpeg"))
+    if not production and not checks["job_worker"]:
+        checks["job_worker"] = True
+    ready = all(checks.values())
+    return JSONResponse(
+        {"status": "ready" if ready else "not_ready", "checks": checks},
+        status_code=200 if ready else 503,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def queue_metrics_handler(request):
+    try:
+        return JSONResponse(
+            {"ok": True, "queue": job_manager.get_stats()},
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Queue metrics unavailable."}, status_code=503)
+
 
 async def health_handler(request):
     import shutil
@@ -2698,21 +2757,11 @@ async def download_proxy_handler(request):
             target_url = payload["variant_url"]
             filename = payload.get("filename") or filename
         else:
-            # Resilient fallback: recover download payload safely if token signature key rotated
-            try:
-                b64_part = token.split(".", 1)[0] if "." in token else token
-                padding = '=' * (4 - (len(b64_part) % 4)) if len(b64_part) % 4 != 0 else ''
-                raw_data = json.loads(base64.urlsafe_b64decode(b64_part + padding).decode('utf-8'))
-                candidate_u = raw_data.get("u")
-                if candidate_u and is_safe_cdn_url(candidate_u):
-                    target_url = candidate_u
-                    filename = raw_data.get("f") or filename
-            except Exception:
-                pass
+            # Invalid or expired tokens are not authenticated by decoding payload bytes.
 
     if not target_url and url_param:
         clean_u = url_param.strip()
-        if is_safe_cdn_url(clean_u):
+        if await asyncio.to_thread(is_safe_cdn_url, clean_u):
             target_url = clean_u
         elif clean_u.startswith("/api/") or clean_u.startswith("/"):
             target_url = clean_u
@@ -2762,14 +2811,13 @@ async def download_proxy_handler(request):
     if "range" in request.headers:
         req_headers["range"] = request.headers["range"]
 
-    client = httpx.AsyncClient(headers=req_headers, follow_redirects=True, timeout=120.0)
+    client = httpx.AsyncClient(headers=req_headers, follow_redirects=False, timeout=120.0)
 
     try:
-        upstream_req = client.build_request("GET", target_url)
-        upstream_resp = await client.send(upstream_req, stream=True)
+        upstream_resp = await _safe_cdn_stream(client, target_url, headers=req_headers)
     except Exception:
         await client.aclose()
-        return error_response(ErrorCode.UPSTREAM_FAILED, "The platform didn't respond. Try again.")
+        return error_response(ErrorCode.UPSTREAM_FAILED, "The platform didn't respond or returned an unsafe redirect.")
 
     async def stream_generator():
         try:
@@ -3063,57 +3111,131 @@ async def unified_extract_handler(request):
 async def create_job_handler(request):
     try:
         body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "Invalid request body."}, status_code=400)
         tokens = body.get("tokens", [])
         action = body.get("action", "merge")
         url = body.get("url") or body.get("source_url")
         title = body.get("title")
-        height = int(body.get("height", 1080))
-        if not tokens and not url:
-            return JSONResponse({"ok": False, "error": "tokens list or url is required"}, status_code=400)
-        job_id = await job_manager.create_job(tokens, action, source_url=url, height=height, title=title)
-        return JSONResponse({"ok": True, "job_id": job_id})
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        height = body.get("height", 1080)
+        if not tokens:
+            return JSONResponse({"ok": False, "error": "A signed media token is required."}, status_code=400)
+        job_id, access_token = await job_manager.create_job(
+            tokens, action, source_url=url, height=height, title=title,
+            idempotency_key=request.headers.get("idempotency-key"),
+            owner_context=_job_owner_context(request),
+        )
+        return JSONResponse(
+            {"ok": True, "job_id": job_id, "access_token": access_token, "status": "queued"},
+            status_code=202,
+            headers={"Cache-Control": "no-store"},
+        )
+    except (ValueError, TypeError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Could not queue this job. Please retry."}, status_code=503)
+
+
+def _job_owner_context(request):
+    session = (
+        request.cookies.get("wpb_session")
+        or request.cookies.get("wpb_guest")
+        or request.headers.get("x-guest-id", "")
+        or _zt_bearer(request)
+    )
+    binding = hashlib.sha256(session.encode("utf-8")).hexdigest() if session else "anonymous"
+    return f"{_zt_client_ip(request)}:{binding}:{request.headers.get('origin', '')}"
+
+
+def _job_access_token(request):
+    return (
+        request.headers.get("x-job-token", "").strip()
+        or request.query_params.get("access_token", "").strip()
+    )
+
+
+def _public_job(job):
+    allowed = (
+        "id", "action", "status", "progress", "download_url",
+        "filename", "error", "created_at", "updated_at", "attempts",
+    )
+    public = {key: job.get(key) for key in allowed if key in job}
+    if job.get("status") == "failed":
+        public["error"] = "Job failed. Please retry or choose another source."
+    elif job.get("status") == "cancelled":
+        public["error"] = "Job was cancelled."
+    return public
+
 
 async def get_job_handler(request):
     job_id = request.path_params.get("id")
+    if not job_manager.authorize_job(job_id, _job_access_token(request)):
+        return JSONResponse({"ok": False, "error": "Job not found."}, status_code=404)
     job = job_manager.get_job(job_id)
     if not job:
-        return JSONResponse({"ok": False, "error": "Job not found"}, status_code=404)
-    return JSONResponse({"ok": True, "job": {k: v for k, v in job.items() if k != "output_file"}})
+        return JSONResponse({"ok": False, "error": "Job not found."}, status_code=404)
+    return JSONResponse(
+        {"ok": True, "job": _public_job(job)},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def cancel_job_handler(request):
+    job_id = request.path_params.get("id")
+    if not job_manager.cancel_job(job_id, _job_access_token(request)):
+        return JSONResponse({"ok": False, "error": "Job not found."}, status_code=404)
+    return JSONResponse({"ok": True, "status": "cancellation_requested"}, headers={"Cache-Control": "no-store"})
+
 
 async def get_job_file_handler(request):
     job_id = request.path_params.get("id")
+    if not job_manager.authorize_job(job_id, _job_access_token(request)):
+        return JSONResponse({"ok": False, "error": "Job not found."}, status_code=404)
     job = job_manager.get_job(job_id)
     if not job:
-        return JSONResponse({"ok": False, "error": "Job not found"}, status_code=404)
+        return JSONResponse({"ok": False, "error": "Job not found."}, status_code=404)
     if job.get("status") != "done":
         return JSONResponse({
-            "ok": False,
-            "status": job.get("status"),
+            "ok": False, "status": job.get("status"),
             "progress": job.get("progress", 0),
-            "error": "Job is still processing or has failed."
-        }, status_code=400)
+            "error": "Job is still processing or has failed.",
+        }, status_code=409)
     dl = job.get("download_url") or ""
-    if dl and not dl.startswith(("/api/jobs", f"/api/jobs/{job_id}")) and "api/jobs" not in dl:
-        from starlette.responses import RedirectResponse
-        return RedirectResponse(dl, status_code=302)
+    if dl and not dl.startswith("/api/jobs/"):
+        parsed = urllib.parse.urlsplit(dl)
+        if parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password:
+            return RedirectResponse(dl, status_code=302)
+        return JSONResponse({"ok": False, "error": "Invalid job result URL."}, status_code=502)
     filepath = job.get("output_file")
-    if not filepath or not os.path.exists(filepath):
-        return JSONResponse({"ok": False, "error": "File expired"}, status_code=404)
+    if not filepath or not os.path.isfile(filepath):
+        return JSONResponse({"ok": False, "error": "File expired."}, status_code=404)
     filename = job.get("filename") or "download.mp4"
-    return FileResponse(filepath, filename=filename)
+    return FileResponse(filepath, filename=filename, headers={"Cache-Control": "private, no-store"})
+
 
 async def create_zip_handler(request):
     try:
         body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "Invalid request body."}, status_code=400)
         tokens = body.get("tokens", [])
         if not tokens:
-            return JSONResponse({"ok": False, "error": "tokens list is required"}, status_code=400)
-        job_id = await job_manager.create_job(tokens, "zip")
-        return JSONResponse({"ok": True, "job_id": job_id})
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+            return JSONResponse({"ok": False, "error": "Signed media tokens are required."}, status_code=400)
+        job_id, access_token = await job_manager.create_job(
+            tokens, "zip", title=body.get("title"),
+            idempotency_key=request.headers.get("idempotency-key"),
+            owner_context=_job_owner_context(request),
+        )
+        return JSONResponse(
+            {"ok": True, "job_id": job_id, "access_token": access_token, "status": "queued"},
+            status_code=202,
+            headers={"Cache-Control": "no-store"},
+        )
+    except (ValueError, TypeError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Could not queue this ZIP job. Please retry."}, status_code=503)
+
 
 async def proxy_image_handler(request):
     token = request.query_params.get("token")
@@ -3126,21 +3248,11 @@ async def proxy_image_handler(request):
         if payload and payload.get("variant_url"):
             target_url = payload["variant_url"]
         else:
-            # Resilient fallback: decode base64 payload if token HMAC secret rotated or expired
-            try:
-                if "." in token:
-                    b64_part = token.split(".", 1)[0]
-                    padding = '=' * (4 - (len(b64_part) % 4)) if len(b64_part) % 4 != 0 else ''
-                    raw_data = json.loads(base64.urlsafe_b64decode(b64_part + padding).decode('utf-8'))
-                    candidate_u = raw_data.get("u")
-                    if candidate_u and is_safe_cdn_url(candidate_u):
-                        target_url = candidate_u
-            except Exception:
-                pass
+            # Invalid/expired tokens are not accepted by decoding their unsigned payload.
 
     if not target_url and url_param:
         clean_u = url_param.strip()
-        if is_safe_cdn_url(clean_u):
+        if await asyncio.to_thread(is_safe_cdn_url, clean_u):
             target_url = clean_u
 
     # Unwrap /api/stream?url= if present
@@ -3157,7 +3269,7 @@ async def proxy_image_handler(request):
     if not target_url:
         return JSONResponse({"error": "Valid token or permitted CDN url is required"}, status_code=403)
 
-    if not is_safe_cdn_url(target_url):
+    if not await asyncio.to_thread(is_safe_cdn_url, target_url):
         return JSONResponse({"error": "Target CDN host not permitted"}, status_code=403)
 
     # Browser headers with modern User-Agent & Accept to prevent CDN 403 Forbidden
@@ -3171,26 +3283,30 @@ async def proxy_image_handler(request):
 
 
     try:
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-            resp = await client.get(target_url, headers=upstream_headers)
-            # If upstream CDN rejects the custom referer, retry with clean headers
-            if resp.status_code != 200:
-                resp = await client.get(target_url, headers={"User-Agent": USER_AGENT})
-
-            if resp.status_code != 200:
-                return JSONResponse({"error": f"Upstream returned {resp.status_code}"}, status_code=502)
-
-            media_type = resp.headers.get("content-type") or "image/jpeg"
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
+            resp = await _safe_cdn_stream(client, target_url, headers=upstream_headers)
+            media_type = (resp.headers.get("content-type") or "image/jpeg").split(";", 1)[0].lower()
+            if not media_type.startswith("image/"):
+                await resp.aclose()
+                return JSONResponse({"error": "Upstream did not return an image."}, status_code=502)
+            chunks = []
+            total = 0
+            async for chunk in resp.aiter_bytes():
+                total += len(chunk)
+                if total > 25 * 1024 * 1024:
+                    await resp.aclose()
+                    return JSONResponse({"error": "Image exceeds the proxy size limit."}, status_code=413)
+                chunks.append(chunk)
+            await resp.aclose()
             return Response(
-                resp.content,
-                media_type=media_type,
+                b"".join(chunks), media_type=media_type,
                 headers={
                     "Access-Control-Allow-Origin": "*",
                     "Cache-Control": "public, max-age=86400, immutable",
-                }
+                },
             )
-    except Exception as e:
-        return JSONResponse({"error": f"Upstream image fetch failed: {str(e)}"}, status_code=502)
+    except Exception:
+        return JSONResponse({"error": "Upstream image fetch failed or was redirected to an unsafe URL."}, status_code=502)
 
 async def engine_versions_handler(request):
     return JSONResponse({
@@ -3428,24 +3544,39 @@ async def channel_publish_handler(request):
     return JSONResponse(res)
 
 async def video_download_handler(request):
-    filename = request.query_params.get("file")
-    if not filename or not filename.endswith(".mp4"):
-        return JSONResponse({"ok": False, "error": "Invalid file parameter"}, status_code=400)
-    safe_filename = os.path.basename(filename)
-    filepath = os.path.join(tempfile.gettempdir(), safe_filename)
-    if not os.path.exists(filepath):
-        return JSONResponse({"ok": False, "error": "File not found or expired"}, status_code=404)
-    return FileResponse(filepath, media_type="video/mp4", filename=safe_filename)
+    filename = request.query_params.get("file", "")
+    try:
+        from backend.utils.generated_asset import resolve_generated_asset
+    except (ModuleNotFoundError, ImportError):
+        from utils.generated_asset import resolve_generated_asset
+    filepath = resolve_generated_asset(filename, "video")
+    if not filepath:
+        return JSONResponse({"ok": False, "error": "File not found or expired."}, status_code=404)
+    return FileResponse(
+        filepath, media_type="video/mp4", filename=os.path.basename(filepath),
+        headers={"Cache-Control": "private, no-store"},
+    )
+
 
 async def audio_download_handler(request):
-    filename = request.query_params.get("file")
-    if not filename or not (filename.endswith(".mp3") or filename.endswith(".wav")):
-        return JSONResponse({"ok": False, "error": "Invalid file parameter"}, status_code=400)
-    safe_filename = os.path.basename(filename)
-    filepath = os.path.join(tempfile.gettempdir(), safe_filename)
-    if not os.path.exists(filepath):
-        return JSONResponse({"ok": False, "error": "File not found or expired"}, status_code=404)
-    return FileResponse(filepath, media_type="audio/mpeg", filename=safe_filename)
+    filename = request.query_params.get("file", "")
+    token = request.query_params.get("token", "")
+    payload = verify_download_token(token)
+    expected_path = f"/api/v1/audio/download?file={filename}"
+    if filename not in ("wpb_audio_master.mp3", "wpb_audio_master.wav") or not payload or payload.get("variant_url") != expected_path:
+        return JSONResponse({"ok": False, "error": "File not found or expired."}, status_code=404)
+    try:
+        from backend.utils.generated_asset import resolve_generated_asset
+    except (ModuleNotFoundError, ImportError):
+        from utils.generated_asset import resolve_generated_asset
+    filepath = resolve_generated_asset(filename, "audio")
+    if not filepath:
+        return JSONResponse({"ok": False, "error": "File not found or expired."}, status_code=404)
+    media_type = "audio/mpeg" if filename.endswith(".mp3") else "audio/wav"
+    return FileResponse(
+        filepath, media_type=media_type, filename=os.path.basename(filepath),
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 # =====================================================================
@@ -3469,11 +3600,17 @@ async def media_audio_handler(request):
     url = body.get("url", "")
     bitrate = body.get("bitrate", "320k")
 
+    audio_path = "/api/v1/audio/download?file=wpb_audio_master.mp3"
+    try:
+        audio_token = sign_download_token(audio_path, "wpb_audio_master.mp3", ttl_seconds=3600)
+    except RuntimeError:
+        return JSONResponse({"ok": False, "error": "Audio download signing is not configured."}, status_code=503)
+    audio_url = f"{audio_path}&token={urllib.parse.quote(audio_token, safe='')}"
     return JSONResponse({
         "ok": True,
         "format": "mp3",
         "bitrate": bitrate,
-        "audio_url": "/api/v1/audio/download?file=wpb_audio_master.mp3",
+        "audio_url": audio_url,
         "ducking": True,
         "status": "extracted",
         "message": "320kbps MP3 audio stream extracted and normalized."
@@ -4197,6 +4334,7 @@ routes = [
     Route('/api/v1/channels/list', channels_list_handler, methods=['GET']),
     Route('/api/v1/channels/publish', channel_publish_handler, methods=['POST']),
     Route('/api/v1/system/diag', diag_handler, methods=['GET']),
+    Route('/api/v1/system/queue', queue_metrics_handler, methods=['GET']),
     Route('/api/v1/video/generate-reel', generate_reel_handler, methods=['POST']),
     Route('/api/v1/video/download', video_download_handler, methods=['GET']),
     Route('/api/v1/audio/download', audio_download_handler, methods=['GET']),
@@ -4208,6 +4346,7 @@ routes = [
     Route('/api/download', _tracked('download', download_proxy_handler), methods=['GET']),
     Route('/api/jobs', create_job_handler, methods=['POST']),
     Route('/api/jobs/{id}', get_job_handler, methods=['GET']),
+    Route('/api/jobs/{id}/cancel', cancel_job_handler, methods=['POST']),
     Route('/api/jobs/{id}/file', get_job_file_handler, methods=['GET']),
     Route('/api/zip', create_zip_handler, methods=['POST']),
     Route('/api/contact', contact_handler, methods=['POST']),
@@ -4222,6 +4361,7 @@ routes = [
     Route('/admin/update-engines', update_engines_handler, methods=['POST']),
     Route("/", health_handler, methods=["GET"]),
     Route("/health", health_handler, methods=["GET"]),
+    Route("/health/ready", readiness_handler, methods=["GET"]),
     Route("/api/health", health_handler, methods=["GET"]),
     Route("/api/{platform}/extract", platform_extract_handler, methods=["POST"]),
     Route("/api/{platform}/{feature}", platform_extract_handler, methods=["POST"]),
@@ -4241,7 +4381,48 @@ middleware = [
 ]
 
 
-app = Starlette(debug=False, routes=routes, middleware=middleware)
+def _validate_production_configuration():
+    production = os.environ.get("WPB_ENV", "").lower() in ("prod", "production") or bool(os.environ.get("RENDER"))
+    if not production:
+        return
+
+    missing = []
+    if len(EXTENSION_SECRET_KEY) < 32:
+        missing.append("EXTENSION_SECRET_KEY (at least 32 characters)")
+    if len(os.environ.get("JOB_OWNER_SECRET", "").strip()) < 32:
+        missing.append("JOB_OWNER_SECRET (at least 32 characters; keep stable to preserve job access tokens)")
+    if not os.environ.get("PUBLIC_BASE_URL", "").strip():
+        missing.append("PUBLIC_BASE_URL (canonical HTTPS host)")
+    if not os.environ.get("JOBS_DIR", "").strip():
+        missing.append("JOBS_DIR (persistent writable disk path)")
+    admin_key = (os.environ.get("WPB_ADMIN_KEY") or os.environ.get("ADMIN_API_KEY") or "").strip()
+    admin_jwt_configured = bool(
+        os.environ.get("SUPABASE_JWT_SECRET", "").strip()
+        and os.environ.get("WPB_ADMIN_EMAILS", "").strip()
+    )
+    if len(admin_key) < 32 and not admin_jwt_configured:
+        missing.append("WPB_ADMIN_KEY/ADMIN_API_KEY (32+ characters) or Supabase admin JWT configuration")
+
+    public_base = urllib.parse.urlsplit(os.environ.get("PUBLIC_BASE_URL", "").strip())
+    if public_base.scheme != "https" or not public_base.hostname or public_base.username or public_base.password or public_base.query or public_base.fragment:
+        missing.append("PUBLIC_BASE_URL must be a valid absolute HTTPS URL without credentials/query/fragment")
+    store_name = getattr(getattr(token_vault, "store", None), "name", "unknown")
+    if store_name not in ("redis", "upstash"):
+        missing.append("shared Redis/Upstash token replay store")
+    if missing:
+        raise RuntimeError("Production configuration incomplete: " + "; ".join(missing))
+
+    os.makedirs(os.environ["JOBS_DIR"], exist_ok=True)
+    if not os.access(os.environ["JOBS_DIR"], os.W_OK):
+        raise RuntimeError("JOBS_DIR is not writable; configure a persistent writable volume.")
+
+
+async def _startup_job_queue():
+    _validate_production_configuration()
+    job_manager.start()
+
+
+app = Starlette(debug=False, routes=routes, middleware=middleware, on_startup=[_startup_job_queue])
 
 if __name__ == "__main__":
     import uvicorn
