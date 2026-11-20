@@ -55,7 +55,7 @@ TURNSTILE_REQUIRED = os.environ.get("WPB_TURNSTILE_REQUIRED", "0") == "1" and bo
 MAX_BODY_BYTES = int(os.environ.get("WPB_MAX_BODY_BYTES", str(256 * 1024)))
 ISSUE_LIMIT_PER_MIN = int(os.environ.get("WPB_ISSUE_LIMIT_PER_MIN", "40"))
 ADMIN_FAIL_LIMIT = 5          # per 15 minutes per IP
-ADMIN_ONLY_PATH_PREFIXES = ("/admin/", "/api/v1/system/")
+ADMIN_ONLY_PATH_PREFIXES = ("/admin/", "/api/v1/system/", "/api/v1/studio/admin/")
 
 
 # --------------------------------------------------------------------------- #

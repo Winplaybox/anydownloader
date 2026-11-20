@@ -18,6 +18,17 @@ class BrokenStore:
 
 
 class TestProductionSecurityPolicies(unittest.TestCase):
+    def test_studio_admin_routes_are_middleware_guarded(self):
+        protected = "/api/v1/studio/admin/"
+        self.assertIn(protected, zero_trust.ADMIN_ONLY_PATH_PREFIXES)
+        for path in (
+            "/api/v1/studio/admin/users",
+            "/api/v1/studio/admin/activity",
+            "/api/v1/studio/admin/settings",
+            "/api/v1/studio/admin/platforms",
+        ):
+            self.assertTrue(path.startswith(zero_trust.ADMIN_ONLY_PATH_PREFIXES))
+
     def test_admin_lockout_fails_closed_in_production(self):
         original = zero_trust.store
         zero_trust.store = BrokenStore()
