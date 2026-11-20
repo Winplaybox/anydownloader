@@ -102,6 +102,23 @@ class TestDurableJobManager(unittest.IsolatedAsyncioTestCase):
             )
         self.assertNotEqual(first_id, second_id)
 
+
+    async def test_stale_worker_cannot_write_after_lease_expiry(self):
+        job_id, owner_token = await self._create()
+        claimed = self.manager._claim_next_job()
+        self.assertEqual(claimed["id"], job_id)
+        job = {k: claimed.get(k) for k in (
+            "id", "action", "status", "progress", "output_file",
+            "download_url", "filename", "error", "created_at", "lease_owner",
+        )}
+        job["progress"] = 88
+        with self.manager._connect() as conn:
+            conn.execute("UPDATE jobs SET lease_expires_at=? WHERE id=?", (0, job_id))
+            conn.commit()
+        self.manager._save_job_db(job)
+        persisted = self.manager.get_job(job_id)
+        self.assertNotEqual(persisted["progress"], 88)
+
     async def test_queue_schema_migrates_legacy_table(self):
         path = os.path.join(self.temp.name, "legacy.db")
         with sqlite3.connect(path) as conn:
