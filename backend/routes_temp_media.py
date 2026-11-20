@@ -37,6 +37,20 @@ def _authorized(request) -> bool:
                for expected in (auto_key, worker_key, worker_secret))
 
 
+def _ensure_store() -> None:
+    """Create a private storage directory and reject symlinked storage roots."""
+    os.makedirs(STORE_DIR, mode=0o700, exist_ok=True)
+    if os.path.islink(STORE_DIR):
+        raise RuntimeError("TEMP_MEDIA_DIR must not be a symlink.")
+    try:
+        os.chmod(STORE_DIR, 0o700)
+    except OSError:
+        # Permission enforcement is best-effort on platforms without chmod support;
+        # production deployments must use a private writable volume.
+        pass
+
+
+
 def _purge_expired() -> None:
     if not os.path.isdir(STORE_DIR):
         return
@@ -104,8 +118,11 @@ async def upload_handler(request):
         public_base = _public_base(request)
     except (ValueError, RuntimeError):
         return JSONResponse({"ok": False, "error": "Public media URL configuration is invalid."}, status_code=503)
-    _purge_expired()
-    os.makedirs(STORE_DIR, exist_ok=True)
+    try:
+        _ensure_store()
+        _purge_expired()
+    except OSError:
+        return JSONResponse({"ok": False, "error": "Temporary media storage is unavailable."}, status_code=503)
     tmp_path = os.path.join(STORE_DIR, f".upload_{uuid.uuid4().hex}")
     written = 0
     ctype = request.headers.get("content-type", "")
@@ -136,6 +153,13 @@ async def upload_handler(request):
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         return JSONResponse({"ok": False, "error": f"File is larger than {MAX_BYTES // (1024 * 1024)} MB."}, status_code=413)
+    except Exception:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+        return JSONResponse({"ok": False, "error": "Temporary media upload failed."}, status_code=500)
 
     if written == 0:
         if os.path.exists(tmp_path):
@@ -143,7 +167,17 @@ async def upload_handler(request):
         return JSONResponse({"ok": False, "error": "Empty file."}, status_code=400)
 
     media_id = f"{uuid.uuid4().hex}.{_ext_for(filename, file_ctype)}"
-    shutil.move(tmp_path, os.path.join(STORE_DIR, media_id))
+    final_path = os.path.join(STORE_DIR, media_id)
+    try:
+        os.chmod(tmp_path, 0o600)
+        os.replace(tmp_path, final_path)
+    except OSError:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+        return JSONResponse({"ok": False, "error": "Temporary media could not be stored."}, status_code=500)
     return JSONResponse({
         "ok": True, "id": media_id, "url": f"{public_base}/api/temp-media/{media_id}",
         "bytes": written, "expires_at": int(time.time()) + TTL_SECONDS,
