@@ -5,6 +5,11 @@ from typing import Dict, Any, List, Optional
 import yt_dlp
 
 try:
+    from backend.utils.ytdlp_opts import robust_opts as _ytdlp_opts
+except (ModuleNotFoundError, ImportError):
+    from utils.ytdlp_opts import robust_opts as _ytdlp_opts
+
+try:
     from backend.utils.errors import AppError, ErrorCode
 except (ModuleNotFoundError, ImportError):
     try:
@@ -66,21 +71,8 @@ class YouTubeExtractor(BaseExtractor):
 
         loop = asyncio.get_running_loop()
         def _run_ytdlp():
-            ydl_opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "skip_download": True,
-                "socket_timeout": 15,
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": ["android", "ios", "web"]
-                    }
-                },
-                "http_headers": {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                    "Accept-Language": "en-US,en;q=0.9,hi;q=0.8",
-                }
-            }
+            ydl_opts = _ytdlp_opts("extract")
+            ydl_opts["skip_download"] = True
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 return ydl.extract_info(canonical_source, download=False)
 
@@ -114,40 +106,32 @@ class YouTubeExtractor(BaseExtractor):
 
         items: List[MediaItem] = []
 
-        # 1. Video Item (Progressive MP4 variants)
+        # 1. Video Item. Never expose raw googlevideo/HLS (m3u8) URLs: they are IP-bound
+        # and an m3u8 manifest saved as ".mp4" is not a video. Every quality is served by
+        # /api/download_video, which downloads and merges video+audio server-side.
         formats = info.get("formats", [])
-        # Filter for video formats
-        v_fmts = [
-            f for f in formats
-            if f.get("url") and f.get("vcodec") != "none" and (f.get("ext") == "mp4" or f.get("container") == "mp4_dash")
-        ]
-        # Prefer progressive (vcodec != none and acodec != none)
-        prog_fmts = [f for f in v_fmts if f.get("acodec") != "none"]
-        candidate_fmts = prog_fmts if prog_fmts else v_fmts
-        candidate_fmts.sort(key=lambda x: (x.get("height") or 0, x.get("tbr") or 0), reverse=True)
+        heights = sorted({
+            min(int(f.get("height")), 1080)
+            for f in formats
+            if f.get("vcodec") not in (None, "none") and f.get("height")
+            and int(f.get("height")) >= 144
+        }, reverse=True)
+        if not heights:
+            heights = [1080, 720, 480, 360]
 
+        title_q = urllib.parse.quote(re.sub(r'[\\/*?:"<>|]', "", title).strip() or "video")
+        src_q = urllib.parse.quote(canonical_source, safe="")
         v_vars: List[MediaVariant] = []
-        seen_res = set()
-
-        for idx, f in enumerate(candidate_fmts):
-            h = f.get("height") or 720
-            # Cap at 1080p for Phase 1 (no 4K claims)
-            if h > 1080:
-                h = 1080
+        for h in heights:
             q_label = f"{h}p Full HD" if h >= 1080 else f"{h}p HD" if h >= 720 else f"{h}p SD"
-            if q_label in seen_res:
-                continue
-            seen_res.add(q_label)
-
             var = MediaVariant(
-                id=f"yt-{video_id}-{idx}-{h}p",
+                id=f"yt-{video_id}-{h}p",
                 kind="video",
                 ext="mp4",
-                url=f.get("url"),
+                url=f"/api/download_video?url={src_q}&height={h}&title={title_q}",
                 quality=q_label,
-                width=f.get("width"),
                 height=h,
-                hasAudio=True
+                hasAudio=True,
             )
             var.finalize(f"youtube_{video_id}")
             v_vars.append(var)
