@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import urllib.parse
 from typing import AsyncIterator, Dict, Any, Optional, List
 import yt_dlp
 import httpx
@@ -75,7 +76,12 @@ class YtDlpEngine:
 
         # Process Video / Audio formats
         seen_res = set()
+        is_yt = (ctx.platform_id == "youtube")
+        if is_yt:
+            raw_items.extend(self._youtube_items(info, url, title))
         for f in formats:
+            if is_yt:
+                break  # YouTube video/audio are served by /api/download_video|audio (see _youtube_items)
             v_url = f.get("url")
             if not v_url or not v_url.startswith("http"):
                 continue
@@ -185,6 +191,37 @@ class YtDlpEngine:
             items=raw_items,
             raw_payload=info
         )
+
+    @staticmethod
+    def _youtube_items(info: Dict[str, Any], url: str, title: str) -> List[RawItem]:
+        """YouTube variants point at the server-side merge endpoints, never at raw stream URLs.
+
+        Raw yt-dlp URLs are IP-bound to the extraction IP, may be HLS (m3u8) manifests (a text
+        playlist saved as ".mp4") and DASH video-only. /api/download_video merges video+audio
+        with ffmpeg and /api/download_audio returns a real MP3, both proxy-aware.
+        """
+        vid = str(info.get("id") or "")
+        watch = f"https://www.youtube.com/watch?v={vid}" if vid else url
+        src_q = urllib.parse.quote(watch, safe="")
+        title_q = urllib.parse.quote(re.sub(r'[\\/*?:"<>|]', "", title or "").strip() or "video")
+        heights = sorted({
+            min(int(f["height"]), 1080)
+            for f in info.get("formats", [])
+            if f.get("vcodec") not in (None, "none") and f.get("height") and int(f["height"]) >= 144
+        }, reverse=True) or [1080, 720, 480, 360]
+        items: List[RawItem] = []
+        for h in heights:
+            items.append(RawItem(
+                kind="video", url=f"/api/download_video?url={src_q}&height={h}&title={title_q}",
+                label=f"{h}p", ext="mp4", height=h, vcodec="avc1", acodec="mp4a",
+                has_audio=True, needs_merge=False,
+            ))
+        for kbps in (320, 192, 128):
+            items.append(RawItem(
+                kind="audio", url=f"/api/download_audio?url={src_q}&quality={kbps}&title={title_q}",
+                label=f"{kbps}kbps Audio (MP3)", ext="mp3",
+            ))
+        return items
 
     async def open_stream(self, item: RawItem, ctx: ExtractContext) -> AsyncIterator[bytes]:
         headers = item.headers or {"User-Agent": "Mozilla/5.0"}
