@@ -2421,7 +2421,8 @@ async def download_video_handler(request):
             _yt_guard.success()
         final_mp4 = os.path.join(temp_dir, "media.mp4")
         if not os.path.exists(final_mp4):
-            files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if not f.endswith(('.part', '.ytdl'))]
+            files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir)
+                     if f.lower().endswith(('.mp4', '.mkv', '.webm', '.mov', '.m4v'))]
             if files:
                 final_mp4 = files[0]
             else:
