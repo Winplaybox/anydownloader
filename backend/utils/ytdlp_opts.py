@@ -11,7 +11,7 @@ Env (all optional):
   YTDLP_COOKIES        cookies file content
   YTDLP_PROXY          http(s)/socks proxy URL
   YTDLP_DENO_PATH      explicit deno binary
-  YTDLP_PLAYER_CLIENTS comma list, default "default,tv,web_safari,mweb,android_vr"
+  YTDLP_PLAYER_CLIENTS comma list, default "web_embedded,default,tv,web_safari,mweb,android_vr"
 """
 
 from __future__ import annotations
@@ -123,8 +123,35 @@ def cookiefile() -> Optional[str]:
         return dest
 
 
+# web_embedded needs no PO token or login and is what public downloader sites rely on;
+# yt-dlp falls through to the next client for videos that disallow embedding.
+DEFAULT_PLAYER_CLIENTS = "web_embedded,default,tv,web_safari,mweb,android_vr"
+
+
+def failure_reason(err: str) -> str:
+    """Coarse, user-safe failure class for the API response (never raw yt-dlp text)."""
+    e = (err or "").lower()
+    if is_youtube_block(err):
+        return "youtube_block"
+    if "ffmpeg" in e or "ffprobe" in e or "postprocess" in e:
+        return "ffmpeg"
+    if "requested format is not available" in e:
+        return "format"
+    if "no space left" in e or "errno 28" in e:
+        return "disk"
+    if "permission" in e or "errno 13" in e or "read-only" in e:
+        return "permission"
+    if any(t in e for t in ("timed out", "timeout", "connection", "name or service", "ssl", "unable to download webpage")):
+        return "network"
+    if "unsupported url" in e:
+        return "unsupported"
+    if "login" in e or "sign in" in e:
+        return "login_required"
+    return "unknown"
+
+
 def player_clients() -> list:
-    raw = os.environ.get("YTDLP_PLAYER_CLIENTS", "default,tv,web_safari,mweb,android_vr")
+    raw = os.environ.get("YTDLP_PLAYER_CLIENTS", DEFAULT_PLAYER_CLIENTS)
     return [c.strip() for c in raw.split(",") if c.strip()]
 
 

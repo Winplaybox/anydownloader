@@ -2321,8 +2321,9 @@ def _download_error_response(exc: Exception) -> JSONResponse:
         code, status, text = "NOT_FOUND", 404, "This video is unavailable or was removed."
     else:
         code, status, text = "DOWNLOAD_FAILED", 502, "We couldn't prepare this download. Please try again or pick another quality."
-    print(f"[download] error {code}: {msg[:300]}", flush=True)
-    return JSONResponse({"ok": False, "error": {"code": code, "message": text, "retryable": status in (502, 503, 504)}},
+    reason = _yo.failure_reason(msg)
+    print(f"[download] error {code} reason={reason}: {msg[:300]}", flush=True)
+    return JSONResponse({"ok": False, "error": {"code": code, "reason": reason, "message": text, "retryable": status in (502, 503, 504)}},
                         status_code=status)
 
 
