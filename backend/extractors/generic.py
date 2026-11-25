@@ -97,7 +97,7 @@ class GenericExtractor(BaseExtractor):
                     height=best_vid.get("height"),
                     hasAudio=True
                 )
-                v_var1.finalize("web_video")
+                v_var1.finalize("web_video", title=title)
                 variants.append(v_var1)
                 
                 if len(video_formats) > 1:
@@ -112,7 +112,7 @@ class GenericExtractor(BaseExtractor):
                         height=mid_vid.get("height"),
                         hasAudio=True
                     )
-                    v_var2.finalize("web_video_sd")
+                    v_var2.finalize("web_video_sd", title=title)
                     variants.append(v_var2)
             
             if thumb:
@@ -123,7 +123,7 @@ class GenericExtractor(BaseExtractor):
                     url=thumb,
                     quality="Cover Artwork / Image"
                 )
-                i_var.finalize("web_cover")
+                i_var.finalize("web_cover", title=title)
                 variants.append(i_var)
                 
             if variants:
@@ -166,13 +166,13 @@ class GenericExtractor(BaseExtractor):
         if og_video:
             v_url = og_video.group(1)
             v_var = MediaVariant(id="video_og", kind="video", ext="mp4", url=v_url, quality="Original Video Stream")
-            v_var.finalize("extracted_video")
+            v_var.finalize("extracted_video", title=title)
             variants.append(v_var)
 
         if og_image:
             i_url = og_image.group(1)
             i_var = MediaVariant(id="image_og", kind="image", ext="jpg", url=i_url, quality="High Resolution Artwork")
-            i_var.finalize("extracted_image")
+            i_var.finalize("extracted_image", title=title)
             variants.append(i_var)
 
         # Also search for HTML5 <video src="..."> tags
@@ -184,7 +184,7 @@ class GenericExtractor(BaseExtractor):
             if video_tags:
                 v_url = urllib.parse.urljoin(canonical_source, video_tags[0])
                 v_var = MediaVariant(id="video_html5", kind="video", ext="mp4", url=v_url, quality="Direct HTML5 Video")
-                v_var.finalize("web_video")
+                v_var.finalize("web_video", title=title)
                 variants.append(v_var)
 
         if not variants:

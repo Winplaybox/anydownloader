@@ -139,14 +139,14 @@ class RedditExtractor(BaseExtractor):
                     if post_data.get("is_video") and post_data.get("media"):
                         vid_url = post_data["media"]["reddit_video"]["fallback_url"]
                         v_var = MediaVariant(id="video_hd", kind="video", ext="mp4", url=vid_url, quality="HD Video")
-                        v_var.finalize("reddit_video")
+                        v_var.finalize("reddit_video", title=title)
                         media_items.append(MediaItem(index=1, kind="video", variants=[v_var], thumbnail=post_data.get("thumbnail")))
                     elif post_data.get("url_overridden_by_dest"):
                         dest = post_data["url_overridden_by_dest"]
                         if any(dest.lower().endswith(x) for x in (".jpg", ".jpeg", ".png", ".webp", ".gif")):
                             ext = dest.split(".")[-1].split("?")[0]
                             i_var = MediaVariant(id="img_1", kind="image", ext=ext, url=dest, quality="Full Resolution Image")
-                            i_var.finalize("reddit_image")
+                            i_var.finalize("reddit_image", title=title)
                             media_items.append(MediaItem(index=1, kind="image", variants=[i_var], thumbnail=dest))
                             
                     if media_items:

@@ -217,7 +217,7 @@ class TwitterExtractor(BaseExtractor):
                         height=h,
                         hasAudio=False if is_gif else True
                     )
-                    variant.finalize(f"twitter_{tweet_id}")
+                    variant.finalize(f"twitter_{tweet_id}", title=title)
                     parsed_variants.append(variant)
 
                 if parsed_variants:
@@ -254,7 +254,7 @@ class TwitterExtractor(BaseExtractor):
                     width=p.get("width"),
                     height=p.get("height"),
                 )
-                orig_var.finalize(f"twitter_{tweet_id}_photo{p_idx+1}")
+                orig_var.finalize(f"twitter_{tweet_id}_photo{p_idx+1}", title=title)
 
                 large_var = MediaVariant(
                     id=f"tw-{tweet_id}-img{p_idx}-large",
@@ -263,7 +263,7 @@ class TwitterExtractor(BaseExtractor):
                     url=large_url,
                     quality="large",
                 )
-                large_var.finalize(f"twitter_{tweet_id}_photo{p_idx+1}")
+                large_var.finalize(f"twitter_{tweet_id}_photo{p_idx+1}", title=title)
 
                 items.append(MediaItem(
                     index=len(items) + 1,
@@ -306,7 +306,7 @@ class TwitterExtractor(BaseExtractor):
                     width=f.get("width"),
                     hasAudio=True
                 )
-                variant.finalize(f"twitter_{tweet_id}")
+                variant.finalize(f"twitter_{tweet_id}", title=title)
                 parsed_vars.append(variant)
 
             if parsed_vars:

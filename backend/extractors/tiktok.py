@@ -109,7 +109,7 @@ class TikTokExtractor(BaseExtractor):
                         url=img_url,
                         quality="orig",
                     )
-                    var.finalize(f"tiktok_photo_{idx+1}")
+                    var.finalize(f"tiktok_photo_{idx+1}", title=title)
                     items.append(MediaItem(
                         index=idx + 1,
                         kind="image",
@@ -132,7 +132,7 @@ class TikTokExtractor(BaseExtractor):
                     quality="HD (No Watermark)",
                     hasAudio=True
                 )
-                var_hd.finalize("tiktok_video_hd_nowatermark")
+                var_hd.finalize("tiktok_video_hd_nowatermark", title=title)
                 v_vars.append(var_hd)
 
             if play_url and play_url != hd_url:
@@ -144,7 +144,7 @@ class TikTokExtractor(BaseExtractor):
                     quality="No Watermark (MP4)",
                     hasAudio=True
                 )
-                var_nowm.finalize("tiktok_video_nowatermark")
+                var_nowm.finalize("tiktok_video_nowatermark", title=title)
                 v_vars.append(var_nowm)
 
             if wm_url:
@@ -156,7 +156,7 @@ class TikTokExtractor(BaseExtractor):
                     quality="With Watermark (MP4)",
                     hasAudio=True
                 )
-                var_wm.finalize("tiktok_video_watermark")
+                var_wm.finalize("tiktok_video_watermark", title=title)
                 v_vars.append(var_wm)
 
             if v_vars:

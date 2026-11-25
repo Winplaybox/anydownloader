@@ -103,7 +103,7 @@ class PinterestExtractor(BaseExtractor):
                     sizeBytes=best_vid.get("filesize"),
                     hasAudio=True
                 )
-                vid_var.finalize("pinterest_video")
+                vid_var.finalize("pinterest_video", title=title)
                 variants.append(vid_var)
                 
             # If image or thumbnail
@@ -115,7 +115,7 @@ class PinterestExtractor(BaseExtractor):
                     url=thumb,
                     quality="Original High-Res Photo",
                 )
-                img_var.finalize("pinterest_image")
+                img_var.finalize("pinterest_image", title=title)
                 variants.append(img_var)
                 
             if variants:
@@ -158,13 +158,13 @@ class PinterestExtractor(BaseExtractor):
         if og_video_m:
             v_url = og_video_m.group(1)
             v_var = MediaVariant(id="video_main", kind="video", ext="mp4", url=v_url, quality="HD Video")
-            v_var.finalize("pinterest_video")
+            v_var.finalize("pinterest_video", title=title)
             variants.append(v_var)
 
         if og_img_m:
             i_url = og_img_m.group(1).replace("236x", "originals").replace("474x", "originals").replace("736x", "originals")
             i_var = MediaVariant(id="image_orig", kind="image", ext="jpg", url=i_url, quality="Original High-Res Image")
-            i_var.finalize("pinterest_image")
+            i_var.finalize("pinterest_image", title=title)
             variants.append(i_var)
 
         if not variants:

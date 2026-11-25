@@ -46,11 +46,13 @@ try:
     from backend.utils.errors import AppError, ErrorCode, error_response
     from backend.utils.url_normalizer import normalize_url
     from backend.utils.security import verify_download_token, sign_download_token, is_safe_cdn_host, verify_public_dns_resolution
+    from backend.utils.title import summarize_title, make_download_filename, safe_content_disposition
     from backend.extractors.registry import registry
-except ModuleNotFoundError:
+except (ModuleNotFoundError, ImportError):
     from utils.errors import AppError, ErrorCode, error_response
     from utils.url_normalizer import normalize_url
     from utils.security import verify_download_token, is_safe_cdn_host, verify_public_dns_resolution
+    from utils.title import summarize_title, make_download_filename, safe_content_disposition
     from extractors.registry import registry
 import html
 import hashlib
@@ -1897,7 +1899,7 @@ def extract_media_base(url: str, forced_platform: Optional[str] = None):
         size_str = format_size(size_bytes)
         has_audio = f.get("acodec") != "none"
 
-        safe_filename = f"{title_clean}_{height}p.{ext}"
+        safe_filename = make_download_filename(title, platform, f"{height}p", ext)
         if platform == "youtube":
             stream_proxy_url = f"/api/download_video?url={urllib.parse.quote(url)}&height={height}&title={urllib.parse.quote(title_clean)}"
             has_audio = True
@@ -1939,9 +1941,9 @@ def extract_media_base(url: str, forced_platform: Optional[str] = None):
         audio_url = primary_audio.get("url")
         audio_size = format_size(primary_audio.get("filesize") or primary_audio.get("filesize_approx"))
 
-        name_320 = f"{title_clean}_320kbps.mp3"
-        name_192 = f"{title_clean}_192kbps.mp3"
-        name_orig = f"{title_clean}.{primary_audio.get('ext') or 'm4a'}"
+        name_320 = make_download_filename(title, platform, "320kbps", "mp3")
+        name_192 = make_download_filename(title, platform, "192kbps", "mp3")
+        name_orig = make_download_filename(title, platform, "audio", primary_audio.get('ext') or 'm4a')
 
         if platform == "youtube":
             audio_stream_320 = f"/api/download_audio?url={urllib.parse.quote(url)}&quality=320&title={urllib.parse.quote(title_clean)}"
@@ -2404,8 +2406,8 @@ async def download_video_handler(request):
     except Exception:
         height = 720
 
-    clean_title = re.sub(r'[\/*?:"<>|]', "", title).strip() or "video"
-    safe_filename = f"{clean_title}_{height}p.mp4"
+    clean_title = summarize_title(title)
+    safe_filename = make_download_filename(title, "youtube", f"{height}p", "mp4")
     if _is_youtube_url(source_url) and _yt_guard.retry_after() > 0:
         worker_res_url = await _download_via_worker(source_url, "video", height=height)
         if worker_res_url:
@@ -2436,6 +2438,7 @@ async def download_video_handler(request):
             final_mp4,
             media_type="video/mp4",
             filename=safe_filename,
+            headers={"Content-Disposition": safe_content_disposition(safe_filename)},
             background=BackgroundTask(shutil.rmtree, temp_dir, ignore_errors=True)
         )
     except Exception as exc:
@@ -2459,8 +2462,8 @@ async def download_audio_handler(request):
     if not await asyncio.to_thread(_is_public_http_url, source_url):
         return error_response(ErrorCode.URL_INVALID, "That link can't be downloaded.")
     
-    clean_title = re.sub(r'[\/*?:"<>|]', "", title).strip() or "audio"
-    safe_filename = f"{clean_title}_{quality}kbps.mp3"
+    clean_title = summarize_title(title)
+    safe_filename = make_download_filename(title, "youtube", f"{quality}kbps_Audio_MP3", "mp3")
     if _is_youtube_url(source_url) and _yt_guard.retry_after() > 0:
         worker_res_url = await _download_via_worker(source_url, "audio", quality=quality)
         if worker_res_url:
@@ -2490,6 +2493,7 @@ async def download_audio_handler(request):
             final_mp3,
             media_type="audio/mpeg",
             filename=safe_filename,
+            headers={"Content-Disposition": safe_content_disposition(safe_filename)},
             background=BackgroundTask(shutil.rmtree, temp_dir, ignore_errors=True)
         )
     except Exception as exc:
@@ -2549,7 +2553,7 @@ async def stream_download_handler(request):
             await client.aclose()
 
     headers = {
-        "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8''{safe_filename}',
+        "Content-Disposition": safe_content_disposition(filename),
         "Content-Type": upstream_resp.headers.get("content-type", "application/octet-stream"),
     }
     for key in ("content-length", "content-range", "accept-ranges"):
@@ -2802,13 +2806,14 @@ async def download_proxy_handler(request):
     url_param = request.query_params.get("url")
 
     target_url = None
-    filename = request.query_params.get("filename") or "download.mp4"
+    q_filename = request.query_params.get("filename")
+    filename = q_filename or "download.mp4"
 
     if token:
         payload = verify_download_token(token)
         if payload and payload.get("variant_url"):
             target_url = payload["variant_url"]
-            filename = payload.get("filename") or filename
+            filename = q_filename or payload.get("filename") or filename
         else:
             # Invalid or expired tokens are not authenticated by decoding payload bytes.
             target_url = None
@@ -2884,7 +2889,7 @@ async def download_proxy_handler(request):
             await client.aclose()
 
     resp_headers = {
-        "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8\'\'{urllib.parse.quote(safe_filename)}',
+        "Content-Disposition": safe_content_disposition(filename),
         "Cache-Control": "public, max-age=14400",
         "Access-Control-Allow-Origin": "*",
     }

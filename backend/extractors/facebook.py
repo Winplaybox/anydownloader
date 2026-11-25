@@ -145,7 +145,7 @@ class FacebookExtractor(BaseExtractor):
                 height=h,
                 hasAudio=True
             )
-            var.finalize("facebook_video")
+            var.finalize("facebook_video", title=title)
             v_vars.append(var)
 
         items = []

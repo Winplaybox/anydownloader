@@ -86,6 +86,60 @@ function processedTarget(item) {
 
 function safeName(s) { return String(s || 'ovd').replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80) || 'ovd'; }
 
+/**
+ * Summarizes a media title into a concise, readable, filesystem-safe prefix.
+ * E.g. "संकट दूर करने वाली चालीसा 🙏 Hanuman Chalisa #hanuman" -> "Hanuman_Chalisa"
+ * E.g. "Coldplay - Viva La Vida (Official Video)" -> "Coldplay_Viva_La_Vida"
+ */
+export function summarizeTitle(title, maxWords = 5, maxChars = 32) {
+  if (!title) return '';
+  let t = String(title).trim();
+  // 1. Remove URLs
+  t = t.replace(/https?:\/\/\S+|www\.\S+/gi, '');
+  // 2. Remove hashtags
+  t = t.replace(/#\S+/g, '');
+  // 3. Remove common bracketed video noise like (Official Video), [4K], etc.
+  t = t.replace(/\s*[\(\[\{][^\)\]\}]*(?:official|music|video|audio|lyrics?|hd|4k|1080p|remastered|visualizer|mv|shorts?|reels?)[^\)\]\}]*[\)\]\}]/gi, '');
+  // 4. Remove emojis
+  t = t.replace(/[\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+  // 5. Replace separators and illegal filename characters with spaces
+  t = t.replace(/[\/\\:*\?"<>|•~`!@$%^&*()+=\[\]{};,.\-_]+/gu, ' ');
+
+  const words = t.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return '';
+
+  const latinWords = words
+    .map((w) => w.replace(/[^a-zA-Z0-9]/g, ''))
+    .filter(Boolean);
+
+  const targetWords = (latinWords.length >= 2 || (latinWords.length > 0 && words.length <= 3))
+    ? latinWords
+    : words;
+
+  const cleanWords = [];
+  let currLen = 0;
+  for (const w of targetWords) {
+    const wClean = w.replace(/[^\p{L}\p{M}\p{N}]/gu, '');
+    if (!wClean) continue;
+    if (cleanWords.length >= maxWords || (currLen + wClean.length + 1 > maxChars && cleanWords.length > 0)) {
+      break;
+    }
+    cleanWords.push(wClean);
+    currLen += wClean.length + 1;
+  }
+
+  return cleanWords.join('_').replace(/^_+|_+$/g, '').replace(/_+/g, '_');
+}
+
+export function buildDownloadFilename({ title, platform, label, ext }) {
+  const shortTitle = summarizeTitle(title);
+  const plat = safeName(platform || 'media');
+  const cleanLabel = safeName(label || 'download');
+  const cleanExt = String(ext || 'mp4').replace(/^\.+/, '');
+  const base = `${plat}_${cleanLabel}`;
+  return shortTitle ? `${shortTitle}-${base}.${cleanExt}` : `${base}.${cleanExt}`;
+}
+
 /* ---------- component ---------- */
 export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
   const platform = data?.platform || 'social';
@@ -221,7 +275,7 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
   const startDownload = useCallback((item, key) => {
     if (!item || busy) return;
     const ext = item.ext || (item.kind === 'audio' ? 'mp3' : item.kind === 'image' ? 'jpg' : 'mp4');
-    const name = `${safeName(platform)}_${safeName(item.label || 'media')}.${ext}`;
+    const name = buildDownloadFilename({ title, platform, label: item.label, ext });
     const target = processedTarget(item);
     if (target) { runProcessed(item, key, name, target); return; }
 
@@ -248,7 +302,7 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
       a.click();
       setTimeout(() => a.remove(), 200);
     }
-  }, [busy, platform, runProcessed]);
+  }, [busy, platform, title, runProcessed]);
 
   // merge jobs (separate video + audio streams)
   useEffect(() => {
@@ -284,9 +338,13 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
           const dlTarget = (j.job.download_url || '').startsWith('/api/jobs/')
             ? `${BACKEND_BASE}${j.job.download_url}?access_token=${encodeURIComponent(job.accessToken)}`
             : (j.job.download_url || internalFile);
+          const shortTitle = summarizeTitle(title);
+          const fallbackMerge = shortTitle
+            ? `${shortTitle}-${safeName(platform)}_video.mp4`
+            : `${safeName(platform)}_video.mp4`;
           const a = document.createElement('a');
           a.href = absolute(dlTarget);
-          a.download = j.job.filename || 'video.mp4';
+          a.download = j.job.filename || fallbackMerge;
           a.rel = 'noopener noreferrer';
           document.body.appendChild(a);
           a.click();
@@ -349,8 +407,10 @@ export default function MediaResultCard({ data, onReset, onRetry, innerRef }) {
     setZipping(true);
     setDlError(null);
     try {
+      const shortTitle = summarizeTitle(title);
+      const zipName = shortTitle ? `${shortTitle}-${safeName(platform)}_photos.zip` : `${safeName(platform)}_photos.zip`;
       const r = await fetch(`${BACKEND_BASE}/api/zip`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ tokens }),
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ tokens, filename: zipName }),
       });
       const j = await r.json();
       if (!r.ok || !j.ok || !j.job_id || !j.access_token) {

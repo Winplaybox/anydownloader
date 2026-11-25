@@ -133,7 +133,7 @@ class YouTubeExtractor(BaseExtractor):
                 height=h,
                 hasAudio=True,
             )
-            var.finalize(f"youtube_{video_id}")
+            var.finalize(f"youtube_{video_id}", title=title)
             v_vars.append(var)
 
         if v_vars:
@@ -156,7 +156,7 @@ class YouTubeExtractor(BaseExtractor):
             url=maxres_url,
             quality="Max Resolution (1080p)",
         )
-        var_maxres.finalize(f"youtube_{video_id}_thumbnail_maxres")
+        var_maxres.finalize(f"youtube_{video_id}_thumbnail_maxres", title=title)
 
         var_hq = MediaVariant(
             id=f"yt-{video_id}-thumb-hq",
@@ -165,7 +165,7 @@ class YouTubeExtractor(BaseExtractor):
             url=hq_url,
             quality="Standard (480p)",
         )
-        var_hq.finalize(f"youtube_{video_id}_thumbnail")
+        var_hq.finalize(f"youtube_{video_id}_thumbnail", title=title)
 
         items.append(MediaItem(
             index=2,

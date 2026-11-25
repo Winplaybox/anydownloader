@@ -12,14 +12,21 @@ from backend.schema import (
     SubtitleVariant,
 )
 from backend.engines.base import RawResult, RawItem
-from backend.utils.security import sign_download_token
+try:
+    from backend.utils.security import sign_download_token
+    from backend.utils.title import summarize_title
+except (ModuleNotFoundError, ImportError):
+    from utils.security import sign_download_token
+    from utils.title import summarize_title
 
 def sanitize_filename(name: str) -> str:
     clean = re.sub(r'[^a-zA-Z0-9._-]', '_', name)
     return clean[:80]
 
 def normalize_raw_result(raw: RawResult, platform_def: Dict[str, Any], content_type: str) -> NormalizedResult:
-    base_name = sanitize_filename(f"{raw.platform}_{raw.id}")
+    short_title = summarize_title(raw.title)
+    prefix = f"{short_title}-{raw.platform}_{raw.id}" if short_title else f"{raw.platform}_{raw.id}"
+    base_name = sanitize_filename(prefix)
 
     videos: List[VideoVariant] = []
     audios: List[AudioVariant] = []

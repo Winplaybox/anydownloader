@@ -195,7 +195,7 @@ class InstagramExtractor(BaseExtractor):
                                 height=v.get("height"),
                                 hasAudio=True
                             )
-                            var.finalize(f"instagram_{shortcode}")
+                            var.finalize(f"instagram_{shortcode}", title=title or caption)
                             v_vars.append(var)
 
                         if v_vars:
@@ -217,7 +217,7 @@ class InstagramExtractor(BaseExtractor):
                             width=orig_img.get("width"),
                             height=orig_img.get("height"),
                         )
-                        orig_var.finalize(f"instagram_{shortcode}_img{idx+1}")
+                        orig_var.finalize(f"instagram_{shortcode}_img{idx+1}", title=title or caption)
                         items.append(MediaItem(
                             index=len(items) + 1,
                             kind="image",
@@ -275,7 +275,7 @@ class InstagramExtractor(BaseExtractor):
                                 quality=f"{top.get('height')}p" if top.get("height") else "HD",
                                 hasAudio=True if is_video else False
                             )
-                            var.finalize(f"instagram_{shortcode}_{idx+1}")
+                            var.finalize(f"instagram_{shortcode}_{idx+1}", title=title or caption)
                             items.append(MediaItem(
                                 index=len(items) + 1,
                                 kind="video" if is_video else "image",
@@ -297,7 +297,7 @@ class InstagramExtractor(BaseExtractor):
                                 quality=f"{h}p",
                                 hasAudio=True
                             )
-                            var.finalize(f"instagram_{shortcode}")
+                            var.finalize(f"instagram_{shortcode}", title=title or caption)
                             v_vars.append(var)
                     if v_vars:
                         items.append(MediaItem(

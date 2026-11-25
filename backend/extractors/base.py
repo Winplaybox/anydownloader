@@ -1,10 +1,13 @@
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Any, Literal
 try:
     from backend.utils.security import sign_download_token
-except ModuleNotFoundError:
+    from backend.utils.title import summarize_title
+except (ModuleNotFoundError, ImportError):
     from utils.security import sign_download_token
+    from utils.title import summarize_title
 
 MediaKind = Literal['video', 'image']
 
@@ -21,10 +24,12 @@ class MediaVariant:
     hasAudio: Optional[bool] = None
     downloadUrl: Optional[str] = None
 
-    def finalize(self, filename_base: str):
+    def finalize(self, filename_base: str, title: Optional[str] = None):
         ext_clean = self.ext.lstrip('.')
-        filename = f'{filename_base}_{self.quality or self.id}.{ext_clean}'
-        filename = ''.join(c for c in filename if c.isalnum() or c in '._-')[:100]
+        short_title = summarize_title(title) if title else ""
+        prefix = f"{short_title}-{filename_base}" if (short_title and not filename_base.startswith(short_title)) else filename_base
+        filename = f'{prefix}_{self.quality or self.id}.{ext_clean}'
+        filename = re.sub(r'[\/\\:*\?"<>|]+', '_', filename)[:100]
         token = sign_download_token(self.url, filename)
         self.downloadUrl = f'/api/download?token={token}'
 
