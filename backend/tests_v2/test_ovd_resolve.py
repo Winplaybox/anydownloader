@@ -42,6 +42,22 @@ def test_cookies_env_is_normalized(monkeypatch, tmp_path):
     monkeypatch.setattr(yo, "_cookie_cache", None)
 
 
+def test_instagram_session_env_is_normalized(monkeypatch, tmp_path):
+    monkeypatch.setattr(yo, "_cookie_loaded", False)
+    monkeypatch.setattr(yo, "_cookie_cache", None)
+    monkeypatch.setenv("YTDLP_COOKIES", ".youtube.com TRUE / TRUE 0 SID abc")
+    monkeypatch.setenv("INSTAGRAM_SESSION_ID", "mock_ig_session_999")
+    monkeypatch.setenv("INSTAGRAM_USER_ID", "12345678")
+    path = yo.cookiefile()
+    body = open(path).read()
+    assert body.startswith("# Netscape HTTP Cookie File")
+    assert ".youtube.com\tTRUE\t/\tTRUE\t0\tSID\tabc" in body
+    assert ".instagram.com\tTRUE\t/\tTRUE\t2147483647\tsessionid\tmock_ig_session_999" in body
+    assert ".instagram.com\tTRUE\t/\tTRUE\t2147483647\tds_user_id\t12345678" in body
+    monkeypatch.setattr(yo, "_cookie_loaded", False)
+    monkeypatch.setattr(yo, "_cookie_cache", None)
+
+
 @pytest.mark.parametrize("msg,blocked", [
     ("ERROR: [youtube] x: Failed to extract any player response; please report", True),
     ("Sign in to confirm you're not a bot", True),
@@ -50,6 +66,28 @@ def test_cookies_env_is_normalized(monkeypatch, tmp_path):
 ])
 def test_block_detection(msg, blocked):
     assert yo.is_youtube_block(msg) is blocked
+
+
+@pytest.mark.parametrize("msg,blocked", [
+    ("ERROR: [Instagram] abc: Instagram sent an empty media response. Check if this post is accessible in your browser without being logged-in.", True),
+    ("use --cookies for the authentication", True),
+    ("Private video", False),
+])
+def test_instagram_block_detection(msg, blocked):
+    assert yo.is_instagram_block(msg) is blocked
+
+
+def test_ytdlp_engine_maps_instagram_empty_response_to_login_required(monkeypatch):
+    class Boom:
+        def __init__(self, *_a, **_k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def extract_info(self, *_a, **_k):
+            raise Exception("ERROR: [Instagram] C_q8L: Instagram sent an empty media response. Check if this post is accessible in your browser without being logged-in.")
+    monkeypatch.setattr(yte.yt_dlp, "YoutubeDL", Boom)
+    with pytest.raises(AppError) as ei:
+        asyncio.run(yte.YtDlpEngine().extract("https://www.instagram.com/reel/C_q8L/", ExtractContext(url="u")))
+    assert ei.value.code == ErrorCode.LOGIN_REQUIRED
 
 
 def test_ytdlp_engine_maps_bot_check_to_source_blocked_not_private(monkeypatch):

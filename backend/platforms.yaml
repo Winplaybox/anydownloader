@@ -67,26 +67,23 @@
   routes:
     reel:
     - remote_worker
-    - instagram_embed
     - ytdlp
+    - instagram_embed
     - gallerydl
-    - polaris
     post:
     - remote_worker
+    - ytdlp
     - instagram_embed
     - gallerydl
-    - polaris
-    - instaloader
     carousel:
     - remote_worker
+    - ytdlp
     - instagram_embed
     - gallerydl
-    - polaris
-    - instaloader
     story:
     - remote_worker
+    - ytdlp
     - gallerydl
-    - instaloader
   needsCookies: required_for_posts_and_stories
   contentTypes:
   - reel

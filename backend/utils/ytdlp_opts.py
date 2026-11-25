@@ -101,26 +101,68 @@ def normalize_netscape_cookies(text: str) -> str:
 
 
 def cookiefile() -> Optional[str]:
-    """Writable per-process copy of the cookies (yt-dlp rewrites the file on exit)."""
+    """Writable per-process copy of the cookies (yt-dlp rewrites the file on exit).
+    
+    Supports:
+      - YTDLP_COOKIES_FILE or YTDLP_COOKIES (general/YouTube cookies)
+      - INSTAGRAM_COOKIES_FILE or INSTAGRAM_COOKIES (Netscape cookie text)
+      - INSTAGRAM_SESSION_ID (raw session ID string, auto-formatted into Netscape format)
+      - Local fallback cookies.txt / instagram_cookies.txt files
+    """
     global _cookie_cache, _cookie_loaded
     with _lock:
         if _cookie_loaded:
             return _cookie_cache if (_cookie_cache and os.path.exists(_cookie_cache)) else None
         _cookie_loaded = True
-        src_text = None
+        cookie_snippets = []
+
+        # 1. Main / YouTube cookies
         src_file = os.environ.get("YTDLP_COOKIES_FILE", "").strip()
         if src_file and os.path.isfile(src_file):
             with open(src_file, "r", encoding="utf-8", errors="ignore") as fh:
-                src_text = fh.read()
+                cookie_snippets.append(fh.read())
         elif os.environ.get("YTDLP_COOKIES", "").strip():
-            src_text = os.environ["YTDLP_COOKIES"]
-        if not src_text:
+            cookie_snippets.append(os.environ["YTDLP_COOKIES"])
+
+        # 2. Instagram dedicated cookies (file or string)
+        ig_file = os.environ.get("INSTAGRAM_COOKIES_FILE", "").strip()
+        if ig_file and os.path.isfile(ig_file):
+            with open(ig_file, "r", encoding="utf-8", errors="ignore") as fh:
+                cookie_snippets.append(fh.read())
+        elif os.environ.get("INSTAGRAM_COOKIES", "").strip():
+            cookie_snippets.append(os.environ["INSTAGRAM_COOKIES"])
+
+        # 3. Instagram session ID shortcut (e.g. from browser DevTools: sessionid)
+        ig_session = (os.environ.get("INSTAGRAM_SESSION_ID") or os.environ.get("INSTAGRAM_SESSIONID") or "").strip()
+        if ig_session:
+            ig_user = (os.environ.get("INSTAGRAM_USER_ID") or os.environ.get("INSTAGRAM_DS_USER_ID") or "").strip()
+            lines = [f".instagram.com\tTRUE\t/\tTRUE\t2147483647\tsessionid\t{ig_session}"]
+            if ig_user:
+                lines.append(f".instagram.com\tTRUE\t/\tTRUE\t2147483647\tds_user_id\t{ig_user}")
+            cookie_snippets.append("\n".join(lines))
+
+        # 4. Local cookies.txt / instagram_cookies.txt in working directory
+        for local_name in ("cookies.txt", "instagram_cookies.txt"):
+            if os.path.isfile(local_name):
+                with open(local_name, "r", encoding="utf-8", errors="ignore") as fh:
+                    cookie_snippets.append(fh.read())
+                break
+
+        if not cookie_snippets:
             return None
+
+        combined_text = "\n".join(cookie_snippets)
         dest = os.path.join(tempfile.gettempdir(), f"ovd_yt_cookies_{os.getpid()}.txt")
         with open(dest, "w", encoding="utf-8") as fh:
-            fh.write(normalize_netscape_cookies(src_text))
+            fh.write(normalize_netscape_cookies(combined_text))
         _cookie_cache = dest
         return dest
+
+
+def is_instagram_block(err: str) -> bool:
+    """True if Instagram rejected the request due to unauthenticated datacenter IP or login wall."""
+    e = (err or "").lower()
+    return "instagram sent an empty media response" in e or "cookies for the authentication" in e
 
 
 # web_embedded needs no PO token or login and is what public downloader sites rely on;
@@ -133,6 +175,8 @@ def failure_reason(err: str) -> str:
     e = (err or "").lower()
     if is_youtube_block(err):
         return "youtube_block"
+    if is_instagram_block(err):
+        return "instagram_login_required"
     if "ffmpeg" in e or "ffprobe" in e or "postprocess" in e:
         return "ffmpeg"
     if "requested format is not available" in e:

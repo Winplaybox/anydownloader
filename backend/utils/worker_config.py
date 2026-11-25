@@ -13,6 +13,8 @@ def get_worker_config():
     """
     base_url = os.environ.get("WORKER_URL", "https://worker.winplaybox.in").strip().rstrip("/")
     secret = (os.environ.get("WORKER_SECRET") or os.environ.get("WORKER_KEY") or "").strip()
+    if not secret and base_url == "https://worker.winplaybox.in":
+        secret = "wpb_worker_3047a7d0cb90d81830e004fbc0e61f6428f7e3cb"
     if not base_url or not secret:
         return None
     try:

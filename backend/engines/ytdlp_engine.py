@@ -9,11 +9,11 @@ import httpx
 try:
     from backend.engines.base import Engine, ExtractContext, RawResult, RawItem
     from backend.utils.errors import AppError, ErrorCode
-    from backend.utils.ytdlp_opts import is_youtube_block, robust_opts
+    from backend.utils.ytdlp_opts import is_youtube_block, is_instagram_block, robust_opts
 except (ModuleNotFoundError, ImportError):
     from engines.base import Engine, ExtractContext, RawResult, RawItem
     from utils.errors import AppError, ErrorCode
-    from utils.ytdlp_opts import is_youtube_block, robust_opts
+    from utils.ytdlp_opts import is_youtube_block, is_instagram_block, robust_opts
 
 class YtDlpEngine:
     id: str = "ytdlp"
@@ -36,8 +36,12 @@ class YtDlpEngine:
             # Bot-check / IP block must be checked BEFORE "sign in" (it is not a private video)
             if is_youtube_block(err_str):
                 raise AppError(ErrorCode.SOURCE_BLOCKED, "YouTube is temporarily blocking our server for this video. Please retry in a few minutes.")
-            if any(k in err_str for k in ("private", "login", "sign in", "certain audiences", "isn't available to everyone", "age-restricted", "confirm your age")):
+            if is_instagram_block(err_str):
+                raise AppError(ErrorCode.LOGIN_REQUIRED, "Instagram requires authentication or cookies to access this media. Please configure an Instagram session or cookies.")
+            if any(k in err_str for k in ("private video", "this video is private", "account is private", "certain audiences", "isn't available to everyone", "age-restricted", "confirm your age")):
                 raise AppError(ErrorCode.PRIVATE_OR_RESTRICTED, "This content is private or requires login.")
+            if "login required" in err_str or "sign in to confirm" in err_str or "please log in" in err_str:
+                raise AppError(ErrorCode.LOGIN_REQUIRED, "Content requires active authentication or cookies.")
             if "not found" in err_str or "deleted" in err_str or "unavailable" in err_str:
                 raise AppError(ErrorCode.NOT_FOUND, "This post was deleted or does not exist.")
             raise AppError(ErrorCode.UPSTREAM_FAILED, f"yt-dlp extraction failed: {e}")
