@@ -70,7 +70,8 @@ def test_block_detection(msg, blocked):
 
 @pytest.mark.parametrize("msg,blocked", [
     ("ERROR: [Instagram] abc: Instagram sent an empty media response. Check if this post is accessible in your browser without being logged-in.", True),
-    ("use --cookies for the authentication", True),
+    ("ERROR: [Instagram] abc: use --cookies for the authentication", True),
+    ("ERROR: [Reddit] 18j8y4y: Account authentication is required. Use --cookies for the authentication.", False),
     ("Private video", False),
 ])
 def test_instagram_block_detection(msg, blocked):

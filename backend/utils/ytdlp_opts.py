@@ -162,7 +162,7 @@ def cookiefile() -> Optional[str]:
 def is_instagram_block(err: str) -> bool:
     """True if Instagram rejected the request due to unauthenticated datacenter IP or login wall."""
     e = (err or "").lower()
-    return "instagram sent an empty media response" in e or "cookies for the authentication" in e
+    return "[instagram]" in e and ("empty media response" in e or "cookies for the authentication" in e)
 
 
 # web_embedded needs no PO token or login and is what public downloader sites rely on;
