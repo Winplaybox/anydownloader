@@ -129,6 +129,25 @@ def test_instagram_embed_engine(monkeypatch):
     assert r.items[0].kind == "video" and r.author["username"] == "dhrusavlogs"
 
 
+def test_instagram_embed_reel_without_video_raises_no_media(monkeypatch):
+    class Resp:
+        status_code = 200
+        text = '<html><body><img class="EmbeddedMediaImage" src="https://scontent.cdninstagram.com/cover.jpg"/></body></html>'
+
+    class Client:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, url):
+            return Resp()
+
+    monkeypatch.setattr(ig.httpx, "AsyncClient", Client)
+    with pytest.raises(AppError) as ei:
+        asyncio.run(ig.InstagramEmbedEngine().extract(
+            "https://www.instagram.com/reel/De18B6nDB7N/", ExtractContext(url="u", content_type="reel")))
+    assert ei.value.code == ErrorCode.NO_MEDIA
+
+
 def test_unknown_error_codes_exist():
     assert ErrorCode.LOGIN_REQUIRED and ErrorCode.SOURCE_BLOCKED
 

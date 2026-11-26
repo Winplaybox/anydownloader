@@ -91,6 +91,11 @@ class InstagramEmbedEngine:
         for i, v in enumerate(data["videos"]):
             items.append(RawItem(kind="video", url=v, label="Original" if i == 0 else f"Video {i + 1}", ext="mp4"))
         if not data["videos"]:
+            if ctx.content_type == "reel":
+                raise AppError(
+                    ErrorCode.NO_MEDIA,
+                    "Instagram embed exposed no video for this reel (login or session cookies required).",
+                )
             for i, im in enumerate(data["images"]):
                 items.append(RawItem(kind="image", url=im, label=f"Photo {i + 1}", ext="jpg", has_audio=False))
         if not items:
