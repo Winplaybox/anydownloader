@@ -22,8 +22,9 @@ def get_worker_config():
         _ = parsed.port
     except ValueError:
         return None
+    is_loopback = parsed.hostname in ("127.0.0.1", "localhost")
     if (
-        parsed.scheme != "https"
+        (parsed.scheme != "https" and not (parsed.scheme == "http" and is_loopback))
         or not parsed.hostname
         or parsed.username is not None
         or parsed.password is not None
