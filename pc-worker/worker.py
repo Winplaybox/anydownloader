@@ -8,11 +8,14 @@ Endpoints:
     POST /extract   {"url": "..."}   -> {"ok": true, "items": [...], "title": "...", "duration": ...}
     POST /download  {"url": "...", "kind": "video"|"audio", "height": 1080}
          Headers: X-Worker-Key: <WORKER_KEY> or Authorization: Bearer <WORKER_KEY>
+         Returns: {"ok": true, "url": "<signed file URL>"}
 """
 import glob
 import hmac
 import json
 import os
+import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -21,8 +24,7 @@ import threading
 import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
-import requests
+from urllib.parse import parse_qs, urlsplit
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -43,19 +45,51 @@ _load_env(os.path.join(HERE, "worker.env"))
 
 PORT = int(os.environ.get("PORT", "8787"))
 WORKER_KEY = os.environ.get("WORKER_KEY", "").strip()
-OVD_BASE = os.environ.get("OVD_BASE", "https://anydownloader-backend-vvbj.onrender.com").rstrip("/")
-OVD_API_KEY = os.environ.get("OVD_API_KEY", "").strip()
 MAX_HEIGHT = int(os.environ.get("MAX_HEIGHT", "1080"))
 DOWNLOAD_TIMEOUT_S = int(os.environ.get("DOWNLOAD_TIMEOUT_S", "240"))
 COOKIES_FILE = os.environ.get("COOKIES_FILE", "").strip()
 
 NGROK_DOMAIN = os.environ.get("NGROK_DOMAIN", "").strip()
+PUBLIC_BASE = (
+    os.environ.get("WORKER_PUBLIC_BASE_URL", "").strip()
+    or (f"https://{NGROK_DOMAIN}" if NGROK_DOMAIN and "PASTE-YOUR" not in NGROK_DOMAIN else "https://worker.winplaybox.in")
+).rstrip("/")
+MEDIA_DIR = os.environ.get("WORKER_MEDIA_DIR") or os.path.join(tempfile.gettempdir(), "ovd-worker-media")
+FILE_TTL_S = 900
+_FILE_KEY = secrets.token_bytes(32)
+_FILE_NAME = re.compile(r"[0-9a-f]{32}\.(?:mp4|mp3)")
+_FILE_ROUTE = "/download-files/"
+_FILE_TYPES = {"mp4": "video/mp4", "mp3": "audio/mpeg"}
 
 _LOCK = threading.Lock()
 
 
 def log(msg: str) -> None:
     print(time.strftime("[%H:%M:%S] ") + msg, flush=True)
+
+
+def log_event(event: str, **fields) -> None:
+    print(json.dumps({"time": int(time.time()), "event": event, **fields}), flush=True)
+
+
+def _file_signature(name: str, expires: int) -> str:
+    return hmac.digest(_FILE_KEY, f"{name}:{expires}".encode("ascii"), "sha256").hex()
+
+
+def _file_url(name: str, expires: int) -> str:
+    return f"{PUBLIC_BASE}{_FILE_ROUTE}{name}?expires={expires}&sig={_file_signature(name, expires)}"
+
+
+def _valid_file_link(name: str, query: str) -> bool:
+    params = parse_qs(query, keep_blank_values=True)
+    expires_values, sig_values = params.get("expires", []), params.get("sig", [])
+    if len(expires_values) != 1 or len(sig_values) != 1:
+        return False
+    expires, signature = expires_values[0], sig_values[0]
+    if not re.fullmatch(r"[0-9]{1,12}", expires) or not re.fullmatch(r"[0-9a-f]{64}", signature):
+        return False
+    expiry = int(expires)
+    return expiry > time.time() and hmac.compare_digest(signature, _file_signature(name, expiry))
 
 
 def _ffmpeg_dir() -> str:
@@ -293,21 +327,19 @@ def extract_media_info(url: str) -> dict:
     }
 
 
-def download(url: str, kind: str = "video", height: int = 1080, quality: str = "320") -> dict:
-    workdir = tempfile.mkdtemp(prefix="ovd_worker_")
+def download(url: str, kind: str = "video", height: int = 1080, quality: str = "320") -> str:
+    workdir = tempfile.mkdtemp(prefix="job-", dir=MEDIA_DIR)
     try:
         is_audio = kind == "audio"
         if is_audio:
             cmd = [
                 sys.executable, "-m", "yt_dlp",
-                "--no-playlist", "--no-progress", "--restrict-filenames",
+                "--no-playlist", "--no-progress", "--quiet", "--restrict-filenames",
                 "--remote-components", "ejs:github",
                 "-x", "--audio-format", "mp3", "--audio-quality", str(quality),
                 "-o", os.path.join(workdir, "%(id)s.%(ext)s"),
-                "--print", "after_move:%(title)s",
             ]
-            file_pattern = "*.mp3"
-            mime_type = "audio/mpeg"
+            ext = "mp3"
         else:
             fmt = (
                 f"bv*[height<={height}][vcodec^=avc1]+ba[ext=m4a]/"
@@ -315,14 +347,12 @@ def download(url: str, kind: str = "video", height: int = 1080, quality: str = "
             )
             cmd = [
                 sys.executable, "-m", "yt_dlp",
-                "--no-playlist", "--no-progress", "--restrict-filenames",
+                "--no-playlist", "--no-progress", "--quiet", "--restrict-filenames",
                 "--remote-components", "ejs:github",
                 "-f", fmt, "--merge-output-format", "mp4",
                 "-o", os.path.join(workdir, "%(id)s.%(ext)s"),
-                "--print", "after_move:%(title)s",
             ]
-            file_pattern = "*.mp4"
-            mime_type = "video/mp4"
+            ext = "mp4"
 
         deno = shutil.which("deno")
         if deno:
@@ -337,61 +367,22 @@ def download(url: str, kind: str = "video", height: int = 1080, quality: str = "
             cmd += ["--proxy", px]
         cmd.append(url)
 
-        log(f"downloading ({kind}) {url}")
         proc = subprocess.run(
             cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=DOWNLOAD_TIMEOUT_S, **_priority_kwargs(),
         )
         if proc.returncode != 0:
-            raise RuntimeError((proc.stderr or proc.stdout or "yt-dlp failed").strip()[-600:])
-        title = (proc.stdout or "").strip().splitlines()[-1] if proc.stdout.strip() else ""
+            raise RuntimeError("yt-dlp failed")
 
-        files = sorted(glob.glob(os.path.join(workdir, file_pattern)), key=os.path.getsize, reverse=True)
-        if not files:
-            raise RuntimeError(f"yt-dlp finished but no {file_pattern} was produced")
-        path = files[0]
-        size = os.path.getsize(path)
-
-        static_dir = os.environ.get("STATIC_SERVE_DIR", "/var/www/ovd-downloads").strip()
-        public_base = os.environ.get("STATIC_BASE_URL", "https://worker.winplaybox.in/files").strip().rstrip("/")
-        if static_dir and os.path.isdir(static_dir):
-            ext = "mp3" if is_audio else "mp4"
-            unique_name = f"{uuid.uuid4().hex}.{ext}"
-            dest_path = os.path.join(static_dir, unique_name)
-            shutil.copy2(path, dest_path)
-            try:
-                os.chmod(dest_path, 0o644)
-            except Exception:
-                pass
-            url = f"{public_base}/{unique_name}"
-            log(f"downloaded {size // 1024} KB -> served directly at {url}")
-            return {
-                "ok": True,
-                "url": url,
-                "title": title,
-                "bytes": size,
-            }
-
-        log(f"downloaded {size // 1024} KB, uploading to OVD")
-
-        with open(path, "rb") as fh:
-            headers = {
-                "X-API-Key": OVD_API_KEY,
-                "X-Worker-Key": WORKER_KEY,
-                "Authorization": f"Bearer {WORKER_KEY}",
-            }
-            resp = requests.post(
-                f"{OVD_BASE}/api/temp-media",
-                headers=headers,
-                files={"file": (os.path.basename(path), fh, mime_type)},
-                timeout=240,
-            )
-        if resp.status_code != 200:
-            raise RuntimeError(f"OVD upload failed {resp.status_code}: {resp.text[:300]}")
-        data = resp.json()
-        data["title"] = title
-        log(f"uploaded -> {data.get('url')}")
-        return data
+        files = glob.glob(os.path.join(workdir, f"*.{ext}"))
+        path = max(files, key=os.path.getsize, default=None)
+        if not path or not os.path.getsize(path):
+            raise RuntimeError("yt-dlp produced no media")
+        name = f"{uuid.uuid4().hex}.{ext}"
+        published = int(time.time())
+        os.utime(path, (published, published))
+        os.replace(path, os.path.join(MEDIA_DIR, name))
+        return _file_url(name, published + FILE_TTL_S)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
@@ -404,32 +395,50 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(raw)
+        if self.command != "HEAD":
+            self.wfile.write(raw)
 
     def log_message(self, fmt, *args):
         pass
 
     def do_HEAD(self):
-        if self.path.split("?")[0] == "/health":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            return
-        self.send_response(404)
-        self.end_headers()
+        self.do_GET()
 
     def do_GET(self):
-        if self.path.split("?")[0] == "/health":
+        path, _, query = self.path.partition("?")
+        if path == "/health":
             return self._send(200, {"ok": True, "busy": _LOCK.locked(), "max_height": MAX_HEIGHT, "version": "2.0"})
+        if path.startswith(_FILE_ROUTE):
+            return self._serve_file(path[len(_FILE_ROUTE):], query)
         self._send(404, {"ok": False, "error": "not found"})
 
+    def _serve_file(self, name: str, query: str) -> None:
+        if not _FILE_NAME.fullmatch(name):
+            return self._send(404, {"ok": False, "error": "not found"})
+        if not _valid_file_link(name, query):
+            return self._send(403, {"ok": False, "error": "invalid or expired file link"})
+        path = os.path.join(MEDIA_DIR, name)
+        try:
+            if os.path.islink(path):
+                raise FileNotFoundError
+            stream = open(path, "rb")
+        except OSError:
+            return self._send(404, {"ok": False, "error": "not found"})
+        with stream:
+            self.send_response(200)
+            self.send_header("Content-Type", _FILE_TYPES[name.rsplit(".", 1)[1]])
+            self.send_header("Content-Length", str(os.fstat(stream.fileno()).st_size))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            if self.command != "HEAD":
+                shutil.copyfileobj(stream, self.wfile)
+
     def _check_auth(self) -> bool:
-        given = self.headers.get("X-Worker-Key", "")
-        auth = self.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            given = auth[7:].strip()
-        return bool(WORKER_KEY and given and hmac.compare_digest(given.encode(), WORKER_KEY.encode()))
+        scheme, _, token = self.headers.get("Authorization", "").partition(" ")
+        keys = (self.headers.get("X-Worker-Key", ""), token.strip() if scheme.lower() == "bearer" else "")
+        return bool(WORKER_KEY and any(hmac.compare_digest(key.encode(), WORKER_KEY.encode()) for key in keys))
 
     def do_POST(self):
         path = self.path.split("?")[0]
@@ -441,13 +450,23 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             length = int(self.headers.get("Content-Length") or 0)
-            body = json.loads(self.rfile.read(min(length, 50_000)) or b"{}")
-        except Exception:  # noqa: BLE001
+            if not 0 <= length <= 50_000:
+                raise ValueError
+            body = json.loads(self.rfile.read(length) or b"{}")
+            if not isinstance(body, dict):
+                raise ValueError
+        except (ValueError, RecursionError):
             return self._send(400, {"ok": False, "error": "invalid JSON body"})
 
-        url = str(body.get("url", "")).strip()
-        if not (url.startswith("http://") or url.startswith("https://")):
+        url = body.get("url")
+        try:
+            parsed = urlsplit(url.strip()) if isinstance(url, str) else None
+            valid_url = parsed and parsed.scheme in ("http", "https") and parsed.hostname
+        except ValueError:
+            valid_url = False
+        if not valid_url:
             return self._send(400, {"ok": False, "error": "valid http(s) URL required"})
+        url = url.strip()
 
         if path == "/extract":
             try:
@@ -457,21 +476,30 @@ class Handler(BaseHTTPRequestHandler):
                 log(f"EXTRACT ERROR: {exc}")
                 return self._send(502, {"ok": False, "error": str(exc)[:600]})
 
-        # /download
-        if not _LOCK.acquire(timeout=5):
+        kind = body.get("kind", "video")
+        try:
+            height = int(body.get("height") or MAX_HEIGHT)
+            if kind not in ("video", "audio") or height <= 0:
+                raise ValueError
+        except (TypeError, ValueError, OverflowError):
+            return self._send(400, {"ok": False, "error": "invalid kind or height"})
+        quality = str(body.get("quality") or "320")
+
+        if not _LOCK.acquire(blocking=False):
+            log_event("download_busy")
             return self._send(429, {"ok": False, "error": "busy with another download, retry shortly"})
         try:
-            kind = body.get("kind", "video")
-            height = int(body.get("height") or MAX_HEIGHT)
-            quality = str(body.get("quality") or "320")
-            return self._send(200, {"ok": True, **download(url, kind=kind, height=height, quality=quality)})
+            result_url = download(url, kind=kind, height=height, quality=quality)
         except subprocess.TimeoutExpired:
+            log_event("download_timeout", kind=kind)
             return self._send(504, {"ok": False, "error": f"download took longer than {DOWNLOAD_TIMEOUT_S}s"})
         except Exception as exc:  # noqa: BLE001
-            log(f"DOWNLOAD ERROR {exc}")
-            return self._send(502, {"ok": False, "error": str(exc)[:600]})
+            log_event("download_failed", kind=kind, error_type=type(exc).__name__)
+            return self._send(502, {"ok": False, "error": "download failed"})
         finally:
             _LOCK.release()
+        log_event("download_completed", kind=kind)
+        return self._send(200, {"ok": True, "url": result_url})
 
 
 def _find_ngrok() -> str:
@@ -503,34 +531,56 @@ def start_ngrok():
     return proc
 
 
+def _purge_expired_files() -> None:
+    cutoff = time.time() - FILE_TTL_S
+    removed = 0
+    with os.scandir(MEDIA_DIR) as entries:
+        for entry in entries:
+            if not _FILE_NAME.fullmatch(entry.name):
+                continue
+            try:
+                if entry.is_file(follow_symlinks=False) and entry.stat().st_mtime <= cutoff:
+                    os.unlink(entry.path)
+                    removed += 1
+            except OSError as exc:
+                log_event("file_cleanup_failed", error_type=type(exc).__name__)
+    if removed:
+        log_event("files_expired", count=removed)
+
+
 def _start_cleaner_thread() -> None:
     def _loop():
         while True:
             try:
-                static_dir = os.environ.get("STATIC_SERVE_DIR", "/var/www/ovd-downloads").strip()
-                if static_dir and os.path.isdir(static_dir):
-                    cutoff = time.time() - 7200  # 2 hours
-                    for fname in os.listdir(static_dir):
-                        fpath = os.path.join(static_dir, fname)
-                        if os.path.isfile(fpath) and os.path.getmtime(fpath) < cutoff:
-                            try:
-                                os.remove(fpath)
-                            except OSError:
-                                pass
-            except Exception:
-                pass
-            time.sleep(600)
+                _purge_expired_files()
+            except OSError as exc:
+                log_event("file_cleanup_failed", error_type=type(exc).__name__)
+            time.sleep(60)
     threading.Thread(target=_loop, daemon=True).start()
 
 
 def main() -> None:
-    missing = [k for k, v in {"WORKER_KEY": WORKER_KEY, "OVD_API_KEY": OVD_API_KEY}.items() if not v]
-    if missing:
-        sys.exit(f"Missing in worker.env: {', '.join(missing)}")
+    if not WORKER_KEY:
+        sys.exit("Missing in worker.env: WORKER_KEY")
+    try:
+        base = urlsplit(PUBLIC_BASE)
+        _ = base.port
+        if (
+            not base.hostname or base.username is not None or base.password is not None
+            or base.query or base.fragment
+            or (base.scheme != "https" and not (base.scheme == "http" and base.hostname in ("localhost", "127.0.0.1", "::1")))
+        ):
+            raise ValueError
+    except ValueError:
+        sys.exit("WORKER_PUBLIC_BASE_URL must be HTTPS (HTTP is allowed on loopback).")
+    os.makedirs(MEDIA_DIR, mode=0o700, exist_ok=True)
+    if os.path.islink(MEDIA_DIR) or (hasattr(os, "getuid") and os.stat(MEDIA_DIR).st_uid != os.getuid()):
+        sys.exit("WORKER_MEDIA_DIR must be a private directory owned by the worker.")
+    os.chmod(MEDIA_DIR, 0o700)
     _ffmpeg_dir()
     _start_cleaner_thread()
     host = os.environ.get("WORKER_HOST", "0.0.0.0")
-    log(f"OVD Worker v2.0 on http://{host}:{PORT} (uploads to {OVD_BASE})")
+    log_event("worker_started", host=host, port=PORT, file_ttl_s=FILE_TTL_S)
     tunnel = start_ngrok()
     try:
         ThreadingHTTPServer((host, PORT), Handler).serve_forever()
