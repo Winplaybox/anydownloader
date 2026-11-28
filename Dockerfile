@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY backend/requirements.txt requirements.txt
 # The pip "deno" package ships the Deno binary used by yt-dlp's EJS challenge solver.
-RUN pip install --no-cache-dir -r requirements.txt \
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt \
     && python -c "import shutil,sys; sys.exit(0 if shutil.which('deno') else 'deno missing')"
 
 COPY backend/ ./backend/
